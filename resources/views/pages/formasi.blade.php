@@ -1,0 +1,9 @@
+@extends('layouts.app')
+
+@section('page-title', 'Formasi')
+
+@section('content')
+    <div class="mb-8"><p class="text-sm text-slate-500">Rencanakan kebutuhan posisi dan struktur organisasi.</p><h2 class="mt-1 font-display text-3xl font-bold tracking-tight text-slate-950">Perencanaan Formasi</h2></div>
+    <div class="grid gap-5 md:grid-cols-3"><div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Total posisi</p><p class="mt-2 font-display text-3xl font-bold text-slate-950">248</p></div><div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Terisi</p><p class="mt-2 font-display text-3xl font-bold text-sky-600">216</p></div><div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p class="text-sm text-slate-500">Posisi tersedia</p><p class="mt-2 font-display text-3xl font-bold text-emerald-600">32</p></div></div>
+    <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h3 class="font-display text-lg font-bold text-slate-950">Ringkasan formasi per unit</h3><div class="mt-5 overflow-x-auto"><table class="w-full min-w-[620px] text-left text-sm"><thead class="border-b border-slate-200 text-xs uppercase tracking-wider text-slate-400"><tr><th class="pb-3">Unit kerja</th><th class="pb-3">Kebutuhan</th><th class="pb-3">Terisi</th><th class="pb-3">Kekurangan</th></tr></thead><tbody class="divide-y divide-slate-100"><tr><td class="py-4 font-semibold text-slate-700">Operasional</td><td class="py-4 text-slate-500">96</td><td class="py-4 text-slate-500">84</td><td class="py-4 font-semibold text-amber-600">12</td></tr><tr><td class="py-4 font-semibold text-slate-700">Keuangan</td><td class="py-4 text-slate-500">48</td><td class="py-4 text-slate-500">43</td><td class="py-4 font-semibold text-amber-600">5</td></tr></tbody></table></div></div>
+@endsection
