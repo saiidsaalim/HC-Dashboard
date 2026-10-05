@@ -15,16 +15,41 @@ class DatabaseSeeder extends Seeder
      * Seed the application's database.
      */
     public function run(): void
-    {
-        // User::factory(10)->create();
+{
+    User::query()->updateOrCreate(
+        ['email' => 'admin@sig.com'],
+        [
+            'name' => 'Admin',
+            'role' => 'Manager',
+            'password' => Hash::make('password123'),
+        ],
+    );
 
-        User::query()->updateOrCreate(
-            ['email' => 'test@example.com'],
-            [
-                'name' => 'Test User',
-                'role' => 'Super Admin',
-                'password' => Hash::make('password'),
-            ],
-        );
-    }
+    User::query()->updateOrCreate(
+        ['email' => 'manager1@hcm.com'],
+        [
+            'name' => 'manager1',
+            'role' => 'Manager',
+            'password' => Hash::make('password123'),
+        ],
+    );
+
+    User::query()->updateOrCreate(
+        ['email' => 'superadmin@hcm.com'],
+        [
+            'name' => 'Super Admin',
+            'role' => 'Super Admin',
+            'password' => Hash::make('password123'),
+        ],
+    );
+
+    User::query()->updateOrCreate(
+        ['email' => 'manager2@hcm.com'],
+        [
+            'name' => 'manager2',
+            'role' => 'Manager',
+            'password' => Hash::make('password123'),
+        ],
+    );
+}
 }
