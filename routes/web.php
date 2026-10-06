@@ -16,7 +16,13 @@ use App\Http\Controllers\Workforce\WorkCalendarController;
 use App\Http\Controllers\Workforce\WorkScheduleController;
 use Illuminate\Support\Facades\Route;
 
-Route::redirect('/', '/login');
+Route::get('/', function () {
+    if (auth()->check()) {
+        return redirect()->route('dashboard');
+    }
+
+    return view('portal.landing');
+})->name('portal.home');
 
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');

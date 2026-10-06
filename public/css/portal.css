@@ -1,0 +1,104 @@
+/* HC.Portal — landing (Tonasa Corporate Blue-Teal). Semua class diawali "p-" agar tidak bentrok dengan CSS lama. */
+:root{
+  --portal-navy:#002d4b;--portal-primary:#064f6e;--portal-secondary:#0b6b7d;--portal-accent:#2c8a91;
+  --portal-bg:#f5f7f8;--portal-card:#ffffff;--portal-border:#e5e9ed;--portal-text:#1f2933;--portal-muted:#7b8794;
+  --portal-tint:#e6f1f3;--portal-success:#3ecf8e;--portal-danger:#c0392b;
+}
+body.portal{margin:0;background:var(--portal-bg);color:var(--portal-text);font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5}
+body.portal *{box-sizing:border-box}
+body.portal a{color:inherit;text-decoration:none}
+body.portal button{font-family:inherit}
+body.portal [hidden]{display:none!important}
+html{scroll-behavior:smooth}
+.p-wrap{max-width:1200px;margin:0 auto;padding:0 24px}
+
+/* Buttons */
+.p-btn{display:inline-flex;align-items:center;justify-content:center;border:1px solid transparent;border-radius:10px;font-weight:600;font-size:14px;transition:.15s;cursor:pointer}
+.p-btn-light{background:#fff;color:var(--portal-navy);padding:10px 18px}
+.p-btn-light:hover{background:var(--portal-tint)}
+.p-btn-sm{padding:7px 14px;font-size:13px;border-radius:9px}
+.p-btn-ghost{height:42px;padding:0 20px;color:#fff;border-color:rgba(255,255,255,.55)}
+.p-btn-ghost:hover{border-color:#fff;background:rgba(255,255,255,.1)}
+
+/* Header */
+.p-header{position:sticky;top:0;z-index:10;background:var(--portal-navy);border-bottom:1px solid #0b3d5e}
+.p-bar{height:80px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.p-brand img{height:58px;width:auto;display:block}
+.p-hr{display:flex;align-items:center;gap:14px}
+.p-logo{width:58px;height:58px;object-fit:contain;display:block}
+
+/* Hero */
+.p-hero{padding:72px 0 56px;color:#fff;background:
+  linear-gradient(135deg,rgba(0,45,75,.86),rgba(6,79,110,.74) 60%,rgba(11,107,125,.62)),
+  url('../images/tonasa-bg.jpg') center/cover no-repeat}
+.p-eyebrow{font-size:12px;letter-spacing:.14em;font-weight:700;text-transform:uppercase;color:#8fd3d8}
+.p-hero h1{font-size:clamp(28px,4.6vw,46px);line-height:1.15;margin:14px 0;letter-spacing:-.01em}
+.p-hero p{margin:0 0 26px;font-size:16px;color:#cfe0e8}
+.p-acts{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+
+/* Search: ikon bulat, memanjang saat hover/fokus */
+.p-search{position:relative;width:42px;height:42px;transition:width .25s ease}
+.p-search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2;z-index:1;pointer-events:none;transition:stroke .25s}
+.p-search input{width:100%;height:42px;padding:0 0 0 42px;border-radius:999px;border:1px solid rgba(255,255,255,.55);background:rgba(255,255,255,.1);color:transparent;font-size:14px;outline:none;cursor:pointer;transition:background .25s,color .25s,padding .25s}
+.p-search input::placeholder{color:transparent}
+.p-search:hover,.p-search:focus-within{width:min(300px,100%)}
+.p-search:hover input,.p-search input:focus{background:#fff;color:var(--portal-text);cursor:text;padding-right:14px;border-color:#fff}
+.p-search:hover input::placeholder,.p-search input:focus::placeholder{color:var(--portal-muted)}
+.p-search:hover svg,.p-search:focus-within svg{stroke:var(--portal-muted)}
+
+/* Sections */
+.p-sec{padding:56px 0 0}
+.p-h2{margin:0 0 18px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--portal-primary)}
+.p-units{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+.p-ucard{display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:14px;min-height:104px;text-align:left;font-size:14px;color:var(--portal-text);background:var(--portal-card);border:1px solid var(--portal-border);border-radius:16px;padding:22px 24px;box-shadow:0 1px 3px rgba(16,42,67,.06);cursor:pointer;transition:.15s}
+.p-ucard b{font-size:16px}
+.p-ucard:hover{transform:translateY(-2px);border-color:var(--portal-accent)}
+.p-ucard[aria-pressed="true"]{border-color:var(--portal-primary);background:var(--portal-tint);box-shadow:0 0 0 2px var(--portal-primary)}
+.p-ucard:focus-visible{outline:3px solid rgba(11,107,125,.35);outline-offset:2px}
+.p-status{display:inline-flex;align-items:center;gap:6px;font-size:12px;border:1px solid var(--portal-border);border-radius:999px;padding:3px 12px;background:#fff}
+.p-status:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--portal-success)}
+.p-panel{background:var(--portal-card);border:1px solid var(--portal-border);border-radius:16px;padding:22px;box-shadow:0 1px 3px rgba(16,42,67,.06)}
+.p-empty{margin:0;padding:20px 0;text-align:center;color:var(--portal-muted)}
+.p-group{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--portal-muted);margin:0 0 10px}
+.p-tiles+.p-group{margin-top:24px;padding-top:18px;border-top:1px solid var(--portal-border)}
+.p-tiles{display:flex;flex-wrap:wrap;gap:10px}
+.p-tile{width:150px;padding:14px 8px;border-radius:12px;text-align:center;transition:.15s}
+.p-tile:hover{background:var(--portal-tint);transform:translateY(-2px)}
+.p-ic{width:56px;height:56px;margin:0 auto 10px;border-radius:14px;background:var(--c,var(--portal-primary));display:grid;place-items:center;transition:.15s}
+.p-tile:hover .p-ic{filter:brightness(1.12)}
+.p-ic svg{width:26px;height:26px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.p-tile b{display:block;font-size:12.5px;line-height:1.35}
+
+/* Footer */
+.p-footer{margin-top:72px;border-top:1px solid #0b3d5e;padding:28px 0;background:var(--portal-navy);color:#dbe8ef;font-size:12px}
+.p-foot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.p-foot b{color:#fff}
+
+/* Popup login (kotak kecil) */
+.p-modal{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center;padding:16px;overflow:auto;background:rgba(0,32,52,.6);text-align:center}
+.p-modal.on{display:flex}
+.p-box{position:relative;width:100%;max-width:400px;background:#fff;border-radius:18px;padding:24px 28px 26px;box-shadow:0 20px 50px rgba(0,32,52,.35)}
+.p-x{position:absolute;top:12px;right:12px;width:32px;height:32px;border:0;border-radius:50%;background:transparent;color:var(--portal-muted);font-size:20px;line-height:1;cursor:pointer}
+.p-x:hover{background:var(--portal-tint);color:var(--portal-navy)}
+.p-mlogo{width:60px;height:60px;margin:0 auto 8px;display:block}
+.p-box h3{margin:2px 0 0;font-size:22px}
+.p-sub{margin:0 0 16px;color:var(--portal-muted);font-size:13px}
+.p-msg{margin:0 0 12px;font-size:12px;text-align:left}
+.p-err{color:var(--portal-danger)}
+.p-fld{display:flex;margin-bottom:12px;border:1px solid var(--portal-border);border-radius:10px;overflow:hidden;text-align:left}
+.p-fld i{width:46px;display:grid;place-items:center;background:var(--portal-tint)}
+.p-fld svg{width:20px;height:20px;stroke:var(--portal-primary);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.p-fld input{flex:1;min-width:0;height:44px;padding:0 14px;border:0;background:#fff;color:var(--portal-text);font-size:14px;outline:none}
+.p-fld:focus-within{border-color:var(--portal-secondary);box-shadow:0 0 0 3px rgba(11,107,125,.2)}
+.p-row{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--portal-muted);margin:4px 0 18px}
+.p-row label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.p-row a{color:var(--portal-primary)}
+.p-go{display:block;min-width:150px;height:40px;margin:0 auto;padding:0 26px;border:0;border-radius:10px;background:var(--portal-primary);color:#fff;font-weight:700;letter-spacing:.06em;font-size:13px;cursor:pointer;transition:.15s}
+.p-go:hover{background:var(--portal-navy)}
+
+@media(max-width:640px){
+  .p-wrap{padding:0 16px}
+  .p-bar{height:68px}.p-brand img{height:46px}.p-logo{width:46px;height:46px}
+  .p-hero{padding:48px 0 40px}.p-sec{padding-top:40px}
+  .p-tile{width:calc(50% - 5px)}
+}
