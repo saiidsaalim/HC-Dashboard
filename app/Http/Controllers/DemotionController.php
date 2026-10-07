@@ -9,6 +9,7 @@ use App\Imports\DemotionImport;
 use App\Models\EmployeeDemotion;
 use App\Models\User;
 use App\Services\Personnel\ApprovalService;
+use App\Services\Personnel\PersonnelActionGuard;
 use DOMDocument;
 use DOMNodeList;
 use DOMXPath;
@@ -67,14 +68,17 @@ class DemotionController extends Controller
         return to_route('demosi')->with('status', 'Data demosi berhasil ditambahkan.');
     }
 
-    public function update(UpdatePersonnelActionRequest $request, EmployeeDemotion $employeeDemotion): RedirectResponse
-    {
-        $employeeDemotion->update($request->validated());
+    public function update(
+        UpdatePersonnelActionRequest $request,
+        EmployeeDemotion $employeeDemotion,
+        PersonnelActionGuard $personnelActionGuard,
+    ): RedirectResponse {
+        $personnelActionGuard->update($employeeDemotion, $request->validated());
 
         return to_route('demosi')->with('status', 'Data demosi berhasil diperbarui.');
     }
 
-    public function destroyMany(Request $request): RedirectResponse
+    public function destroyMany(Request $request, PersonnelActionGuard $personnelActionGuard): RedirectResponse
     {
         abort_unless($request->user()?->roleEnum() === UserRole::SUPER_ADMIN, 403);
 
@@ -83,7 +87,9 @@ class DemotionController extends Controller
             'demotion_ids.*' => ['integer', 'distinct', 'exists:employee_demotions,id'],
         ]);
 
-        $deleted = EmployeeDemotion::query()->whereIn('id', $validated['demotion_ids'])->delete();
+        $deleted = $personnelActionGuard->deleteMany(
+            EmployeeDemotion::query()->whereIn('id', $validated['demotion_ids']),
+        );
 
         return to_route('demosi')->with('status', "Berhasil menghapus {$deleted} data demosi.");
     }

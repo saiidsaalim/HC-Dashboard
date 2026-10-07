@@ -165,7 +165,7 @@
                     @endif
                 </form>
                 <div class="flex items-center gap-3">
-                    @if ($canManagePromotionRecords)
+                    @if ($canManagePromotionRecords && $promotions->contains(fn($promotion): bool => $promotion->verification_status !== 'Final'))
                         <label class="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-600">
                             <input id="select-all-promotions" type="checkbox"
                                 onchange="document.querySelectorAll('.promotion-checkbox').forEach((checkbox) => checkbox.checked = this.checked)"
@@ -208,9 +208,11 @@
                             <tr>
                                 @if ($canManagePromotionRecords)
                                     <td class="px-4 py-3 text-center">
-                                        <input type="checkbox" name="promotion_ids[]" value="{{ $promotion->id }}"
-                                            class="promotion-checkbox rounded border-slate-300 text-slate-950 focus:ring-amber-400"
-                                            onchange="document.getElementById('select-all-promotions').checked = document.querySelectorAll('.promotion-checkbox').length > 0 && document.querySelectorAll('.promotion-checkbox:not(:checked)').length === 0">
+                                        @if ($promotion->verification_status !== 'Final')
+                                            <input type="checkbox" name="promotion_ids[]" value="{{ $promotion->id }}"
+                                                class="promotion-checkbox rounded border-slate-300 text-slate-950 focus:ring-amber-400"
+                                                onchange="document.getElementById('select-all-promotions').checked = document.querySelectorAll('.promotion-checkbox').length > 0 && document.querySelectorAll('.promotion-checkbox:not(:checked)').length === 0">
+                                        @endif
                                     </td>
                                 @endif
                                 <td class="px-4 py-3 font-semibold text-slate-700">{{ $promotion->sap }}</td>
@@ -312,7 +314,7 @@
                         </div>
                     @endforeach
                 </div>
-                @if ($canManagePromotionRecords)
+                @if ($canManagePromotionRecords && $promotion->verification_status !== 'Final')
                     <details class="mt-8 rounded-xl border border-slate-200 bg-slate-50 p-4">
                         <summary class="cursor-pointer text-sm font-semibold text-slate-700">Edit Data</summary>
                         <form method="POST" action="{{ route('promosi.update', $promotion) }}"
