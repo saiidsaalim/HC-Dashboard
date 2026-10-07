@@ -30,6 +30,7 @@ class RegistrationTest extends TestCase
         ]);
 
         $this->assertAuthenticated();
+<<<<<<< Updated upstream
         $response->assertRedirect(route('dashboard', absolute: false));
         $this->assertDatabaseHas('users', [
             'email' => 'test@example.com',
@@ -86,5 +87,8 @@ class RegistrationTest extends TestCase
         $this->assertSame(':memory:', DB::connection()->getDatabaseName());
 
         $this->artisan('migrate', ['--no-interaction' => true])->assertExitCode(0);
+=======
+        $response->assertRedirect(route('portal', absolute: false));
+>>>>>>> Stashed changes
     }
 }

@@ -7,6 +7,8 @@ use App\Http\Controllers\MutationController;
 use App\Http\Controllers\Organization\DepartmentController;
 use App\Http\Controllers\Organization\PositionController;
 use App\Http\Controllers\Organization\UnitController;
+use App\Http\Controllers\PortalController;
+use App\Http\Controllers\PortalWorkspaceController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\UserManagementController;
@@ -16,9 +18,11 @@ use App\Http\Controllers\Workforce\WorkCalendarController;
 use App\Http\Controllers\Workforce\WorkScheduleController;
 use Illuminate\Support\Facades\Route;
 
-Route::redirect('/', '/login');
+Route::get('/', PortalController::class)->name('portal');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/workspace/{slug}', PortalWorkspaceController::class)->name('portal.workspace');
+
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
     Route::view('/fit-proper', 'pages.fit-proper')->name('fit-proper');
