@@ -56,11 +56,11 @@
                             Import SAP
                         </button>
                     </form>
+                    <button type="button" @click="open = true"
+                        class="rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
+                        Tambah Pegawai
+                    </button>
                 @endif
-                <button type="button" @click="open = true"
-                    class="rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
-                    Tambah Pegawai
-                </button>
             </div>
         </div>
 
@@ -85,11 +85,12 @@
             </div>
         @endif
 
-        <div x-cloak x-show="open" x-transition.opacity @keydown.escape.window="open = false"
-            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 p-4 sm:p-8"
-            @click.self="open = false">
-            <section class="my-4 w-full max-w-6xl rounded-2xl bg-white p-6 shadow-2xl sm:my-8 sm:p-8" role="dialog"
-                aria-modal="true" aria-labelledby="employee-modal-title">
+        @if ($canManageEmployees)
+            <div x-cloak x-show="open" x-transition.opacity @keydown.escape.window="open = false"
+                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 p-4 sm:p-8"
+                @click.self="open = false">
+                <section class="my-4 w-full max-w-6xl rounded-2xl bg-white p-6 shadow-2xl sm:my-8 sm:p-8" role="dialog"
+                    aria-modal="true" aria-labelledby="employee-modal-title">
                 <div class="flex items-start justify-between gap-4">
                     <div>
                         <h3 id="employee-modal-title" class="font-display text-xl font-bold text-slate-950">Tambah Data Pegawai</h3>
@@ -277,8 +278,9 @@
                         </button>
                     </div>
                 </form>
-            </section>
-        </div>
+                </section>
+            </div>
+        @endif
     </div>
 
     <div class="mt-8 space-y-6">

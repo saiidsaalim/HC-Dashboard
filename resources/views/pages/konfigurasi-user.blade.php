@@ -213,10 +213,8 @@
         </div>
     </section>
 
-    @foreach ($users as $user)
-        @php($userRole = $user->roleEnum())
-        @php($canEditUser = $canManageAllRoles || ($userRole !== \App\Enums\UserRole::SUPER_ADMIN && in_array($userRole, [\App\Enums\UserRole::STAFF, \App\Enums\UserRole::MEMBER], true)))
-        @if ($canEditUser)
+    @if ($canManageAllRoles)
+        @foreach ($users as $user)
             <dialog id="user-edit-{{ $user->id }}" @if (old('_form') === 'edit-user-'.$user->id) open @endif
                 class="w-[calc(100%-2rem)] max-w-xl rounded-2xl p-0 shadow-2xl backdrop:bg-slate-950/60">
                 <section class="bg-white p-6 sm:p-8">
@@ -261,6 +259,6 @@
                     </form>
                 </section>
             </dialog>
-        @endif
-    @endforeach
+        @endforeach
+    @endif
 @endsection
