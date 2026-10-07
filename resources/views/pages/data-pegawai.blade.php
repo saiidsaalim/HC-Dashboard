@@ -327,18 +327,17 @@
                             </select>
                         </div>
                         <div>
-                            <label for="employee-status-filter" class="sr-only">Filter Organilk</label>
-                            <select id="employee-status-filter" name="organic_status"
+                            <label for="employee-sort" class="sr-only">Urutkan berdasarkan</label>
+                            <select id="employee-sort" name="sort_by"
                                 class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 sm:w-40">
-                                <option value="">Semua Organilk</option>
-                                @foreach ($organicStatuses as $statusOption)
-                                    <option value="{{ $statusOption }}" @selected($organicStatus === $statusOption)>{{ $statusOption }}</option>
-                                @endforeach
+                                <option value="latest" @selected($sortBy === 'latest')>Terbaru ditambahkan</option>
+                                <option value="organic_newest" @selected($sortBy === 'organic_newest')>Organik terbaru</option>
+                                <option value="organic_oldest" @selected($sortBy === 'organic_oldest')>Organik terlama</option>
                             </select>
                         </div>
                         <div class="col-span-2 flex gap-2 sm:col-span-1">
                             <button type="submit" class="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700">Cari</button>
-                            @if ($search !== '' || $department !== '' || $position !== '' || $departmentId !== '' || $unitId !== '' || $positionId !== '' || $organicStatus !== '')
+                            @if ($search !== '' || $department !== '' || $position !== '' || $departmentId !== '' || $unitId !== '' || $positionId !== '' || $sortBy !== 'latest')
                                 <a href="{{ route('data-pegawai') }}" class="rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50">Reset</a>
                             @endif
                         </div>
