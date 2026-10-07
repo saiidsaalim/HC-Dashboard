@@ -2,70 +2,101 @@
 
 namespace App\Services\Workforce;
 
+use App\Enums\WorkScheduleCalculationType;
 use App\Models\WorkCalendar;
 use App\Models\WorkSchedule;
 use Illuminate\Validation\ValidationException;
 
 class WorkCalendarService
 {
-    public function calculateWorkingDays(?WorkCalendar $calendar, ?WorkSchedule $schedule): int
+    public function calculateTotalDays(int $assessmentYear): int
     {
-        $calendar = $this->requireCalendar($calendar);
-        $schedule = $this->requireSchedule($schedule);
-        $isDayshift = $schedule->code === config('workforce.dayshift_schedule_code');
-        $totalDays = $calendar->total_days;
-        $annualLeave = $calendar->annual_leave;
-        $commonLeave = $calendar->common_leave;
-        $nationalHoliday = $isDayshift ? $calendar->national_holiday : 0;
-        $saturdayDays = $isDayshift ? $calendar->saturday_days : 0;
-        $sundayDays = $isDayshift ? $calendar->sunday_days : 0;
+        return ($assessmentYear % 400 === 0 || ($assessmentYear % 4 === 0 && $assessmentYear % 100 !== 0))
+            ? 366
+            : 365;
+    }
 
-        $workingDays = $totalDays - $annualLeave - $nationalHoliday - $commonLeave - $saturdayDays - $sundayDays;
+    public function calculateWorkingDays(
+        int $assessmentYear,
+        ?WorkCalendar $calendar,
+        ?WorkSchedule $schedule,
+    ): int {
+        $calendar = $this->requireCalendarForYear($assessmentYear, $calendar);
+        $calculationType = $this->requireCalculationType($schedule);
+        $totalDays = $this->calculateTotalDays($assessmentYear);
+        $nationalHoliday = $calculationType === WorkScheduleCalculationType::Dayshift
+            ? $calendar->national_holiday
+            : 0;
+        $saturdayDays = $calculationType === WorkScheduleCalculationType::Dayshift
+            ? $calendar->saturday_days
+            : 0;
+        $sundayDays = $calculationType === WorkScheduleCalculationType::Dayshift
+            ? $calendar->sunday_days
+            : 0;
+
+        $workingDays = $totalDays
+            - $calendar->annual_leave
+            - $nationalHoliday
+            - $calendar->common_leave
+            - $saturdayDays
+            - $sundayDays;
 
         return max(0, $workingDays);
     }
 
-    public function calculateWorkingHoursPerYear(?WorkCalendar $calendar, ?WorkSchedule $schedule): string
-    {
-        $workingDays = $this->calculateWorkingDays($calendar, $schedule);
-        $schedule = $this->requireSchedule($schedule);
-        $dailyHoursHundredths = $this->decimalToScaledInteger($schedule->working_hours_per_day, 2, 'working_hours_per_day');
-        $annualHoursHundredths = $workingDays * $dailyHoursHundredths;
+    public function calculateWorkingHoursPerYear(
+        int $assessmentYear,
+        ?WorkCalendar $calendar,
+        ?WorkSchedule $schedule,
+    ): string {
+        $workingDays = $this->calculateWorkingDays($assessmentYear, $calendar, $schedule);
+        $calculationType = $this->requireCalculationType($schedule);
+        $dailyHoursHundredths = $this->decimalToScaledInteger(
+            $calculationType->workingHoursPerDay(),
+            2,
+            'working_hours_per_day',
+        );
 
-        return $this->formatHundredths($annualHoursHundredths);
+        return $this->formatScaledInteger($workingDays * $dailyHoursHundredths, 2);
     }
 
-    public function calculateEffectiveWorkingHours(string|int|float $workingHours, string|int|float $efficiencyFactor): string
-    {
+    public function calculateEffectiveWorkingHours(
+        string|int|float $workingHours,
+        string|int|float $efficiencyFactor,
+    ): string {
         $workingHoursHundredths = $this->decimalToScaledInteger($workingHours, 2, 'working_hours');
         $efficiencyTenThousandths = $this->efficiencyFactorToTenThousandths($efficiencyFactor);
+        $effectiveHundredths = intdiv(
+            ($workingHoursHundredths * $efficiencyTenThousandths) + 5000,
+            10000,
+        );
 
-        $effectiveHundredths = intdiv(($workingHoursHundredths * $efficiencyTenThousandths) + 5000, 10000);
-
-        return $this->formatHundredths($effectiveHundredths);
+        return $this->formatScaledInteger($effectiveHundredths, 2);
     }
 
     public function calculateEffectiveHoursPerMonth(string|int|float $effectiveWorkingHours): string
     {
-        return $this->divideHundredths($this->decimalToScaledInteger($effectiveWorkingHours, 2, 'effective_working_hours'), 12);
+        return $this->divideHundredths(
+            $this->decimalToScaledInteger($effectiveWorkingHours, 2, 'effective_working_hours'),
+            12,
+        );
     }
 
-    public function calculateEffectiveHoursPerWeek(string|int|float $effectiveWorkingHours, ?WorkCalendar $calendar): string
+    public function calculateEffectiveHoursPerWeek(string|int|float $effectiveWorkingHours): string
     {
-        $calendar = $this->requireCalendar($calendar);
-
-        if ($calendar->total_weeks < 1) {
-            throw ValidationException::withMessages([
-                'total_weeks' => 'Work Calendar must contain at least one week.',
-            ]);
-        }
-
-        return $this->divideHundredths($this->decimalToScaledInteger($effectiveWorkingHours, 2, 'effective_working_hours'), $calendar->total_weeks);
+        return $this->divideHundredths(
+            $this->decimalToScaledInteger($effectiveWorkingHours, 2, 'effective_working_hours'),
+            52,
+        );
     }
 
-    public function calculateEffectiveHoursPerDay(string|int|float $effectiveWorkingHours, ?WorkCalendar $calendar, ?WorkSchedule $schedule): string
-    {
-        $workingDays = $this->calculateWorkingDays($calendar, $schedule);
+    public function calculateEffectiveHoursPerDay(
+        string|int|float $effectiveWorkingHours,
+        int $assessmentYear,
+        ?WorkCalendar $calendar,
+        ?WorkSchedule $schedule,
+    ): string {
+        $workingDays = $this->calculateWorkingDays($assessmentYear, $calendar, $schedule);
 
         if ($workingDays < 1) {
             throw ValidationException::withMessages([
@@ -73,10 +104,13 @@ class WorkCalendarService
             ]);
         }
 
-        return $this->divideHundredths($this->decimalToScaledInteger($effectiveWorkingHours, 2, 'effective_working_hours'), $workingDays);
+        return $this->divideHundredths(
+            $this->decimalToScaledInteger($effectiveWorkingHours, 2, 'effective_working_hours'),
+            $workingDays,
+        );
     }
 
-    private function requireCalendar(?WorkCalendar $calendar): WorkCalendar
+    private function requireCalendarForYear(int $assessmentYear, ?WorkCalendar $calendar): WorkCalendar
     {
         if ($calendar === null) {
             throw ValidationException::withMessages([
@@ -84,10 +118,16 @@ class WorkCalendarService
             ]);
         }
 
+        if ($calendar->year !== $assessmentYear) {
+            throw ValidationException::withMessages([
+                'work_calendar_id' => 'Work Calendar year must match the assessment period.',
+            ]);
+        }
+
         return $calendar;
     }
 
-    private function requireSchedule(?WorkSchedule $schedule): WorkSchedule
+    private function requireCalculationType(?WorkSchedule $schedule): WorkScheduleCalculationType
     {
         if ($schedule === null) {
             throw ValidationException::withMessages([
@@ -95,7 +135,15 @@ class WorkCalendarService
             ]);
         }
 
-        return $schedule;
+        $calculationType = $schedule->calculationTypeForWla();
+
+        if ($calculationType === null) {
+            throw ValidationException::withMessages([
+                'work_schedule_id' => 'Jadwal kerja belum diklasifikasikan untuk kalkulasi WLA.',
+            ]);
+        }
+
+        return $calculationType;
     }
 
     private function decimalToScaledInteger(string|int|float $value, int $decimalPlaces, string $field): int
@@ -148,16 +196,18 @@ class WorkCalendarService
             $quotient++;
         }
 
-        return $this->formatTenThousandths($quotient);
+        return $this->formatScaledInteger($quotient, 4);
     }
 
-    private function formatHundredths(int $value): string
+    private function formatScaledInteger(int $value, int $decimalPlaces): string
     {
-        return intdiv($value, 100).'.'.str_pad((string) ($value % 100), 2, '0', STR_PAD_LEFT);
-    }
+        $scale = 10 ** $decimalPlaces;
 
-    private function formatTenThousandths(int $value): string
-    {
-        return intdiv($value, 10000).'.'.str_pad((string) ($value % 10000), 4, '0', STR_PAD_LEFT);
+        return intdiv($value, $scale).'.'.str_pad(
+            (string) ($value % $scale),
+            $decimalPlaces,
+            '0',
+            STR_PAD_LEFT,
+        );
     }
 }

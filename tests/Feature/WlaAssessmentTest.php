@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\UserRole;
 use App\Enums\WlaAssessmentStatus;
+use App\Enums\WorkScheduleCalculationType;
 use App\Models\Department;
 use App\Models\Position;
 use App\Models\Unit;
@@ -12,13 +13,22 @@ use App\Models\WlaAssessment;
 use App\Models\WorkCalendar;
 use App\Models\WorkSchedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class WlaAssessmentTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_admin_can_create_draft_with_generated_code_and_nullable_snapshots(): void
+    protected function migrateDatabases(): void
+    {
+        $this->assertSame('sqlite', config('database.default'));
+        $this->assertSame('sqlite', DB::connection()->getDriverName());
+        $this->assertSame(':memory:', DB::connection()->getDatabaseName());
+        $this->artisan('migrate', ['--no-interaction' => true])->assertExitCode(0);
+    }
+
+    public function test_admin_can_create_draft_with_generated_code_and_calculated_snapshots(): void
     {
         $data = $this->context();
         $payload = $this->payload($data);
@@ -37,9 +47,12 @@ class WlaAssessmentTest extends TestCase
         $this->assertSame('0.9000', $assessment->efficiency_factor);
         $this->assertEquals($data['user']->id, $assessment->created_by);
         $this->assertNull($assessment->updated_by);
-        $this->assertNull($assessment->working_days);
-        $this->assertNull($assessment->working_hours_year);
-        $this->assertNull($assessment->effective_working_hours);
+        $this->assertSame(226, $assessment->working_days);
+        $this->assertSame('1582.00', $assessment->working_hours_year);
+        $this->assertSame('1423.80', $assessment->effective_working_hours);
+        $this->assertSame('0.0000', $assessment->total_annual_workload_hours);
+        $this->assertSame('0.000000', $assessment->fte);
+        $this->assertSame(0, $assessment->recommended_employees);
     }
 
     public function test_assessment_index_create_show_and_edit_pages_render(): void
@@ -53,16 +66,16 @@ class WlaAssessmentTest extends TestCase
         $this->get(route('wla.edit', $assessment))->assertOk()->assertSee('Efficiency Factor');
     }
 
-    public function test_foundation_preview_uses_existing_calendar_service_without_persisting_snapshot(): void
+    public function test_foundation_preview_uses_calendar_service_for_an_unsnapshotted_legacy_record(): void
     {
         $data = $this->context();
         $assessment = $this->createAssessment($data);
 
         $this->actingAs($data['user'])->get(route('wla.show', $assessment))
             ->assertOk()
-            ->assertSee('227')
-            ->assertSee('1589.00')
-            ->assertSee('1430.10');
+            ->assertSee('226')
+            ->assertSee('1.582,00')
+            ->assertSee('1.423,80');
 
         $this->assertNull($assessment->fresh()->working_days);
         $this->assertNull($assessment->fresh()->working_hours_year);
@@ -78,18 +91,19 @@ class WlaAssessmentTest extends TestCase
         $updateContext = [...$data, ...$other];
 
         $this->actingAs($data['user'])->put(route('wla.update', $assessment), $this->payload($updateContext, [
-            'period' => 2027,
+            'period' => 2026,
             'efficiency_factor' => '0.8250',
         ]))->assertRedirect(route('wla.show', $assessment));
 
         $this->assertDatabaseHas('wla_assessments', [
             'id' => $assessment->id,
-            'period' => 2027,
+            'period' => 2026,
             'department_id' => $other['department']->id,
             'efficiency_factor' => '0.8250',
             'updated_by' => $data['user']->id,
             'status' => 'draft',
         ]);
+        $this->assertSame('1305.15', $assessment->fresh()->effective_working_hours);
 
         $this->delete(route('wla.destroy', $assessment))->assertRedirect(route('wla'));
         $this->assertDatabaseMissing('wla_activities', ['id' => $activity->id]);
@@ -134,6 +148,19 @@ class WlaAssessmentTest extends TestCase
 
         $mismatchedPosition = $this->payload($data, ['position_id' => $other['position']->id]);
         $this->post(route('wla.store'), $mismatchedPosition)->assertSessionHasErrors('position_id');
+
+        $this->assertDatabaseCount('wla_assessments', 0);
+    }
+
+    public function test_assessment_rejects_a_calendar_from_another_year(): void
+    {
+        $data = $this->context();
+
+        $this->actingAs($data['user'])
+            ->from(route('wla.create'))
+            ->post(route('wla.store'), $this->payload($data, ['period' => 2025]))
+            ->assertRedirect(route('wla.create'))
+            ->assertSessionHasErrors('work_calendar_id');
 
         $this->assertDatabaseCount('wla_assessments', 0);
     }
@@ -190,6 +217,7 @@ class WlaAssessmentTest extends TestCase
         $position = $unit->positions()->create(['code' => 'P01', 'name' => 'Operator', 'active' => true]);
         $schedule = WorkSchedule::create([
             'code' => 'DAYSHIFT', 'name' => 'Dayshift', 'schedule_type' => 'Dayshift',
+            'calculation_type' => WorkScheduleCalculationType::Dayshift,
             'working_hours_per_day' => '7.00', 'working_days_per_week' => 5, 'active' => true,
         ]);
         $calendar = WorkCalendar::create([

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable(['year', 'total_days', 'total_weeks', 'annual_leave', 'national_holiday', 'common_leave', 'saturday_days', 'sunday_days', 'notes', 'active'])]
 class WorkCalendar extends Model
@@ -19,4 +20,9 @@ class WorkCalendar extends Model
         'saturday_days' => 'integer',
         'sunday_days' => 'integer',
     ];
+
+    public function wlaAssessments(): HasMany
+    {
+        return $this->hasMany(WlaAssessment::class);
+    }
 }

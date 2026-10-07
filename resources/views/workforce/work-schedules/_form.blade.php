@@ -16,6 +16,15 @@
             <input name="schedule_type" value="{{ old('schedule_type', $workSchedule?->schedule_type) }}" required maxlength="50" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
             @error('schedule_type')<span class="mt-1 block text-xs text-red-600">{{ $message }}</span>@enderror
         </label>
+        <label class="block text-sm font-medium text-slate-700">Kelompok Kalkulasi WLA
+            <select name="calculation_type" required class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
+                <option value="">Pilih Kelompok</option>
+                @foreach (\App\Enums\WorkScheduleCalculationType::cases() as $calculationType)
+                    <option value="{{ $calculationType->value }}" @selected(old('calculation_type', $workSchedule?->calculationTypeForWla()?->value) === $calculationType->value)>{{ $calculationType->label() }}</option>
+                @endforeach
+            </select>
+            @error('calculation_type')<span class="mt-1 block text-xs text-red-600">{{ $message }}</span>@enderror
+        </label>
         <label class="block text-sm font-medium text-slate-700">Jam Kerja per Hari
             <input type="number" name="working_hours_per_day" value="{{ old('working_hours_per_day', $workSchedule?->working_hours_per_day) }}" required min="0.01" max="24" step="0.01" inputmode="decimal" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
             @error('working_hours_per_day')<span class="mt-1 block text-xs text-red-600">{{ $message }}</span>@enderror

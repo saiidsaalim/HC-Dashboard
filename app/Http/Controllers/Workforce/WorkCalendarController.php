@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Workforce;
 
 use App\Http\Controllers\Controller;
 use App\Models\WorkCalendar;
+use App\Services\Workforce\WlaMasterService;
+use App\Services\Workforce\WorkCalendarService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -12,6 +14,11 @@ use Illuminate\View\View;
 
 class WorkCalendarController extends Controller
 {
+    public function __construct(
+        private WorkCalendarService $workCalendarService,
+        private WlaMasterService $wlaMasterService,
+    ) {}
+
     public function index(Request $request): View
     {
         Gate::authorize('viewAny', WorkCalendar::class);
@@ -58,7 +65,10 @@ class WorkCalendarController extends Controller
     {
         Gate::authorize('update', $workCalendar);
 
-        $workCalendar->update($this->validatedData($request, $workCalendar));
+        $this->wlaMasterService->updateCalendar(
+            $workCalendar,
+            $this->validatedData($request, $workCalendar),
+        );
 
         return to_route('work-calendars.index')->with('status', 'Work calendar berhasil diperbarui.');
     }
@@ -67,7 +77,7 @@ class WorkCalendarController extends Controller
     {
         Gate::authorize('delete', $workCalendar);
 
-        $workCalendar->delete();
+        $this->wlaMasterService->deleteCalendar($workCalendar);
 
         return to_route('work-calendars.index')->with('status', 'Work calendar berhasil dihapus.');
     }
@@ -75,9 +85,8 @@ class WorkCalendarController extends Controller
     /** @return array{year: int, total_days: int, total_weeks: int, annual_leave: int, national_holiday: int, common_leave: int, saturday_days: int, sunday_days: int, notes: string|null, active: bool} */
     private function validatedData(Request $request, ?WorkCalendar $workCalendar = null): array
     {
-        return $request->validate([
+        $validated = $request->validate([
             'year' => ['required', 'integer', 'min:1900', 'max:2100', Rule::unique('work_calendars', 'year')->ignore($workCalendar)],
-            'total_days' => ['required', 'integer', 'min:1', 'max:366'],
             'total_weeks' => ['required', 'integer', 'min:1', 'max:53'],
             'annual_leave' => ['required', 'integer', 'min:0', 'max:366'],
             'national_holiday' => ['required', 'integer', 'min:0', 'max:366'],
@@ -87,5 +96,10 @@ class WorkCalendarController extends Controller
             'notes' => ['nullable', 'string', 'max:1000'],
             'active' => ['required', 'boolean'],
         ]);
+
+        return [
+            ...$validated,
+            'total_days' => $this->workCalendarService->calculateTotalDays((int) $validated['year']),
+        ];
     }
 }

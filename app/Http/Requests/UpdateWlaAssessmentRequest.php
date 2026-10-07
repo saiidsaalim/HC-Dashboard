@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use App\Models\WlaAssessment;
+use App\Rules\ClassifiedWorkSchedule;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -23,14 +25,19 @@ class UpdateWlaAssessmentRequest extends FormRequest
             'department_id' => ['required', 'integer', 'exists:departments,id'],
             'unit_id' => [
                 'required', 'integer',
-                Rule::exists('units', 'id')->where(fn ($query) => $query->where('department_id', $this->input('department_id'))),
+                Rule::exists('units', 'id')->where(fn (Builder $query): Builder => $query->where('department_id', $this->input('department_id'))),
             ],
             'position_id' => [
                 'required', 'integer',
-                Rule::exists('positions', 'id')->where(fn ($query) => $query->where('unit_id', $this->input('unit_id'))),
+                Rule::exists('positions', 'id')->where(fn (Builder $query): Builder => $query->where('unit_id', $this->input('unit_id'))),
             ],
-            'work_schedule_id' => ['required', 'integer', 'exists:work_schedules,id'],
-            'work_calendar_id' => ['required', 'integer', 'exists:work_calendars,id'],
+            'work_schedule_id' => ['bail', 'required', 'integer', new ClassifiedWorkSchedule],
+            'work_calendar_id' => [
+                'required',
+                'integer',
+                Rule::exists('work_calendars', 'id')
+                    ->where(fn (Builder $query): Builder => $query->where('year', $this->input('period'))),
+            ],
             'efficiency_factor' => ['required', 'numeric', 'decimal:0,4', 'min:0', 'max:1'],
         ];
     }

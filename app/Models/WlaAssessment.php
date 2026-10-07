@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'assessment_code', 'period', 'department_id', 'unit_id', 'position_id',
     'work_schedule_id', 'work_calendar_id', 'efficiency_factor', 'status',
     'created_by', 'updated_by', 'working_days', 'working_hours_year', 'effective_working_hours',
+    'total_annual_workload_hours', 'fte', 'recommended_employees',
 ])]
 class WlaAssessment extends Model
 {
@@ -24,6 +25,9 @@ class WlaAssessment extends Model
             'working_days' => 'integer',
             'working_hours_year' => 'decimal:2',
             'effective_working_hours' => 'decimal:2',
+            'total_annual_workload_hours' => 'decimal:4',
+            'fte' => 'decimal:6',
+            'recommended_employees' => 'integer',
         ];
     }
 

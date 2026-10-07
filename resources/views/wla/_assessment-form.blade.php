@@ -71,8 +71,9 @@
                 <select name="work_schedule_id" required class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
                     <option value="">Select Work Schedule</option>
                     @foreach ($workSchedules as $schedule)
-                        <option value="{{ $schedule->id }}" @selected(old('work_schedule_id', $assessment?->work_schedule_id) == $schedule->id)>
-                            {{ $schedule->name }} · {{ $schedule->working_hours_per_day }} hours/day × {{ $schedule->working_days_per_week }} days/week = {{ $schedule->working_hours_per_week }} hours/week{{ $schedule->active ? '' : ' (Inactive)' }}
+                        @php($scheduleCalculationType = $schedule->calculationTypeForWla())
+                        <option value="{{ $schedule->id }}" @selected(old('work_schedule_id', $assessment?->work_schedule_id) == $schedule->id) @disabled($scheduleCalculationType === null)>
+                            {{ $schedule->name }} · {{ $scheduleCalculationType?->label() ?? 'Perlu klasifikasi' }}{{ $schedule->active ? '' : ' (Inactive)' }}
                         </option>
                     @endforeach
                 </select>
@@ -83,7 +84,7 @@
                     <option value="">Select Work Calendar</option>
                     @foreach ($workCalendars as $calendar)
                         <option value="{{ $calendar->id }}" @selected(old('work_calendar_id', $assessment?->work_calendar_id) == $calendar->id)>
-                            {{ $calendar->year }} · {{ $calendar->total_days }} days · annual leave {{ $calendar->annual_leave }} · national holiday {{ $calendar->national_holiday }} · common leave {{ $calendar->common_leave }}{{ $calendar->active ? '' : ' (Inactive)' }}
+                            {{ $calendar->year }} · annual leave {{ $calendar->annual_leave }} · national holiday {{ $calendar->national_holiday }} · common leave {{ $calendar->common_leave }}{{ $calendar->active ? '' : ' (Inactive)' }}
                         </option>
                     @endforeach
                 </select>
