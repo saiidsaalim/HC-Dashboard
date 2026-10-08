@@ -37,7 +37,9 @@ class WorkScheduleTest extends TestCase
         $this->actingAs($this->superAdmin());
 
         $this->get(route('work-schedules.index'))->assertOk();
-        $this->get(route('work-schedules.create'))->assertOk();
+        $this->get(route('work-schedules.create'))
+            ->assertOk()
+            ->assertSee('Jam harian formula WLA berasal dari Kelompok Kalkulasi WLA');
         $this->get(route('work-schedules.edit', $schedule))->assertOk();
     }
 

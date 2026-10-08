@@ -16,6 +16,30 @@ class WorkCalendarService
             : 365;
     }
 
+    public function validateCalendarDeductions(
+        int $year,
+        int $annualLeave,
+        int $nationalHoliday,
+        int $commonLeave,
+        int $saturdayDays,
+        int $sundayDays,
+    ): void {
+        $totalDays = $this->calculateTotalDays($year);
+        $errors = [];
+
+        if ($totalDays - $annualLeave - $nationalHoliday - $commonLeave - $saturdayDays - $sundayDays <= 0) {
+            $errors['annual_leave'][] = 'Pengurangan kalender Dayshift harus menyisakan minimal satu hari kerja.';
+        }
+
+        if ($totalDays - $annualLeave - $commonLeave <= 0) {
+            $errors['common_leave'][] = 'Pengurangan kalender Shift harus menyisakan minimal satu hari kerja.';
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+    }
+
     public function calculateWorkingDays(
         int $assessmentYear,
         ?WorkCalendar $calendar,
@@ -41,7 +65,15 @@ class WorkCalendarService
             - $saturdayDays
             - $sundayDays;
 
-        return max(0, $workingDays);
+        if ($workingDays <= 0) {
+            throw ValidationException::withMessages([
+                'working_days' => $calculationType === WorkScheduleCalculationType::Dayshift
+                    ? 'Pengurangan kalender Dayshift harus menyisakan minimal satu hari kerja.'
+                    : 'Pengurangan kalender Shift harus menyisakan minimal satu hari kerja.',
+            ]);
+        }
+
+        return $workingDays;
     }
 
     public function calculateWorkingHoursPerYear(
@@ -183,7 +215,15 @@ class WorkCalendarService
             ]);
         }
 
-        return $this->decimalToScaledInteger($value, 4, 'efficiency_factor');
+        $efficiencyFactor = $this->decimalToScaledInteger($value, 4, 'efficiency_factor');
+
+        if ($efficiencyFactor < 1) {
+            throw ValidationException::withMessages([
+                'efficiency_factor' => 'Efficiency factor must be between 0.0001 and 1.',
+            ]);
+        }
+
+        return $efficiencyFactor;
     }
 
     private function divideHundredths(int $hundredths, int $divisor): string

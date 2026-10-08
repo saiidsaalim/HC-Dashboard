@@ -30,11 +30,11 @@ class RegistrationTest extends TestCase
         ]);
 
         $this->assertAuthenticated();
-<<<<<<< Updated upstream
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $response->assertRedirect(route('portal', absolute: false));
+
         $this->assertDatabaseHas('users', [
             'email' => 'test@example.com',
-            'role' => 'Staff',
+            'role' => UserRole::STAFF->value,
         ]);
     }
 
@@ -49,10 +49,11 @@ class RegistrationTest extends TestCase
         ]);
 
         $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $response->assertRedirect(route('portal', absolute: false));
+
         $this->assertDatabaseHas('users', [
             'email' => 'test@example.com',
-            'role' => 'Staff',
+            'role' => UserRole::STAFF->value,
         ]);
     }
 
@@ -70,10 +71,11 @@ class RegistrationTest extends TestCase
         ]);
 
         $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $response->assertRedirect(route('portal', absolute: false));
+
         $this->assertDatabaseHas('users', [
             'email' => 'test@example.com',
-            'role' => 'Staff',
+            'role' => UserRole::STAFF->value,
         ]);
     }
 
@@ -86,9 +88,8 @@ class RegistrationTest extends TestCase
         $this->assertSame('sqlite', DB::connection()->getDriverName());
         $this->assertSame(':memory:', DB::connection()->getDatabaseName());
 
-        $this->artisan('migrate', ['--no-interaction' => true])->assertExitCode(0);
-=======
-        $response->assertRedirect(route('portal', absolute: false));
->>>>>>> Stashed changes
+        $this->artisan('migrate', [
+            '--no-interaction' => true,
+        ])->assertExitCode(0);
     }
 }

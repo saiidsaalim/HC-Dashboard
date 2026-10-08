@@ -11,10 +11,9 @@
         <div class="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
             Total hari dihitung otomatis dari tahun: 365 hari, atau 366 hari untuk tahun kabisat.
         </div>
-        <label class="block text-sm font-medium text-slate-700">Total Minggu
-            <input type="number" name="total_weeks" value="{{ old('total_weeks', $workCalendar?->total_weeks) }}" required min="1" max="53" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
-            @error('total_weeks')<span class="mt-1 block text-xs text-red-600">{{ $message }}</span>@enderror
-        </label>
+        <div class="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+            Total minggu disimpan otomatis sebagai 52 dan faktor mingguan WLA selalu menggunakan 52.
+        </div>
         <label class="block text-sm font-medium text-slate-700">Cuti Tahunan
             <input type="number" name="annual_leave" value="{{ old('annual_leave', $workCalendar?->annual_leave ?? 0) }}" required min="0" max="366" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
             @error('annual_leave')<span class="mt-1 block text-xs text-red-600">{{ $message }}</span>@enderror

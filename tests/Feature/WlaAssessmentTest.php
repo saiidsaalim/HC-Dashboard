@@ -12,8 +12,12 @@ use App\Models\User;
 use App\Models\WlaAssessment;
 use App\Models\WorkCalendar;
 use App\Models\WorkSchedule;
+use App\Services\Workforce\WlaCalculationService;
+use App\Services\Workforce\WorkCalendarService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+use Mockery;
 use Tests\TestCase;
 
 class WlaAssessmentTest extends TestCase
@@ -61,7 +65,12 @@ class WlaAssessmentTest extends TestCase
         $assessment = $this->createAssessment($data);
 
         $this->actingAs($data['user'])->get(route('wla'))->assertOk();
-        $this->get(route('wla.create'))->assertOk()->assertSee('resetDepartment()')->assertSee('resetUnit()');
+        $this->get(route('wla.create'))
+            ->assertOk()
+            ->assertSee('resetDepartment()')
+            ->assertSee('resetUnit()')
+            ->assertSee('Faktor mingguan WLA selalu menggunakan 52')
+            ->assertSee('bukan sumber formula WLA');
         $this->get(route('wla.show', $assessment))->assertOk()->assertSee($assessment->assessment_code);
         $this->get(route('wla.edit', $assessment))->assertOk()->assertSee('Efficiency Factor');
     }
@@ -165,16 +174,138 @@ class WlaAssessmentTest extends TestCase
         $this->assertDatabaseCount('wla_assessments', 0);
     }
 
-    public function test_efficiency_factor_must_be_between_zero_and_one(): void
+    public function test_efficiency_factor_must_be_between_point_zero_zero_zero_one_and_one(): void
     {
         $data = $this->context();
 
-        foreach (['-0.01', '1.01'] as $efficiencyFactor) {
+        foreach (['-0.01', '0', '0.0000', '1.01'] as $efficiencyFactor) {
             $this->actingAs($data['user'])->from(route('wla.create'))
                 ->post(route('wla.store'), $this->payload($data, ['efficiency_factor' => $efficiencyFactor]))
                 ->assertRedirect(route('wla.create'))
                 ->assertSessionHasErrors('efficiency_factor');
         }
+
+        $assessment = $this->createAssessment($data);
+        $this->from(route('wla.edit', $assessment))
+            ->put(route('wla.update', $assessment), $this->payload($data, ['efficiency_factor' => '0']))
+            ->assertRedirect(route('wla.edit', $assessment))
+            ->assertSessionHasErrors('efficiency_factor');
+        $this->assertSame('0.9000', $assessment->fresh()->efficiency_factor);
+    }
+
+    public function test_new_assessment_rejects_inactive_master_records(): void
+    {
+        $data = $this->context();
+        $cases = [
+            'department_id' => $data['department'],
+            'unit_id' => $data['unit'],
+            'position_id' => $data['position'],
+            'work_schedule_id' => $data['schedule'],
+            'work_calendar_id' => $data['calendar'],
+        ];
+
+        foreach ($cases as $field => $master) {
+            $master->update(['active' => false]);
+
+            $this->actingAs($data['user'])
+                ->from(route('wla.create'))
+                ->post(route('wla.store'), $this->payload($data))
+                ->assertRedirect(route('wla.create'))
+                ->assertSessionHasErrors($field);
+
+            $master->update(['active' => true]);
+        }
+
+        $this->assertDatabaseCount('wla_assessments', 0);
+    }
+
+    public function test_current_inactive_masters_remain_editable_but_other_inactive_masters_are_rejected(): void
+    {
+        $data = $this->context();
+        $assessment = $this->createAssessment($data);
+
+        foreach (['department', 'unit', 'position', 'schedule', 'calendar'] as $key) {
+            $data[$key]->update(['active' => false]);
+        }
+
+        $this->actingAs($data['user'])
+            ->get(route('wla.edit', $assessment))
+            ->assertOk()
+            ->assertSee('D01')
+            ->assertSee('U01')
+            ->assertSee('P01')
+            ->assertSee('Dayshift')
+            ->assertSee('2026')
+            ->assertSee('(Inactive)');
+
+        $this->put(route('wla.update', $assessment), $this->payload($data))
+            ->assertRedirect(route('wla.show', $assessment));
+
+        $other = $this->otherContext($data['user']);
+        foreach (['department', 'unit', 'position'] as $key) {
+            $other[$key]->update(['active' => false]);
+        }
+
+        $this->from(route('wla.edit', $assessment))
+            ->put(route('wla.update', $assessment), $this->payload([...$data, ...$other]))
+            ->assertSessionHasErrors(['department_id', 'unit_id', 'position_id']);
+
+        $inactiveSchedule = WorkSchedule::create([
+            'code' => 'INACTIVE', 'name' => 'Inactive Schedule', 'schedule_type' => 'Dayshift',
+            'calculation_type' => WorkScheduleCalculationType::Dayshift,
+            'working_hours_per_day' => '7.00', 'working_days_per_week' => 5, 'active' => false,
+        ]);
+        $this->put(route('wla.update', $assessment), $this->payload($data, [
+            'work_schedule_id' => $inactiveSchedule->id,
+        ]))->assertSessionHasErrors('work_schedule_id');
+
+        $inactiveCalendar = WorkCalendar::create([
+            'year' => 2027, 'total_days' => 365, 'total_weeks' => 52, 'annual_leave' => 12,
+            'national_holiday' => 17, 'common_leave' => 6, 'saturday_days' => 52,
+            'sunday_days' => 52, 'active' => false,
+        ]);
+        $this->put(route('wla.update', $assessment), $this->payload($data, [
+            'period' => 2027,
+            'work_calendar_id' => $inactiveCalendar->id,
+        ]))->assertSessionHasErrors('work_calendar_id');
+    }
+
+    public function test_failed_assessment_recalculation_rolls_back_update(): void
+    {
+        $data = $this->context();
+        $assessment = $this->createAssessment($data);
+        $mock = Mockery::mock(WlaCalculationService::class, [app(WorkCalendarService::class)])->makePartial();
+        $mock->shouldReceive('recalculate')
+            ->once()
+            ->andThrow(ValidationException::withMessages(['calculation' => 'Forced failure.']));
+        $this->app->instance(WlaCalculationService::class, $mock);
+
+        $this->actingAs($data['user'])
+            ->from(route('wla.edit', $assessment))
+            ->put(route('wla.update', $assessment), $this->payload($data, ['efficiency_factor' => '0.8000']))
+            ->assertSessionHasErrors('calculation');
+
+        $assessment->refresh();
+        $this->assertSame('0.9000', $assessment->efficiency_factor);
+        $this->assertNull($assessment->updated_by);
+    }
+
+    public function test_failed_assessment_delete_rolls_back_activities_and_assessment(): void
+    {
+        $data = $this->context();
+        $assessment = $this->createAssessment($data);
+        $activity = $assessment->activities()->create($this->activityPayload());
+        WlaAssessment::deleting(function (): void {
+            throw ValidationException::withMessages(['assessment' => 'Forced failure.']);
+        });
+
+        $this->actingAs($data['user'])
+            ->from(route('wla.show', $assessment))
+            ->delete(route('wla.destroy', $assessment))
+            ->assertSessionHasErrors('assessment');
+
+        $this->assertDatabaseHas('wla_assessments', ['id' => $assessment->id]);
+        $this->assertDatabaseHas('wla_activities', ['id' => $activity->id]);
     }
 
     public function test_multiple_drafts_for_same_period_and_position_are_allowed(): void

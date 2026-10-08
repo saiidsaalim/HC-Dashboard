@@ -108,7 +108,7 @@ class WlaStageOneHardeningTest extends TestCase
                 'calculation_type' => WorkScheduleCalculationType::Shift123->value,
             ]))
             ->assertRedirect(route('work-schedules.edit', $data['schedule']))
-            ->assertSessionHasErrors('effective_working_hours');
+            ->assertSessionHasErrors('efficiency_factor');
 
         $this->assertSame(WorkScheduleCalculationType::Dayshift, $data['schedule']->fresh()->calculation_type);
         $this->assertSame(226, $validAssessment->fresh()->working_days);

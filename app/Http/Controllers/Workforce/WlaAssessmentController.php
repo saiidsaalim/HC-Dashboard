@@ -15,6 +15,7 @@ use App\Models\WorkCalendar;
 use App\Models\WorkSchedule;
 use App\Services\Workforce\WlaCalculationService;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -92,12 +93,13 @@ class WlaAssessmentController extends Controller
     public function update(UpdateWlaAssessmentRequest $request, WlaAssessment $wla): RedirectResponse
     {
         DB::transaction(function () use ($request, $wla): void {
-            $wla->update([
+            $lockedAssessment = $this->lockAuthorizedAssessment($wla, 'update');
+            $lockedAssessment->update([
                 ...$request->validated(),
                 'updated_by' => $request->user()->id,
             ]);
 
-            $this->wlaCalculationService->recalculate($wla);
+            $this->wlaCalculationService->recalculate($lockedAssessment);
         });
 
         return to_route('wla.show', $wla)->with('status', 'Draft WLA berhasil diperbarui.');
@@ -105,11 +107,11 @@ class WlaAssessmentController extends Controller
 
     public function destroy(WlaAssessment $wla): RedirectResponse
     {
-        Gate::authorize('delete', $wla);
-
         DB::transaction(function () use ($wla): void {
-            $wla->activities()->delete();
-            $wla->delete();
+            $lockedAssessment = $this->lockAuthorizedAssessment($wla, 'delete');
+            $lockedAssessment->activities()->lockForUpdate()->get(['id']);
+            $lockedAssessment->activities()->delete();
+            $lockedAssessment->delete();
         });
 
         return to_route('wla')->with('status', 'Draft WLA berhasil dihapus.');
@@ -120,12 +122,48 @@ class WlaAssessmentController extends Controller
     {
         return [
             'assessment' => $assessment,
-            'departments' => Department::query()->orderBy('name')->get(),
-            'units' => Unit::query()->with('department')->orderBy('name')->get(),
-            'positions' => Position::query()->with('unit')->orderBy('name')->get(),
-            'workSchedules' => WorkSchedule::query()->orderBy('name')->get(),
-            'workCalendars' => WorkCalendar::query()->orderByDesc('year')->get(),
+            'departments' => $this->activeOrCurrent(
+                Department::query(),
+                $assessment?->department_id,
+            )->orderBy('name')->get(),
+            'units' => $this->activeOrCurrent(
+                Unit::query(),
+                $assessment?->unit_id,
+            )->with('department')->orderBy('name')->get(),
+            'positions' => $this->activeOrCurrent(
+                Position::query(),
+                $assessment?->position_id,
+            )->with('unit')->orderBy('name')->get(),
+            'workSchedules' => $this->activeOrCurrent(
+                WorkSchedule::query(),
+                $assessment?->work_schedule_id,
+            )->orderBy('name')->get(),
+            'workCalendars' => $this->activeOrCurrent(
+                WorkCalendar::query(),
+                $assessment?->work_calendar_id,
+            )->orderByDesc('year')->get(),
             'periodUnits' => WlaPeriodUnit::cases(),
         ];
+    }
+
+    private function activeOrCurrent(Builder $query, ?int $currentId): Builder
+    {
+        return $query->where(function (Builder $query) use ($currentId): void {
+            $query->where('active', true);
+
+            if ($currentId !== null) {
+                $query->orWhere($query->getModel()->getKeyName(), $currentId);
+            }
+        });
+    }
+
+    private function lockAuthorizedAssessment(WlaAssessment $assessment, string $ability): WlaAssessment
+    {
+        $lockedAssessment = WlaAssessment::query()
+            ->lockForUpdate()
+            ->findOrFail($assessment->getKey());
+        Gate::authorize($ability, $lockedAssessment);
+
+        return $lockedAssessment;
     }
 }

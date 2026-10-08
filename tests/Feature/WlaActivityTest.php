@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\UserRole;
 use App\Enums\WlaAssessmentStatus;
+use App\Enums\WlaLegacyBackfillCategory;
 use App\Enums\WlaPeriodUnit;
 use App\Enums\WorkScheduleCalculationType;
 use App\Models\Department;
@@ -12,6 +13,7 @@ use App\Models\WlaActivity;
 use App\Models\WlaAssessment;
 use App\Models\WorkCalendar;
 use App\Models\WorkSchedule;
+use App\Services\Workforce\WlaLegacyBackfillService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -72,6 +74,34 @@ class WlaActivityTest extends TestCase
         )->assertRedirect();
 
         $this->assertSame('156.5000', $assessment->fresh()->total_annual_workload_hours);
+    }
+
+    public function test_update_activity_synchronizes_legacy_fields_and_remains_backfill_compatible(): void
+    {
+        [$user, $assessment] = $this->context();
+        $this->actingAs($user)
+            ->post(route('wla.activities.store', $assessment), $this->activityPayload())
+            ->assertRedirect();
+        $activity = $assessment->activities()->sole();
+
+        $this->put(route('wla.activities.update', [$assessment, $activity]), $this->activityPayload([
+            'frequency' => '3.25',
+            'period_unit' => WlaPeriodUnit::Month->value,
+            'time_allocated_hours' => '2.50',
+        ]))->assertRedirect();
+
+        $activity->refresh();
+        $this->assertSame(WlaPeriodUnit::Month->value, $activity->getRawOriginal('frequency_unit'));
+        $this->assertSame('1.00', $activity->volume);
+        $this->assertSame(WlaPeriodUnit::Month->value, $activity->getRawOriginal('volume_unit'));
+        $this->assertSame('2.50', $activity->time_allocated);
+        $this->assertSame('Hour', $activity->getRawOriginal('time_unit'));
+
+        $report = app(WlaLegacyBackfillService::class)->audit($assessment->id);
+        $result = collect($report['activities'])->firstWhere('id', $activity->id);
+
+        $this->assertNotNull($result);
+        $this->assertSame(WlaLegacyBackfillCategory::AlreadyMigrated, $result['category']);
     }
 
     public function test_delete_activity_recalculates_assessment(): void
@@ -169,16 +199,16 @@ class WlaActivityTest extends TestCase
 
         $this->actingAs($user)
             ->post(route('wla.activities.store', $assessment), $this->activityPayload(['activity_name' => 'Rolled back create']))
-            ->assertSessionHasErrors('effective_working_hours');
+            ->assertSessionHasErrors('efficiency_factor');
         $this->assertDatabaseMissing('wla_activities', ['activity_name' => 'Rolled back create']);
 
         $this->put(route('wla.activities.update', [$assessment, $activity]), $this->activityPayload([
             'activity_name' => 'Rolled back update',
-        ]))->assertSessionHasErrors('effective_working_hours');
+        ]))->assertSessionHasErrors('efficiency_factor');
         $this->assertSame('Legacy activity', $activity->fresh()->activity_name);
 
         $this->delete(route('wla.activities.destroy', [$assessment, $activity]))
-            ->assertSessionHasErrors('effective_working_hours');
+            ->assertSessionHasErrors('efficiency_factor');
         $this->assertDatabaseHas('wla_activities', ['id' => $activity->id]);
     }
 

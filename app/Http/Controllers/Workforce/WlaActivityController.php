@@ -59,7 +59,15 @@ class WlaActivityController extends Controller
                 ->whereKey($activity->getKey())
                 ->lockForUpdate()
                 ->firstOrFail();
-            $lockedActivity->update($request->validated());
+            $data = $request->validated();
+            $lockedActivity->update([
+                ...$data,
+                'frequency_unit' => $data['period_unit'],
+                'volume' => '1.00',
+                'volume_unit' => $data['period_unit'],
+                'time_allocated' => $data['time_allocated_hours'],
+                'time_unit' => 'Hour',
+            ]);
             $this->wlaCalculationService->recalculate($lockedAssessment);
         });
 

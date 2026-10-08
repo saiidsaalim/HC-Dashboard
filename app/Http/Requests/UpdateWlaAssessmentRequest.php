@@ -20,25 +20,55 @@ class UpdateWlaAssessmentRequest extends FormRequest
 
     public function rules(): array
     {
+        $assessment = $this->route('wla');
+        $assessment = $assessment instanceof WlaAssessment ? $assessment : null;
+
         return [
             'period' => ['required', 'integer', 'min:1900', 'max:2100'],
-            'department_id' => ['required', 'integer', 'exists:departments,id'],
+            'department_id' => [
+                'required',
+                'integer',
+                Rule::exists('departments', 'id')
+                    ->where(fn (Builder $query): Builder => $this->activeOrCurrent(
+                        $query,
+                        $assessment?->department_id,
+                    )),
+            ],
             'unit_id' => [
                 'required', 'integer',
-                Rule::exists('units', 'id')->where(fn (Builder $query): Builder => $query->where('department_id', $this->input('department_id'))),
+                Rule::exists('units', 'id')->where(fn (Builder $query): Builder => $this->activeOrCurrent(
+                    $query->where('department_id', $this->input('department_id')),
+                    $assessment?->unit_id,
+                )),
             ],
             'position_id' => [
                 'required', 'integer',
-                Rule::exists('positions', 'id')->where(fn (Builder $query): Builder => $query->where('unit_id', $this->input('unit_id'))),
+                Rule::exists('positions', 'id')->where(fn (Builder $query): Builder => $this->activeOrCurrent(
+                    $query->where('unit_id', $this->input('unit_id')),
+                    $assessment?->position_id,
+                )),
             ],
-            'work_schedule_id' => ['bail', 'required', 'integer', new ClassifiedWorkSchedule],
+            'work_schedule_id' => [
+                'bail',
+                'required',
+                'integer',
+                Rule::exists('work_schedules', 'id')
+                    ->where(fn (Builder $query): Builder => $this->activeOrCurrent(
+                        $query,
+                        $assessment?->work_schedule_id,
+                    )),
+                new ClassifiedWorkSchedule,
+            ],
             'work_calendar_id' => [
                 'required',
                 'integer',
                 Rule::exists('work_calendars', 'id')
-                    ->where(fn (Builder $query): Builder => $query->where('year', $this->input('period'))),
+                    ->where(fn (Builder $query): Builder => $this->activeOrCurrent(
+                        $query->where('year', $this->input('period')),
+                        $assessment?->work_calendar_id,
+                    )),
             ],
-            'efficiency_factor' => ['required', 'numeric', 'decimal:0,4', 'min:0', 'max:1'],
+            'efficiency_factor' => ['required', 'numeric', 'decimal:0,4', 'min:0.0001', 'max:1'],
         ];
     }
 
@@ -52,5 +82,16 @@ class UpdateWlaAssessmentRequest extends FormRequest
                     : config('wla.default_efficiency_factor'),
             ]);
         }
+    }
+
+    private function activeOrCurrent(Builder $query, ?int $currentId): Builder
+    {
+        return $query->where(function (Builder $query) use ($currentId): void {
+            $query->where('active', true);
+
+            if ($currentId !== null) {
+                $query->orWhere('id', $currentId);
+            }
+        });
     }
 }

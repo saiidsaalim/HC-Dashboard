@@ -27,6 +27,7 @@
         </label>
         <label class="block text-sm font-medium text-slate-700">Jam Kerja per Hari
             <input type="number" name="working_hours_per_day" value="{{ old('working_hours_per_day', $workSchedule?->working_hours_per_day) }}" required min="0.01" max="24" step="0.01" inputmode="decimal" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
+            <span class="mt-1 block text-xs font-normal text-slate-500">Informasi operasional. Jam harian formula WLA berasal dari Kelompok Kalkulasi WLA.</span>
             @error('working_hours_per_day')<span class="mt-1 block text-xs text-red-600">{{ $message }}</span>@enderror
         </label>
         <label class="block text-sm font-medium text-slate-700">Hari Kerja per Minggu

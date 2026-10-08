@@ -87,7 +87,6 @@ class WorkCalendarController extends Controller
     {
         $validated = $request->validate([
             'year' => ['required', 'integer', 'min:1900', 'max:2100', Rule::unique('work_calendars', 'year')->ignore($workCalendar)],
-            'total_weeks' => ['required', 'integer', 'min:1', 'max:53'],
             'annual_leave' => ['required', 'integer', 'min:0', 'max:366'],
             'national_holiday' => ['required', 'integer', 'min:0', 'max:366'],
             'common_leave' => ['required', 'integer', 'min:0', 'max:366'],
@@ -97,9 +96,19 @@ class WorkCalendarController extends Controller
             'active' => ['required', 'boolean'],
         ]);
 
+        $this->workCalendarService->validateCalendarDeductions(
+            (int) $validated['year'],
+            (int) $validated['annual_leave'],
+            (int) $validated['national_holiday'],
+            (int) $validated['common_leave'],
+            (int) $validated['saturday_days'],
+            (int) $validated['sunday_days'],
+        );
+
         return [
             ...$validated,
             'total_days' => $this->workCalendarService->calculateTotalDays((int) $validated['year']),
+            'total_weeks' => 52,
         ];
     }
 }
