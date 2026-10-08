@@ -2,6 +2,7 @@
 
 namespace App\Services\Workforce;
 
+use App\Enums\WlaAssessmentStatus;
 use App\Enums\WlaPeriodUnit;
 use App\Models\WlaAssessment;
 use Illuminate\Database\Eloquent\Builder;
@@ -102,6 +103,13 @@ class WlaCalculationService
             $lockedAssessment = WlaAssessment::query()
                 ->lockForUpdate()
                 ->findOrFail($assessment->getKey());
+
+            if ($lockedAssessment->status !== WlaAssessmentStatus::Draft) {
+                throw ValidationException::withMessages([
+                    'calculation' => 'WLA Final tidak dapat dihitung ulang.',
+                ]);
+            }
+
             $lockedAssessment->load(['workCalendar', 'workSchedule']);
             $activities = $lockedAssessment->activities()->lockForUpdate()->get();
 

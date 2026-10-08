@@ -2,11 +2,23 @@
 
 namespace Tests\Feature;
 
+use App\Enums\UserRole;
+use App\Enums\WlaAssessmentStatus;
+use App\Enums\WorkScheduleCalculationType;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\Position;
+use App\Models\Unit;
+use App\Models\User;
+use App\Models\WlaAssessment;
+use App\Models\WorkCalendar;
+use App\Models\WorkSchedule;
 use App\Services\Employees\EmployeeOrganizationMapper;
+use App\Services\Employees\EmployeeOrganizationSyncService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schema;
+use RuntimeException;
 use Tests\TestCase;
 
 class EmployeeOrganizationMappingTest extends TestCase
@@ -22,7 +34,7 @@ class EmployeeOrganizationMappingTest extends TestCase
             $this->assertTrue($columns[$foreignKey]['nullable']);
         }
 
-        foreach (['department', 'organizational_unit', 'position', 'bureau', 'section'] as $legacyField) {
+        foreach (['department', 'txt_dept', 'txt_biro', 'organizational_unit', 'position', 'bureau', 'section'] as $legacyField) {
             $this->assertTrue($columns->has($legacyField));
         }
     }
@@ -60,10 +72,10 @@ class EmployeeOrganizationMappingTest extends TestCase
         $this->assertSame(['department' => 'unmapped', 'unit' => 'unmapped', 'position' => 'unmapped'], $unmatched['statuses']);
         $this->assertSame([], $unmatched['conflicts']);
 
-        $conflict = $mapper->resolve($department->name, $unit->name, 'Manager');
-        $this->assertContains('position', $conflict['conflicts']);
-        $this->assertSame('conflict', $conflict['statuses']['position']);
-        $this->assertNull($conflict['ids']['position_id']);
+        $parentScoped = $mapper->resolve($department->name, $unit->name, 'Manager');
+        $this->assertSame([], $parentScoped['conflicts']);
+        $this->assertSame('unmapped', $parentScoped['statuses']['position']);
+        $this->assertNull($parentScoped['ids']['position_id']);
     }
 
     public function test_mapping_command_dry_run_reports_without_writing_and_apply_updates_in_chunks(): void
@@ -79,13 +91,11 @@ class EmployeeOrganizationMappingTest extends TestCase
         Employee::create($this->employeeAttributes('SAPMAP103', null, null, null));
 
         $this->artisan('employees:map-organization --dry-run --chunk=1')
-            ->expectsOutput('Total Employees: 4')
-            ->expectsOutput('Mapped Department: 2')
-            ->expectsOutput('Unmapped Department: 1')
-            ->expectsOutput('Empty Department text: 1')
-            ->expectsOutput('Conflicts: 1')
             ->expectsOutput('Mode: dry-run')
-            ->expectsOutput('Employee rows updated: 0')
+            ->expectsOutput('Total Employees: 4')
+            ->expectsOutput('Empty txt_dept: 1')
+            ->expectsOutput('Employees Requiring Review: 2')
+            ->expectsOutput('Dry-run selesai. Database tidak diubah.')
             ->assertSuccessful();
 
         $this->assertNull($mappable->fresh()->department_id);
@@ -95,9 +105,9 @@ class EmployeeOrganizationMappingTest extends TestCase
         $this->assertNull($unmatched->fresh()->department_id);
         $this->assertNull($conflicting->fresh()->position_id);
 
-        $this->artisan('employees:map-organization --apply --chunk=1')
+        $this->artisan('employees:map-organization --apply --chunk=1 --confirm=APPLY-EMPLOYEE-ORGANIZATION')
             ->expectsOutput('Mode: apply')
-            ->expectsOutput('Employee rows updated: 1')
+            ->expectsOutput('Employee rows updated: 2')
             ->assertSuccessful();
 
         $this->assertDatabaseHas('employees', [
@@ -106,11 +116,11 @@ class EmployeeOrganizationMappingTest extends TestCase
             'unit_id' => $unit->id,
             'position_id' => $position->id,
             'txt_dept' => 'Sales',
-            'organizational_unit' => 'Field Team',
+            'txt_biro' => 'Field Team',
             'position' => 'Analyst',
         ]);
         $this->assertNull($unmatched->fresh()->department_id);
-        $this->assertNull($conflicting->fresh()->department_id);
+        $this->assertNotNull($conflicting->fresh()->department_id);
     }
 
     public function test_diagnostic_command_reports_matches_and_unmatched_without_writing(): void
@@ -126,8 +136,8 @@ class EmployeeOrganizationMappingTest extends TestCase
             ->expectsOutputToContain('Departments:')
             ->expectsOutputToContain('Exact matches:')
             ->expectsOutputToContain('Normalized matches:')
-            ->expectsOutputToContain('Unmatched:')
-            ->expectsOutput('UNMATCHED EMPLOYEES')
+            ->expectsOutputToContain('Review required:')
+            ->expectsOutput('REVIEW EMPLOYEES')
             ->assertSuccessful();
     }
 
@@ -274,9 +284,283 @@ class EmployeeOrganizationMappingTest extends TestCase
             'unit_id' => $unit->id,
             'position_id' => $position->id,
             'txt_dept' => 'Sales',
-            'organizational_unit' => 'Field Team',
+            'txt_biro' => 'Field Team',
             'position' => 'Analyst',
         ]);
+    }
+
+    public function test_default_command_is_dry_run_and_uses_txt_biro_instead_of_organizational_unit(): void
+    {
+        $this->organization();
+        $employee = Employee::create([
+            ...$this->employeeAttributes('SAPSYNC001', 'Sales', 'Field Team', 'Analyst'),
+            'organizational_unit' => 'Wrong Unit Source',
+        ]);
+
+        $this->artisan('employees:map-organization')
+            ->expectsOutput('Mode: dry-run')
+            ->expectsOutput('Foreign Keys To Update: 3')
+            ->assertSuccessful();
+
+        $employee->refresh();
+        $this->assertNull($employee->department_id);
+        $this->assertNull($employee->unit_id);
+        $this->assertNull($employee->position_id);
+        $this->assertSame('Wrong Unit Source', $employee->organizational_unit);
+        $this->assertDatabaseCount('departments', 1);
+    }
+
+    public function test_apply_reuses_normalized_masters_and_preserves_legacy_values(): void
+    {
+        [$department, $unit, $position] = $this->organization();
+        $employee = Employee::create($this->employeeAttributes('SAPSYNC002', '  SALES ', ' field   team ', ' ANALYST '));
+
+        app(EmployeeOrganizationSyncService::class)->apply(1);
+
+        $employee->refresh();
+        $this->assertSame($department->id, $employee->department_id);
+        $this->assertSame($unit->id, $employee->unit_id);
+        $this->assertSame($position->id, $employee->position_id);
+        $this->assertSame('  SALES ', $employee->txt_dept);
+        $this->assertSame(' field   team ', $employee->txt_biro);
+        $this->assertSame(' ANALYST ', $employee->position);
+        $this->assertDatabaseCount('departments', 1);
+        $this->assertDatabaseCount('units', 1);
+        $this->assertDatabaseCount('positions', 1);
+    }
+
+    public function test_apply_creates_deterministic_hierarchical_masters_and_is_idempotent(): void
+    {
+        $first = Employee::create($this->employeeAttributes('SAPSYNC003', 'Operations', 'Control Room', 'Operator'));
+        $second = Employee::create($this->employeeAttributes('SAPSYNC004', ' operations ', ' CONTROL   ROOM ', ' operator '));
+        $service = app(EmployeeOrganizationSyncService::class);
+
+        $this->artisan('employees:map-organization --dry-run --chunk=1')
+            ->expectsOutput('New Departments: 1')
+            ->expectsOutput('New Units: 1')
+            ->expectsOutput('New Positions: 1')
+            ->assertSuccessful();
+        $this->assertDatabaseCount('departments', 0);
+        $this->assertDatabaseCount('units', 0);
+        $this->assertDatabaseCount('positions', 0);
+
+        $firstRun = $service->apply(1);
+        $codes = [
+            Department::query()->sole()->code,
+            Unit::query()->sole()->code,
+            Position::query()->sole()->code,
+        ];
+        $secondRun = $service->apply(1);
+
+        $this->assertSame(2, $firstRun['applied']['employees_updated']);
+        $this->assertSame(0, $secondRun['applied']['employees_updated']);
+        $this->assertSame(0, $secondRun['applied']['departments_created']);
+        $this->assertSame(0, $secondRun['applied']['units_created']);
+        $this->assertSame(0, $secondRun['applied']['positions_created']);
+        $this->assertSame(2, $secondRun['summary']['statuses']['already_mapped']);
+        $this->assertSame($first->fresh()->department_id, $second->fresh()->department_id);
+        $this->assertSame($first->fresh()->unit_id, $second->fresh()->unit_id);
+        $this->assertSame($first->fresh()->position_id, $second->fresh()->position_id);
+        $this->assertSame($codes, [Department::query()->sole()->code, Unit::query()->sole()->code, Position::query()->sole()->code]);
+        foreach ($codes as $code) {
+            $this->assertStringStartsWith('AUTO-', $code);
+        }
+    }
+
+    public function test_same_unit_and_position_names_are_scoped_to_their_parents(): void
+    {
+        $first = Employee::create($this->employeeAttributes('SAPSYNC005', 'North', 'Operations', 'Analyst'));
+        $second = Employee::create($this->employeeAttributes('SAPSYNC006', 'South', 'Operations', 'Analyst'));
+
+        app(EmployeeOrganizationSyncService::class)->apply();
+
+        $first->refresh();
+        $second->refresh();
+        $this->assertNotSame($first->department_id, $second->department_id);
+        $this->assertNotSame($first->unit_id, $second->unit_id);
+        $this->assertNotSame($first->position_id, $second->position_id);
+        $this->assertDatabaseCount('departments', 2);
+        $this->assertDatabaseCount('units', 2);
+        $this->assertDatabaseCount('positions', 2);
+    }
+
+    public function test_empty_hierarchy_values_require_review_and_are_not_changed(): void
+    {
+        $employee = Employee::create($this->employeeAttributes('SAPSYNC007', null, 'Unit Without Department', 'Analyst'));
+
+        $audit = app(EmployeeOrganizationSyncService::class)->audit();
+        app(EmployeeOrganizationSyncService::class)->apply();
+
+        $this->assertSame('needs_review', $audit['rows'][0]['status']);
+        $this->assertStringContainsString('txt_dept kosong', $audit['rows'][0]['reason']);
+        $this->assertDatabaseCount('departments', 0);
+        $this->assertNull($employee->fresh()->department_id);
+    }
+
+    public function test_conflicting_existing_foreign_keys_are_not_overwritten(): void
+    {
+        $this->organization();
+        $otherDepartment = Department::create(['code' => 'DPT-CONFLICT', 'name' => 'Engineering', 'active' => true]);
+        $employee = Employee::create([
+            ...$this->employeeAttributes('SAPSYNC008', 'Sales', 'Field Team', 'Analyst'),
+            'department_id' => $otherDepartment->id,
+        ]);
+
+        $audit = app(EmployeeOrganizationSyncService::class)->audit();
+        app(EmployeeOrganizationSyncService::class)->apply();
+
+        $this->assertSame('conflict', $audit['rows'][0]['status']);
+        $this->assertSame($otherDepartment->id, $employee->fresh()->department_id);
+        $this->assertNull($employee->fresh()->unit_id);
+        $this->assertNull($employee->fresh()->position_id);
+    }
+
+    public function test_duplicate_normalized_master_within_same_parent_is_a_conflict(): void
+    {
+        $department = Department::create(['code' => 'DPT-DUP', 'name' => 'Sales', 'active' => true]);
+        $department->units()->create(['code' => 'UNT-DUP-A', 'name' => 'Field Team', 'active' => true]);
+        $department->units()->create(['code' => 'UNT-DUP-B', 'name' => ' field   team ', 'active' => true]);
+        $employee = Employee::create($this->employeeAttributes('SAPSYNC009', 'Sales', 'FIELD TEAM', 'Analyst'));
+
+        $audit = app(EmployeeOrganizationSyncService::class)->audit();
+
+        $this->assertSame('conflict', $audit['rows'][0]['status']);
+        $this->assertContains('unit', $audit['rows'][0]['conflict_fields']);
+        $this->assertNull($employee->fresh()->unit_id);
+    }
+
+    public function test_apply_rolls_back_all_changes_when_an_employee_update_fails(): void
+    {
+        Employee::create($this->employeeAttributes('SAPSYNC010', 'Operations', 'Control', 'Operator'));
+        Employee::create($this->employeeAttributes('SAPSYNC011', 'Finance', 'Treasury', 'Analyst'));
+        $updates = 0;
+        Employee::updating(function () use (&$updates): void {
+            $updates++;
+            if ($updates === 2) {
+                throw new RuntimeException('Simulated mapping failure.');
+            }
+        });
+
+        try {
+            app(EmployeeOrganizationSyncService::class)->apply(1);
+            $this->fail('The simulated failure was not thrown.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Simulated mapping failure.', $exception->getMessage());
+        } finally {
+            Employee::flushEventListeners();
+        }
+
+        $this->assertDatabaseCount('departments', 0);
+        $this->assertDatabaseCount('units', 0);
+        $this->assertDatabaseCount('positions', 0);
+        $this->assertSame(0, Employee::query()->whereNotNull('department_id')->count());
+        $this->assertDatabaseCount('employee_organization_mapping_audits', 0);
+    }
+
+    public function test_csv_report_contains_internal_ids_but_no_personal_data(): void
+    {
+        Employee::create([
+            ...$this->employeeAttributes('SECRET-SAP', 'Sales', 'Field Team', 'Analyst'),
+            'email' => 'secret@example.test',
+            'address' => 'Private address',
+        ]);
+        $path = sys_get_temp_dir().'/employee-organization-report-'.uniqid().'.csv';
+
+        $this->artisan('employees:map-organization', ['--report' => $path])
+            ->expectsOutputToContain('CSV report dibuat:')
+            ->assertSuccessful();
+
+        $contents = (string) file_get_contents($path);
+        $this->assertStringContainsString('employee_id', $contents);
+        $this->assertStringNotContainsString('SECRET-SAP', $contents);
+        $this->assertStringNotContainsString('secret@example.test', $contents);
+        $this->assertStringNotContainsString('Private address', $contents);
+        unlink($path);
+    }
+
+    public function test_apply_requires_confirmation_and_explicit_token_can_apply(): void
+    {
+        $employee = Employee::create($this->employeeAttributes('SAPSYNC012', 'Sales', 'Field Team', 'Analyst'));
+
+        $this->artisan('employees:map-organization --apply')
+            ->expectsConfirmation('Terapkan sinkronisasi organisasi pegawai yang aman?', 'no')
+            ->assertFailed();
+        $this->assertNull($employee->fresh()->department_id);
+
+        $this->artisan('employees:map-organization --apply --confirm='.EmployeeOrganizationSyncService::Confirmation)
+            ->assertSuccessful();
+        $this->assertNotNull($employee->fresh()->department_id);
+    }
+
+    public function test_non_interactive_apply_requires_the_explicit_confirmation_token(): void
+    {
+        $employee = Employee::create($this->employeeAttributes('SAPSYNC014', 'Sales', 'Field Team', 'Analyst'));
+
+        $exitCode = Artisan::call('employees:map-organization', [
+            '--apply' => true,
+            '--no-interaction' => true,
+        ]);
+
+        $this->assertSame(1, $exitCode);
+        $this->assertStringContainsString('Mode non-interaktif memerlukan', Artisan::output());
+        $this->assertNull($employee->fresh()->department_id);
+    }
+
+    public function test_employee_sync_does_not_change_wla_or_final_snapshot(): void
+    {
+        [$department, $unit, $position] = $this->organization();
+        $user = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        $schedule = WorkSchedule::create([
+            'code' => 'DAYSHIFT-SYNC',
+            'name' => 'Dayshift Sync',
+            'schedule_type' => 'Dayshift',
+            'calculation_type' => WorkScheduleCalculationType::Dayshift,
+            'working_hours_per_day' => '7.00',
+            'working_days_per_week' => 5,
+            'active' => true,
+        ]);
+        $calendar = WorkCalendar::create([
+            'year' => 2025,
+            'total_days' => 365,
+            'total_weeks' => 52,
+            'annual_leave' => 12,
+            'national_holiday' => 17,
+            'common_leave' => 6,
+            'saturday_days' => 52,
+            'sunday_days' => 52,
+            'active' => true,
+        ]);
+        $assessment = WlaAssessment::create([
+            'assessment_code' => 'WLA-SYNC-UNCHANGED',
+            'period' => 2025,
+            'department_id' => $department->id,
+            'unit_id' => $unit->id,
+            'position_id' => $position->id,
+            'work_schedule_id' => $schedule->id,
+            'work_calendar_id' => $calendar->id,
+            'efficiency_factor' => '0.9000',
+            'status' => WlaAssessmentStatus::Draft,
+            'created_by' => $user->id,
+        ]);
+        $assessment->forceFill([
+            'status' => WlaAssessmentStatus::Final,
+            'finalization_key' => '2025:'.$position->id,
+            'finalized_at' => now(),
+            'finalized_by' => $user->id,
+            'final_snapshot' => ['assessment_code' => 'WLA-SYNC-UNCHANGED', 'fte' => '1.234567'],
+        ])->save();
+        $before = $assessment->fresh()->getRawOriginal();
+        Employee::create($this->employeeAttributes('SAPSYNC013', 'Sales', 'Field Team', 'Analyst'));
+
+        app(EmployeeOrganizationSyncService::class)->apply();
+
+        $after = $assessment->fresh()->getRawOriginal();
+        $this->assertSame($before['department_id'], $after['department_id']);
+        $this->assertSame($before['unit_id'], $after['unit_id']);
+        $this->assertSame($before['position_id'], $after['position_id']);
+        $this->assertSame($before['status'], $after['status']);
+        $this->assertSame($before['final_snapshot'], $after['final_snapshot']);
+        $this->assertSame($before['finalization_key'], $after['finalization_key']);
     }
 
     /** @return array<int, mixed> */
@@ -295,7 +579,8 @@ class EmployeeOrganizationMappingTest extends TestCase
         return [
             'sap' => $personnelNumber,
             'txt_dept' => $department,
-            'organizational_unit' => $unit,
+            'txt_biro' => $unit,
+            'organizational_unit' => 'THIS FIELD MUST NOT BE USED',
             'position' => $position,
         ];
     }

@@ -2,6 +2,7 @@
 
 namespace App\Services\Workforce;
 
+use App\Enums\WlaAssessmentStatus;
 use App\Enums\WlaLegacyBackfillCategory;
 use App\Enums\WlaPeriodUnit;
 use App\Enums\WorkScheduleCalculationType;
@@ -288,6 +289,10 @@ class WlaLegacyBackfillService
      */
     private function classifyAssessment(WlaAssessment $assessment, array $scheduleResult): array
     {
+        if ($assessment->status === WlaAssessmentStatus::Final) {
+            return $this->classifyFinalAssessment($assessment);
+        }
+
         $environment = $this->assessmentEnvironment($assessment, $scheduleResult);
         $activityResults = $assessment->activities
             ->sortBy('id')
@@ -357,6 +362,79 @@ class WlaLegacyBackfillService
                     : 'Assessment tidak memiliki aktivitas legacy yang perlu diubah.',
             ),
             'activities' => $activityResults,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function classifyFinalAssessment(WlaAssessment $assessment): array
+    {
+        $snapshot = $assessment->final_snapshot;
+        $requiredSnapshotPaths = [
+            'assessment_code',
+            'period',
+            'department.id',
+            'department.code',
+            'department.name',
+            'unit.id',
+            'unit.code',
+            'unit.name',
+            'position.id',
+            'position.code',
+            'position.name',
+            'schedule.id',
+            'schedule.code',
+            'schedule.name',
+            'schedule.calculation_type',
+            'schedule.wla_hours_per_day',
+            'calendar.id',
+            'calendar.year',
+            'calendar.total_days',
+            'efficiency_factor',
+            'working_days',
+            'annual_working_hours',
+            'effective_annual_working_hours',
+            'activities',
+            'total_annual_workload',
+            'fte',
+            'recommended_employees',
+            'finalizer.id',
+            'finalizer.name',
+            'finalized_at',
+        ];
+        $snapshotComplete = is_array($snapshot)
+            && collect($requiredSnapshotPaths)->every(
+                fn (string $path): bool => data_get($snapshot, $path) !== null,
+            )
+            && is_array(data_get($snapshot, 'activities'))
+            && data_get($snapshot, 'activities') !== []
+            && $assessment->finalized_at !== null
+            && $assessment->finalized_by !== null
+            && $assessment->finalization_key !== null;
+        $category = $snapshotComplete
+            ? WlaLegacyBackfillCategory::AlreadyMigrated
+            : WlaLegacyBackfillCategory::Conflict;
+        $reason = $snapshotComplete
+            ? 'WLA Final sudah memiliki snapshot lengkap dan tidak diubah.'
+            : 'WLA Final tidak memiliki metadata atau snapshot lengkap dan memerlukan review manual.';
+        $activities = $assessment->activities
+            ->sortBy('id')
+            ->values()
+            ->map(fn (WlaActivity $activity): array => $this->activityClassification(
+                $activity,
+                $category,
+                $reason,
+            ))
+            ->all();
+
+        return [
+            ...$this->classification(
+                'assessment',
+                $assessment->id,
+                $assessment->id,
+                $category,
+                $reason,
+            ),
+            'activities' => $activities,
         ];
     }
 

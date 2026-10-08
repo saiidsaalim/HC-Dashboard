@@ -13,47 +13,7 @@ use RuntimeException;
 
 class EmployeeOrganizationMapper
 {
-    /** @var array<int, array{id: int, name: string}> */
-    private array $departments;
-
-    /** @var array<int, array{id: int, department_id: int, department_name: string, name: string}> */
-    private array $units;
-
-    /** @var array<int, array{id: int, unit_id: int, unit_name: string, department_id: int, department_name: string, name: string}> */
-    private array $positions;
-
-    public function __construct()
-    {
-        $this->departments = Department::query()->get(['id', 'name'])
-            ->map(fn (Department $department): array => [
-                'id' => $department->id,
-                'name' => $department->name,
-            ])->all();
-
-        $departmentNames = collect($this->departments)->pluck('name', 'id');
-        $this->units = Unit::query()->get(['id', 'department_id', 'name'])
-            ->map(fn (Unit $unit): array => [
-                'id' => $unit->id,
-                'department_id' => $unit->department_id,
-                'department_name' => (string) $departmentNames->get($unit->department_id, ''),
-                'name' => $unit->name,
-            ])->all();
-
-        $unitRecords = collect($this->units)->keyBy('id');
-        $this->positions = Position::query()->get(['id', 'unit_id', 'name'])
-            ->map(function (Position $position) use ($unitRecords): array {
-                $unit = $unitRecords->get($position->unit_id);
-
-                return [
-                    'id' => $position->id,
-                    'unit_id' => $position->unit_id,
-                    'unit_name' => (string) ($unit['name'] ?? ''),
-                    'department_id' => (int) ($unit['department_id'] ?? 0),
-                    'department_name' => (string) ($unit['department_name'] ?? ''),
-                    'name' => $position->name,
-                ];
-            })->all();
-    }
+    public function __construct(private readonly EmployeeOrganizationSyncService $syncService) {}
 
     /**
      * @return array{
@@ -70,259 +30,14 @@ class EmployeeOrganizationMapper
         ?int $unitId = null,
         ?int $positionId = null,
     ): array {
-        $departmentName = $this->clean($departmentName);
-        $unitName = $this->clean($unitName);
-        $positionName = $this->clean($positionName);
-        $ids = compact('departmentId', 'unitId', 'positionId');
-        $resolvedIds = [
-            'department_id' => $departmentId,
-            'unit_id' => $unitId,
-            'position_id' => $positionId,
-        ];
-        $statuses = [
-            'department' => $departmentName === null ? ($departmentId === null ? 'empty' : 'existing') : 'unmapped',
-            'unit' => $unitName === null ? ($unitId === null ? 'empty' : 'existing') : 'unmapped',
-            'position' => $positionName === null ? ($positionId === null ? 'empty' : 'existing') : 'unmapped',
-        ];
-        $conflicts = [];
-
-        $department = $departmentId === null
-            ? null
-            : $this->findById($this->departments, $departmentId);
-
-        if ($departmentId !== null && $department === null) {
-            $conflicts[] = 'department';
-            $statuses['department'] = 'conflict';
-        } elseif ($department !== null && $departmentName !== null) {
-            if ($this->normalize($departmentName) !== $this->normalize($department['name'])) {
-                $conflicts[] = 'department';
-                $statuses['department'] = 'conflict';
-            } else {
-                $statuses['department'] = 'existing';
-            }
-        } elseif ($department === null && $departmentName !== null) {
-            $match = $this->match($departmentName, $this->departments);
-            $statuses['department'] = $match['status'];
-            $department = $match['record'];
-            $resolvedIds['department_id'] = $department['id'] ?? null;
-            if ($match['status'] === 'conflict') {
-                $conflicts[] = 'department';
-            }
-        }
-
-        $unit = $unitId === null ? null : $this->findById($this->units, $unitId);
-        if ($unitId !== null && $unit === null) {
-            $conflicts[] = 'unit';
-            $statuses['unit'] = 'conflict';
-        } elseif ($unit !== null) {
-            if ($department !== null && $unit['department_id'] !== $department['id']) {
-                $conflicts[] = 'unit';
-                $statuses['unit'] = 'conflict';
-            } elseif ($department === null && $departmentName !== null) {
-                $conflicts[] = 'department';
-                $statuses['department'] = 'conflict';
-            } elseif ($department === null && $departmentName === null) {
-                $department = $this->findById($this->departments, $unit['department_id']);
-                $resolvedIds['department_id'] = $department['id'] ?? null;
-                if ($statuses['department'] === 'empty') {
-                    $statuses['department'] = 'inferred_existing';
-                }
-            }
-
-            if ($unitName !== null && $this->normalize($unitName) !== $this->normalize($unit['name'])) {
-                $conflicts[] = 'unit';
-                $statuses['unit'] = 'conflict';
-            } elseif ($unitName !== null) {
-                $statuses['unit'] = 'existing';
-            }
-        } elseif ($unitName !== null) {
-            $unitCandidates = $department === null
-                ? $this->units
-                : array_values(array_filter($this->units, fn (array $record): bool => $record['department_id'] === $department['id']));
-            $match = $this->match($unitName, $unitCandidates);
-
-            if ($match['record'] === null) {
-                $globalMatch = $this->match($unitName, $this->units);
-                if ($globalMatch['record'] !== null) {
-                    $match = ['record' => null, 'status' => 'conflict'];
-                }
-            }
-
-            $statuses['unit'] = $match['status'];
-            $unit = $match['record'];
-            $resolvedIds['unit_id'] = $unit['id'] ?? null;
-
-            if ($match['status'] === 'conflict') {
-                $conflicts[] = 'unit';
-            }
-
-            if ($unit !== null && $department === null) {
-                if ($departmentName !== null) {
-                    $conflicts[] = 'department';
-                    $statuses['department'] = 'conflict';
-                } else {
-                    $department = $this->findById($this->departments, $unit['department_id']);
-                    $resolvedIds['department_id'] = $department['id'] ?? null;
-                    $statuses['department'] = 'inferred_'.$match['status'];
-                }
-            }
-        }
-
-        $position = $positionId === null ? null : $this->findById($this->positions, $positionId);
-        if ($positionId !== null && $position === null) {
-            $conflicts[] = 'position';
-            $statuses['position'] = 'conflict';
-        } elseif ($position !== null) {
-            if ($unit !== null && $position['unit_id'] !== $unit['id']) {
-                $conflicts[] = 'position';
-                $statuses['position'] = 'conflict';
-            } elseif ($unit === null && $unitName !== null) {
-                $unit = $this->findById($this->units, $position['unit_id']);
-                $resolvedIds['unit_id'] = $unit['id'] ?? null;
-                if ($unit === null || $this->normalize($unitName) !== $this->normalize($unit['name'])) {
-                    $conflicts[] = 'unit';
-                    $statuses['unit'] = 'conflict';
-                } else {
-                    $statuses['unit'] = 'existing';
-
-                    if ($department !== null && $unit['department_id'] !== $department['id']) {
-                        $conflicts[] = 'unit';
-                        $statuses['unit'] = 'conflict';
-                    } elseif ($department === null && $departmentName !== null) {
-                        $conflicts[] = 'department';
-                        $statuses['department'] = 'conflict';
-                    } elseif ($department === null) {
-                        $department = $this->findById($this->departments, $unit['department_id']);
-                        $resolvedIds['department_id'] = $department['id'] ?? null;
-                        if ($statuses['department'] === 'empty') {
-                            $statuses['department'] = 'inferred_existing';
-                        }
-                    }
-                }
-            } elseif ($unit === null) {
-                $unit = $this->findById($this->units, $position['unit_id']);
-                $resolvedIds['unit_id'] = $unit['id'] ?? null;
-                if ($statuses['unit'] === 'empty') {
-                    $statuses['unit'] = 'inferred_existing';
-                }
-
-                if ($department !== null && $unit !== null && $unit['department_id'] !== $department['id']) {
-                    $conflicts[] = 'position';
-                    $statuses['position'] = 'conflict';
-                } elseif ($department === null && $departmentName !== null) {
-                    $conflicts[] = 'department';
-                    $statuses['department'] = 'conflict';
-                } elseif ($department === null && $departmentName === null && $unit !== null) {
-                    $department = $this->findById($this->departments, $unit['department_id']);
-                    $resolvedIds['department_id'] = $department['id'] ?? null;
-                    if ($statuses['department'] === 'empty') {
-                        $statuses['department'] = 'inferred_existing';
-                    }
-                }
-            }
-
-            if ($positionName !== null && $this->normalize($positionName) !== $this->normalize($position['name'])) {
-                $conflicts[] = 'position';
-                $statuses['position'] = 'conflict';
-            } elseif ($positionName !== null) {
-                $statuses['position'] = 'existing';
-            }
-        } elseif ($positionName !== null) {
-            if ($unit !== null) {
-                $positionCandidates = array_values(array_filter($this->positions, fn (array $record): bool => $record['unit_id'] === $unit['id']));
-            } elseif ($department !== null) {
-                $positionCandidates = array_values(array_filter($this->positions, fn (array $record): bool => $record['department_id'] === $department['id']));
-            } else {
-                $positionCandidates = $this->positions;
-            }
-
-            $match = $this->match($positionName, $positionCandidates);
-
-            if ($match['record'] === null) {
-                $globalMatch = $this->match($positionName, $this->positions);
-                if ($globalMatch['record'] !== null) {
-                    $match = ['record' => null, 'status' => 'conflict'];
-                }
-            }
-
-            $statuses['position'] = $match['status'];
-            $position = $match['record'];
-            $resolvedIds['position_id'] = $position['id'] ?? null;
-
-            if ($match['status'] === 'conflict') {
-                $conflicts[] = 'position';
-            }
-
-            if ($position !== null && $unit === null) {
-                if ($unitName !== null) {
-                    $conflicts[] = 'unit';
-                    $statuses['unit'] = 'conflict';
-                } else {
-                    $unit = $this->findById($this->units, $position['unit_id']);
-                    $resolvedIds['unit_id'] = $unit['id'] ?? null;
-                    $statuses['unit'] = 'inferred_'.$match['status'];
-                }
-            }
-
-            if ($position !== null && $unit !== null && $department === null) {
-                if ($departmentName !== null) {
-                    $conflicts[] = 'department';
-                    $statuses['department'] = 'conflict';
-                } else {
-                    $department = $this->findById($this->departments, $unit['department_id']);
-                    $resolvedIds['department_id'] = $department['id'] ?? null;
-                    if ($statuses['department'] === 'empty') {
-                        $statuses['department'] = 'inferred_'.$match['status'];
-                    }
-                }
-            }
-        }
-
-        return [
-            'ids' => $resolvedIds,
-            'statuses' => $statuses,
-            'conflicts' => array_values(array_unique($conflicts)),
-        ];
-    }
-
-    /** @param array<int, array<string, int|string>> $records */
-    private function findById(array $records, int $id): ?array
-    {
-        foreach ($records as $record) {
-            if ($record['id'] === $id) {
-                return $record;
-            }
-        }
-
-        return null;
-    }
-
-    /** @param array<int, array<string, int|string>> $records
-     * @return array{record: array<string, int|string>|null, status: string}
-     */
-    private function match(string $name, array $records): array
-    {
-        $exact = array_values(array_filter($records, fn (array $record): bool => $record['name'] === $name));
-
-        if (count($exact) === 1) {
-            return ['record' => $exact[0], 'status' => 'exact'];
-        }
-
-        if (count($exact) > 1) {
-            return ['record' => null, 'status' => 'conflict'];
-        }
-
-        $normalizedName = $this->normalize($name);
-        $normalized = array_values(array_filter(
-            $records,
-            fn (array $record): bool => $this->normalize((string) $record['name']) === $normalizedName,
-        ));
-
-        if (count($normalized) === 1) {
-            return ['record' => $normalized[0], 'status' => 'normalized'];
-        }
-
-        return ['record' => null, 'status' => count($normalized) > 1 ? 'conflict' : 'unmapped'];
+        return $this->syncService->resolveExisting(
+            $departmentName,
+            $unitName,
+            $positionName,
+            $departmentId,
+            $unitId,
+            $positionId,
+        );
     }
 
     public function exportTemplate(?string $path = null): string
@@ -351,10 +66,10 @@ class EmployeeOrganizationMapper
             'mapping_note',
         ]);
 
-        foreach (Employee::query()->select(['id', 'txt_dept', 'organizational_unit', 'position'])->orderBy('id')->get() as $employee) {
+        foreach (Employee::query()->select(['id', 'txt_dept', 'txt_biro', 'position', 'department_id', 'unit_id', 'position_id'])->orderBy('id')->get() as $employee) {
             $resolved = $this->resolve(
                 $employee->txt_dept,
-                $employee->organizational_unit,
+                $employee->txt_biro,
                 $employee->position,
                 $employee->department_id,
                 $employee->unit_id,
@@ -367,7 +82,7 @@ class EmployeeOrganizationMapper
                 $employee->id,
                 '',
                 $employee->txt_dept,
-                $employee->organizational_unit,
+                $employee->txt_biro,
                 $employee->position,
                 $resolved['ids']['department_id'] ?? '',
                 $this->getDepartmentName((int) ($resolved['ids']['department_id'] ?? 0)),
@@ -571,7 +286,7 @@ class EmployeeOrganizationMapper
                 'employee_name' => '',
                 'current' => [
                     'department' => $employee->txt_dept,
-                    'organizational_unit' => $employee->organizational_unit,
+                    'txt_biro' => $employee->txt_biro,
                     'position' => $employee->position,
                 ],
                 'target' => [
@@ -799,19 +514,5 @@ class EmployeeOrganizationMapper
     private function getPositionName(int $id): string
     {
         return (string) Position::query()->whereKey($id)->value('name');
-    }
-
-    private function clean(?string $value): ?string
-    {
-        $value = trim((string) $value);
-
-        return $value === '' ? null : $value;
-    }
-
-    private function normalize(string $value): string
-    {
-        $value = preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value);
-
-        return mb_strtolower($value);
     }
 }

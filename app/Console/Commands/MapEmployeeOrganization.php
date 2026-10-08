@@ -2,19 +2,22 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Employee;
-use App\Services\Employees\EmployeeOrganizationMapper;
+use App\Services\Employees\EmployeeOrganizationSyncService;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
-#[Signature('employees:map-organization {--dry-run : Report mappings without modifying employees} {--apply : Backfill unambiguous foreign keys} {--chunk=500 : Employees per chunk}')]
-#[Description('Report or safely backfill Employee organization foreign keys')]
+#[Signature('employees:map-organization
+    {--dry-run : Report mappings without modifying data}
+    {--apply : Create missing masters and map safe Employee rows}
+    {--confirm= : Non-interactive confirmation token}
+    {--report= : Optional CSV report path}
+    {--chunk=500 : Employees read per database chunk}')]
+#[Description('Audit or safely synchronize Employee organization masters and foreign keys')]
 class MapEmployeeOrganization extends Command
 {
-    public function handle(EmployeeOrganizationMapper $mapper): int
+    public function handle(EmployeeOrganizationSyncService $service): int
     {
         if ($this->option('dry-run') && $this->option('apply')) {
             $this->error('Pilih salah satu: --dry-run atau --apply.');
@@ -30,134 +33,128 @@ class MapEmployeeOrganization extends Command
         }
 
         $applying = (bool) $this->option('apply');
-        $report = [
-            'total' => Employee::query()->count(),
-            'mapped' => ['department' => 0, 'unit' => 0, 'position' => 0],
-            'unmapped' => ['department' => 0, 'unit' => 0, 'position' => 0],
-            'empty' => ['department' => 0, 'unit' => 0, 'position' => 0],
-            'conflicts' => 0,
-            'updated' => 0,
-        ];
+        if ($applying && ! $this->confirmed()) {
+            $this->warn('Sinkronisasi dibatalkan. Tidak ada data yang diubah.');
 
-        Employee::query()
-            ->select([
-                'id', 'sap', 'txt_dept', 'organizational_unit', 'position',
-                'department_id', 'unit_id', 'position_id',
-            ])
-            ->chunkById($chunkSize, function (Collection $employees) use ($mapper, $applying, &$report): void {
-                $plans = [];
-
-                foreach ($employees as $employee) {
-                    $mapping = $mapper->resolve(
-                        $employee->txt_dept,
-                        $employee->organizational_unit,
-                        $employee->position,
-                        $employee->department_id,
-                        $employee->unit_id,
-                        $employee->position_id,
-                    );
-
-                    foreach ($mapping['statuses'] as $field => $status) {
-                        if ($this->isMapped($status)) {
-                            $report['mapped'][$field]++;
-                        } elseif ($status === 'unmapped') {
-                            $report['unmapped'][$field]++;
-                        }
-
-                        $legacyValue = match ($field) {
-                            'department' => $employee->txt_dept,
-                            'unit' => $employee->organizational_unit,
-                            'position' => $employee->position,
-                        };
-
-                        if (trim((string) $legacyValue) === '') {
-                            $report['empty'][$field]++;
-                        }
-                    }
-
-                    $unmappedFields = array_keys(array_filter(
-                        $mapping['statuses'],
-                        fn (string $status): bool => $status === 'unmapped',
-                    ));
-                    if ($mapping['conflicts'] !== [] || $unmappedFields !== []) {
-                        $this->warn(sprintf(
-                            'Employee %s (%s): conflicts=[%s], unmapped=[%s].',
-                            $employee->id,
-                            $employee->sap,
-                            implode(',', $mapping['conflicts']),
-                            implode(',', $unmappedFields),
-                        ));
-                    }
-
-                    if ($mapping['conflicts'] !== []) {
-                        $report['conflicts']++;
-
-                        continue;
-                    }
-
-                    $plans[] = [
-                        'employee_id' => $employee->id,
-                        'current' => [
-                            'department_id' => $employee->department_id,
-                            'unit_id' => $employee->unit_id,
-                            'position_id' => $employee->position_id,
-                        ],
-                        'mapped' => $mapping['ids'],
-                    ];
-                }
-
-                if (! $applying || $plans === []) {
-                    return;
-                }
-
-                DB::transaction(function () use ($plans, &$report): void {
-                    foreach ($plans as $plan) {
-                        $changes = [];
-
-                        foreach ($plan['mapped'] as $field => $mappedId) {
-                            if ($plan['current'][$field] === null && $mappedId !== null) {
-                                $changes[$field] = $mappedId;
-                            }
-                        }
-
-                        if ($changes === []) {
-                            continue;
-                        }
-
-                        $query = Employee::query()->whereKey($plan['employee_id']);
-                        foreach ($plan['current'] as $field => $currentId) {
-                            if ($currentId === null) {
-                                $query->whereNull($field);
-                            } else {
-                                $query->where($field, $currentId);
-                            }
-                        }
-
-                        $report['updated'] += $query->update($changes);
-                    }
-                });
-            });
-
-        $this->line('Total Employees: '.$report['total']);
-        foreach (['department' => 'Department', 'unit' => 'Unit', 'position' => 'Position'] as $field => $label) {
-            $this->line("Mapped {$label}: ".$report['mapped'][$field]);
-            $this->line("Unmapped {$label}: ".$report['unmapped'][$field]);
-            $this->line("Empty {$label} text: ".$report['empty'][$field]);
+            return self::FAILURE;
         }
-        $this->line('Conflicts: '.$report['conflicts']);
-        $this->line('Mode: '.($applying ? 'apply' : 'dry-run'));
-        $this->line('Employee rows updated: '.$report['updated']);
 
-        if (! $applying) {
-            $this->comment('Tidak ada data Employee yang diubah. Gunakan --apply hanya setelah meninjau laporan.');
+        try {
+            $result = $applying ? $service->apply($chunkSize) : $service->audit($chunkSize);
+            if (is_string($this->option('report')) && trim($this->option('report')) !== '') {
+                $this->writeReport($result, $this->option('report'));
+            }
+        } catch (RuntimeException $exception) {
+            $this->error($exception->getMessage());
+
+            return self::FAILURE;
         }
+
+        $this->display($result, $applying);
 
         return self::SUCCESS;
     }
 
-    private function isMapped(string $status): bool
+    private function confirmed(): bool
     {
-        return in_array($status, ['exact', 'normalized', 'existing'], true)
-            || str_starts_with($status, 'inferred_');
+        if ($this->option('confirm') === EmployeeOrganizationSyncService::Confirmation) {
+            return true;
+        }
+
+        if ($this->input->isInteractive()) {
+            return $this->confirm('Terapkan sinkronisasi organisasi pegawai yang aman?', false);
+        }
+
+        if ($this->option('confirm') !== EmployeeOrganizationSyncService::Confirmation) {
+            $this->error('Mode non-interaktif memerlukan --confirm='.EmployeeOrganizationSyncService::Confirmation.'.');
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /** @param array<string, mixed> $result */
+    private function display(array $result, bool $applying): void
+    {
+        $summary = $result['summary'];
+        $this->line('Mode: '.($applying ? 'apply' : 'dry-run'));
+        $this->line('Total Employees: '.$summary['employees']);
+        $this->line('Unique Department (txt_dept): '.$summary['unique_departments']);
+        $this->line('Unique Unit (txt_dept + txt_biro): '.$summary['unique_units']);
+        $this->line('Unique Position (txt_dept + txt_biro + position): '.$summary['unique_positions']);
+        $this->line('Exact master matches: '.$summary['exact_matches']);
+        $this->line('Normalized master matches: '.$summary['normalized_matches']);
+        $this->line('New Departments: '.$summary['departments_to_create']);
+        $this->line('New Units: '.$summary['units_to_create']);
+        $this->line('New Positions: '.$summary['positions_to_create']);
+        $this->line('Empty txt_dept: '.$summary['empty_department']);
+        $this->line('Empty txt_biro: '.$summary['empty_unit']);
+        $this->line('Empty position: '.$summary['empty_position']);
+        $this->line('Conflicts: '.$summary['conflicts']);
+        $this->line('Mappable Employees: '.$summary['mappable_employees']);
+        $this->line('Employees Requiring Review: '.$summary['review_employees']);
+        $this->line('Foreign Keys To Update: '.$summary['foreign_keys_to_update']);
+
+        foreach ($summary['statuses'] as $status => $count) {
+            $this->line($status.': '.$count);
+        }
+
+        $reviewRows = array_values(array_filter(
+            $result['rows'],
+            fn (array $row): bool => in_array($row['status'], ['needs_review', 'conflict', 'invalid'], true),
+        ));
+        if ($reviewRows !== []) {
+            $this->table(
+                ['Employee ID', 'Status', 'Reason'],
+                array_map(fn (array $row): array => [$row['employee_id'], $row['status'], $row['reason']], $reviewRows),
+            );
+        }
+
+        if ($applying) {
+            $this->line('Employee rows updated: '.$result['applied']['employees_updated']);
+            $this->line('Foreign keys updated: '.$result['applied']['foreign_keys_updated']);
+            $this->line('Departments created: '.$result['applied']['departments_created']);
+            $this->line('Units created: '.$result['applied']['units_created']);
+            $this->line('Positions created: '.$result['applied']['positions_created']);
+        } else {
+            $this->comment('Dry-run selesai. Database tidak diubah.');
+        }
+    }
+
+    /** @param array<string, mixed> $result */
+    private function writeReport(array $result, string $path): void
+    {
+        $directory = dirname($path);
+        if (! is_dir($directory) && ! mkdir($directory, 0777, true) && ! is_dir($directory)) {
+            throw new RuntimeException('Direktori report tidak dapat dibuat.');
+        }
+
+        $handle = fopen($path, 'wb');
+        if ($handle === false) {
+            throw new RuntimeException('File report tidak dapat dibuat.');
+        }
+
+        fputcsv($handle, [
+            'employee_id', 'status', 'reason', 'current_department_id', 'current_unit_id',
+            'current_position_id', 'target_department_id', 'target_unit_id', 'target_position_id',
+            'foreign_keys_to_update',
+        ]);
+        foreach ($result['rows'] as $row) {
+            fputcsv($handle, [
+                $row['employee_id'],
+                $row['status'],
+                $row['reason'],
+                $row['current']['department_id'],
+                $row['current']['unit_id'],
+                $row['current']['position_id'],
+                $row['target']['department_id'],
+                $row['target']['unit_id'],
+                $row['target']['position_id'],
+                $row['foreign_keys_to_update'],
+            ]);
+        }
+        fclose($handle);
+        $this->info('CSV report dibuat: '.$path);
     }
 }

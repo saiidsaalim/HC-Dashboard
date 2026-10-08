@@ -78,7 +78,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/wla/create', [WlaAssessmentController::class, 'create'])->name('wla.create');
     Route::post('/wla', [WlaAssessmentController::class, 'store'])->name('wla.store');
     Route::get('/wla/{wla}/edit', [WlaAssessmentController::class, 'edit'])->name('wla.edit');
+    Route::get('/wla/{wla}/print', [WlaAssessmentController::class, 'print'])->name('wla.print');
+    Route::get('/wla/{wla}/export-excel', [WlaAssessmentController::class, 'exportExcel'])->name('wla.export-excel');
     Route::get('/wla/{wla}', [WlaAssessmentController::class, 'show'])->name('wla.show');
+    Route::post('/wla/{wla}/finalize', [WlaAssessmentController::class, 'finalize'])->name('wla.finalize');
     Route::put('/wla/{wla}', [WlaAssessmentController::class, 'update'])->name('wla.update');
     Route::delete('/wla/{wla}', [WlaAssessmentController::class, 'destroy'])->name('wla.destroy');
 

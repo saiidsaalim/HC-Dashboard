@@ -60,7 +60,7 @@ class EmployeeOrganizationMappingCommand extends Command
             foreach ($result['details'] as $detail) {
                 $this->line('');
                 $this->line('Employee: '.$detail['employee_name']);
-                $this->line('Current: department = "'.$detail['current']['department'].'", organizational_unit = "'.$detail['current']['organizational_unit'].'", position = "'.$detail['current']['position'].'"');
+                $this->line('Current: department = "'.$detail['current']['department'].'", txt_biro = "'.$detail['current']['txt_biro'].'", position = "'.$detail['current']['position'].'"');
                 $this->line('Will become: department_id = '.($detail['target']['department_id'] ?? 'null').', unit_id = '.($detail['target']['unit_id'] ?? 'null').', position_id = '.($detail['target']['position_id'] ?? 'null'));
             }
 

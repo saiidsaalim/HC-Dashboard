@@ -50,6 +50,12 @@ class WlaAssessmentPolicy
             && $wlaAssessment->status === WlaAssessmentStatus::Draft;
     }
 
+    public function finalize(User $user, WlaAssessment $wlaAssessment): bool
+    {
+        return $user->roleEnum()->canManageRbac()
+            && $wlaAssessment->status === WlaAssessmentStatus::Draft;
+    }
+
     /**
      * Determine whether the user can restore the model.
      */

@@ -28,6 +28,8 @@ class WlaAssessment extends Model
             'total_annual_workload_hours' => 'decimal:4',
             'fte' => 'decimal:6',
             'recommended_employees' => 'integer',
+            'finalized_at' => 'datetime',
+            'final_snapshot' => 'array',
         ];
     }
 
@@ -64,6 +66,11 @@ class WlaAssessment extends Model
     public function updater(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    public function finalizer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'finalized_by');
     }
 
     public function activities(): HasMany

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Workforce;
 
 use App\Enums\WlaAssessmentStatus;
 use App\Enums\WlaPeriodUnit;
+use App\Exports\WlaFinalSpreadsheet;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreWlaAssessmentRequest;
 use App\Http\Requests\UpdateWlaAssessmentRequest;
@@ -14,17 +15,26 @@ use App\Models\WlaAssessment;
 use App\Models\WorkCalendar;
 use App\Models\WorkSchedule;
 use App\Services\Workforce\WlaCalculationService;
+use App\Services\Workforce\WlaFinalizationService;
+use App\Services\Workforce\WlaFinalSnapshotService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class WlaAssessmentController extends Controller
 {
-    public function __construct(private WlaCalculationService $wlaCalculationService) {}
+    public function __construct(
+        private WlaCalculationService $wlaCalculationService,
+        private WlaFinalizationService $wlaFinalizationService,
+        private WlaFinalSnapshotService $wlaFinalSnapshotService,
+        private WlaFinalSpreadsheet $wlaFinalSpreadsheet,
+    ) {}
 
     public function index(): View
     {
@@ -72,10 +82,23 @@ class WlaAssessmentController extends Controller
     {
         Gate::authorize('view', $wla);
 
+        if ($wla->status === WlaAssessmentStatus::Final) {
+            $wla->load('finalizer');
+
+            return view('wla.show', [
+                'wla' => $wla,
+                'finalSnapshot' => $wla->final_snapshot,
+            ]);
+        }
+
         $wla->load(['department', 'unit', 'position', 'workSchedule', 'workCalendar', 'creator', 'activities']);
         $calculationState = $this->wlaCalculationService->calculationState($wla);
 
-        return view('wla.show', compact('wla', 'calculationState'));
+        return view('wla.show', [
+            'wla' => $wla,
+            'calculationState' => $calculationState,
+            'finalizationReasons' => $this->finalizationReasons($wla, $calculationState),
+        ]);
     }
 
     public function edit(WlaAssessment $wla): View
@@ -115,6 +138,29 @@ class WlaAssessmentController extends Controller
         });
 
         return to_route('wla')->with('status', 'Draft WLA berhasil dihapus.');
+    }
+
+    public function finalize(Request $request, WlaAssessment $wla): RedirectResponse
+    {
+        $this->wlaFinalizationService->finalize($wla, $request->user());
+
+        return to_route('wla.show', $wla)->with('status', 'WLA berhasil difinalisasi.');
+    }
+
+    public function print(WlaAssessment $wla): View
+    {
+        Gate::authorize('view', $wla);
+
+        return view('wla.print', [
+            'snapshot' => $this->wlaFinalSnapshotService->validatedSnapshot($wla),
+        ]);
+    }
+
+    public function exportExcel(WlaAssessment $wla): BinaryFileResponse
+    {
+        Gate::authorize('view', $wla);
+
+        return $this->wlaFinalSpreadsheet->download($wla);
     }
 
     /** @return array{departments: Collection, units: Collection, positions: Collection, workSchedules: Collection, workCalendars: Collection, periodUnits: array, assessment: WlaAssessment|null} */
@@ -165,5 +211,38 @@ class WlaAssessmentController extends Controller
         Gate::authorize($ability, $lockedAssessment);
 
         return $lockedAssessment;
+    }
+
+    /**
+     * @param  array<string, mixed>  $calculationState
+     * @return array<int, string>
+     */
+    private function finalizationReasons(WlaAssessment $assessment, array $calculationState): array
+    {
+        $reasons = [];
+
+        if ($assessment->activities->isEmpty()) {
+            $reasons[] = 'Tambahkan minimal satu aktivitas.';
+        }
+
+        if (! $calculationState['calculation_available']) {
+            $reasons[] = $calculationState['unavailable_reason'] ?? 'Kalkulasi WLA belum tersedia.';
+        } elseif (! $calculationState['calculation_complete']) {
+            $reasons[] = 'Selesaikan review seluruh aktivitas.';
+        }
+
+        foreach ([
+            [$assessment->department, 'Department'],
+            [$assessment->unit, 'Unit'],
+            [$assessment->position, 'Position'],
+            [$assessment->workSchedule, 'Jadwal kerja'],
+            [$assessment->workCalendar, 'Kalender kerja'],
+        ] as [$master, $label]) {
+            if ($master === null || ! $master->active) {
+                $reasons[] = "{$label} harus tersedia dan aktif.";
+            }
+        }
+
+        return array_values(array_unique($reasons));
     }
 }
