@@ -139,7 +139,7 @@
                             class="rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50">Reset</a>
                     @endif
                 </form>
-                @if ($canManageDemotionRecords)
+                @if ($canManageDemotionRecords && $demotions->contains(fn($demotion): bool => $demotion->verification_status !== 'Final'))
                     <div class="flex items-center gap-3">
                         <label class="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-600">
                             <input id="select-all-demotions" type="checkbox"
@@ -183,9 +183,11 @@
                             <tr>
                                 @if ($canManageDemotionRecords)
                                     <td class="px-4 py-3 text-center">
-                                        <input type="checkbox" name="demotion_ids[]" value="{{ $demotion->id }}"
-                                            class="demotion-checkbox rounded border-slate-300 text-slate-950 focus:ring-amber-400"
-                                            onchange="document.getElementById('select-all-demotions').checked = document.querySelectorAll('.demotion-checkbox').length > 0 && document.querySelectorAll('.demotion-checkbox:not(:checked)').length === 0">
+                                        @if ($demotion->verification_status !== 'Final')
+                                            <input type="checkbox" name="demotion_ids[]" value="{{ $demotion->id }}"
+                                                class="demotion-checkbox rounded border-slate-300 text-slate-950 focus:ring-amber-400"
+                                                onchange="document.getElementById('select-all-demotions').checked = document.querySelectorAll('.demotion-checkbox').length > 0 && document.querySelectorAll('.demotion-checkbox:not(:checked)').length === 0">
+                                        @endif
                                     </td>
                                 @endif
                                 <td class="px-4 py-3 font-semibold text-slate-700">{{ $demotion->sap }}</td>
@@ -287,7 +289,7 @@
                         </div>
                     @endforeach
                 </div>
-                @if ($canManageDemotionRecords)
+                @if ($canManageDemotionRecords && $demotion->verification_status !== 'Final')
                     <details class="mt-8 rounded-xl border border-slate-200 bg-slate-50 p-4">
                         <summary class="cursor-pointer text-sm font-semibold text-slate-700">Edit Data</summary>
                         <form method="POST" action="{{ route('demosi.update', $demotion) }}"

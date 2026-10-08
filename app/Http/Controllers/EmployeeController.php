@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use InvalidArgumentException;
@@ -37,7 +38,9 @@ class EmployeeController extends Controller
         $departmentId = trim((string) $request->input('department_id', ''));
         $unitId = trim((string) $request->input('unit_id', ''));
         $positionId = trim((string) $request->input('position_id', ''));
-        $organicStatus = trim((string) $request->input('organic_status', ''));
+        $sortBy = $request->validate([
+            'sort_by' => ['nullable', 'string', Rule::in(['latest', 'organic_newest', 'organic_oldest'])],
+        ])['sort_by'] ?? 'latest';
         $employeeQuery = Employee::query()->with(['organizationDepartment', 'unit', 'organizationPosition']);
 
         if ($search !== '') {
@@ -68,11 +71,16 @@ class EmployeeController extends Controller
             $employeeQuery->where('position', $position);
         }
 
-        if ($organicStatus !== '') {
-            $employeeQuery->whereDate('organilk', $organicStatus);
+        if ($sortBy === 'organic_newest' || $sortBy === 'organic_oldest') {
+            $employeeQuery
+                ->orderByRaw('CASE WHEN organilk IS NULL THEN 1 ELSE 0 END')
+                ->orderBy('organilk', $sortBy === 'organic_newest' ? 'desc' : 'asc')
+                ->orderByDesc('id');
+        } else {
+            $employeeQuery->latest();
         }
 
-        $employees = $employeeQuery->latest()->paginate(10)->withQueryString();
+        $employees = $employeeQuery->paginate(10)->withQueryString();
         $departmentIds = $employees->pluck('department_id')->filter()->merge($departmentId !== '' ? [$departmentId] : [])->unique()->all();
         $unitIds = $employees->pluck('unit_id')->filter()->merge($unitId !== '' ? [$unitId] : [])->unique()->all();
         $positionIds = $employees->pluck('position_id')->filter()->merge($positionId !== '' ? [$positionId] : [])->unique()->all();
@@ -85,13 +93,12 @@ class EmployeeController extends Controller
             'departmentId' => $departmentId,
             'unitId' => $unitId,
             'positionId' => $positionId,
-            'organicStatus' => $organicStatus,
+            'sortBy' => $sortBy,
             'departments' => Employee::query()->whereNotNull('txt_dept')->where('txt_dept', '!=', '')->distinct()->orderBy('txt_dept')->pluck('txt_dept'),
             'positions' => Employee::query()->whereNotNull('position')->where('position', '!=', '')->distinct()->orderBy('position')->pluck('position'),
             'organizationDepartments' => Department::query()->where('active', true)->orWhereIn('id', $departmentIds)->orderBy('name')->get(),
             'organizationUnits' => Unit::query()->with('department')->where('active', true)->orWhereIn('id', $unitIds)->orderBy('name')->get(),
             'organizationPositions' => Position::query()->with('unit.department')->where('active', true)->orWhereIn('id', $positionIds)->orderBy('name')->get(),
-            'organicStatuses' => Employee::query()->whereNotNull('organilk')->where('organilk', '!=', '')->distinct()->orderBy('organilk')->pluck('organilk'),
             'canManageEmployees' => $request->user()?->roleEnum() === UserRole::SUPER_ADMIN,
         ]);
     }

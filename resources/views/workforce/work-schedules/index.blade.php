@@ -29,14 +29,15 @@
             <button class="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200">Filter</button>
         </form>
         <div class="overflow-x-auto">
-            <table class="w-full min-w-[860px] text-left text-sm">
-                <thead class="bg-slate-50 text-xs uppercase text-slate-500"><tr><th class="px-4 py-3">Kode</th><th class="px-4 py-3">Nama</th><th class="px-4 py-3">Tipe</th><th class="px-4 py-3">Jam / hari</th><th class="px-4 py-3">Hari / minggu</th><th class="px-4 py-3">Jam / minggu</th><th class="px-4 py-3">Status</th><th class="px-4 py-3 text-right">Aksi</th></tr></thead>
+            <table class="w-full min-w-[980px] text-left text-sm">
+                <thead class="bg-slate-50 text-xs uppercase text-slate-500"><tr><th class="px-4 py-3">Kode</th><th class="px-4 py-3">Nama</th><th class="px-4 py-3">Tipe</th><th class="px-4 py-3">Kalkulasi WLA</th><th class="px-4 py-3">Jam / hari</th><th class="px-4 py-3">Hari / minggu</th><th class="px-4 py-3">Jam / minggu</th><th class="px-4 py-3">Status</th><th class="px-4 py-3 text-right">Aksi</th></tr></thead>
                 <tbody class="divide-y divide-slate-100">
                     @forelse ($workSchedules as $workSchedule)
                         <tr>
                             <td class="px-4 py-3 font-semibold text-slate-800">{{ $workSchedule->code }}</td>
                             <td class="px-4 py-3 text-slate-700">{{ $workSchedule->name }}</td>
                             <td class="px-4 py-3 text-slate-600">{{ $workSchedule->schedule_type }}</td>
+                            <td class="px-4 py-3 text-slate-600">{{ $workSchedule->calculationTypeForWla()?->label() ?? 'Perlu klasifikasi' }}</td>
                             <td class="px-4 py-3 text-slate-600">{{ $workSchedule->working_hours_per_day }}</td>
                             <td class="px-4 py-3 text-slate-600">{{ $workSchedule->working_days_per_week }}</td>
                             <td class="px-4 py-3 font-medium text-slate-700">{{ $workSchedule->working_hours_per_week }}</td>
@@ -44,7 +45,7 @@
                             <td class="px-4 py-3"><div class="flex justify-end gap-3"><a class="font-semibold text-sky-700 hover:text-sky-900" href="{{ route('work-schedules.edit', $workSchedule) }}">Ubah</a><form method="POST" action="{{ route('work-schedules.destroy', $workSchedule) }}" onsubmit="return confirm('Hapus schedule ini?')">@csrf @method('DELETE')<button class="font-semibold text-red-600 hover:text-red-800">Hapus</button></form></div></td>
                         </tr>
                     @empty
-                        <tr><td colspan="8" class="px-4 py-10 text-center text-slate-500">Belum ada Work Schedule.</td></tr>
+                        <tr><td colspan="9" class="px-4 py-10 text-center text-slate-500">Belum ada Work Schedule.</td></tr>
                     @endforelse
                 </tbody>
             </table>

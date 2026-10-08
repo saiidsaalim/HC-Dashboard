@@ -9,6 +9,7 @@ use App\Imports\MutationImport;
 use App\Models\EmployeeMutation;
 use App\Models\User;
 use App\Services\Personnel\ApprovalService;
+use App\Services\Personnel\PersonnelActionGuard;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -64,14 +65,17 @@ class MutationController extends Controller
         return to_route('mutasi')->with('status', 'Data mutasi berhasil ditambahkan.');
     }
 
-    public function update(UpdatePersonnelActionRequest $request, EmployeeMutation $employeeMutation): RedirectResponse
-    {
-        $employeeMutation->update($request->validated());
+    public function update(
+        UpdatePersonnelActionRequest $request,
+        EmployeeMutation $employeeMutation,
+        PersonnelActionGuard $personnelActionGuard,
+    ): RedirectResponse {
+        $personnelActionGuard->update($employeeMutation, $request->validated());
 
         return to_route('mutasi')->with('status', 'Data mutasi berhasil diperbarui.');
     }
 
-    public function destroyMany(Request $request): RedirectResponse
+    public function destroyMany(Request $request, PersonnelActionGuard $personnelActionGuard): RedirectResponse
     {
         abort_unless($request->user()?->roleEnum() === UserRole::SUPER_ADMIN, 403);
 
@@ -80,9 +84,9 @@ class MutationController extends Controller
             'mutation_ids.*' => ['integer', 'distinct', 'exists:employee_mutations,id'],
         ]);
 
-        $deleted = EmployeeMutation::query()
-            ->whereIn('id', $validated['mutation_ids'])
-            ->delete();
+        $deleted = $personnelActionGuard->deleteMany(
+            EmployeeMutation::query()->whereIn('id', $validated['mutation_ids']),
+        );
 
         return to_route('mutasi')->with('status', "Berhasil menghapus {$deleted} data mutasi.");
     }

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Enums\WorkScheduleCalculationType;
 use App\Models\User;
 use App\Models\WorkSchedule;
 use Database\Seeders\WorkScheduleSeeder;
@@ -13,6 +14,14 @@ use Tests\TestCase;
 class WorkScheduleTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function migrateDatabases(): void
+    {
+        $this->assertSame('sqlite', config('database.default'));
+        $this->assertSame('sqlite', DB::connection()->getDriverName());
+        $this->assertSame(':memory:', DB::connection()->getDatabaseName());
+        $this->artisan('migrate', ['--no-interaction' => true])->assertExitCode(0);
+    }
 
     public function test_super_admin_can_view_work_schedule_pages(): void
     {
@@ -28,7 +37,9 @@ class WorkScheduleTest extends TestCase
         $this->actingAs($this->superAdmin());
 
         $this->get(route('work-schedules.index'))->assertOk();
-        $this->get(route('work-schedules.create'))->assertOk();
+        $this->get(route('work-schedules.create'))
+            ->assertOk()
+            ->assertSee('Jam harian formula WLA berasal dari Kelompok Kalkulasi WLA');
         $this->get(route('work-schedules.edit', $schedule))->assertOk();
     }
 
@@ -39,6 +50,7 @@ class WorkScheduleTest extends TestCase
                 'code' => 'SHIFT_1',
                 'name' => 'Shift 1',
                 'schedule_type' => 'Shift 1/2/3',
+                'calculation_type' => WorkScheduleCalculationType::Shift123->value,
                 'working_hours_per_day' => '7.50',
                 'working_days_per_week' => 6,
                 'active' => true,
@@ -49,6 +61,7 @@ class WorkScheduleTest extends TestCase
             'code' => 'SHIFT_1',
             'name' => 'Shift 1',
             'schedule_type' => 'Shift 1/2/3',
+            'calculation_type' => WorkScheduleCalculationType::Shift123->value,
             'working_hours_per_day' => '7.50',
             'working_days_per_week' => 6,
         ]);
@@ -103,6 +116,7 @@ class WorkScheduleTest extends TestCase
                 'code' => 'SHIFT_1',
                 'name' => 'Shift 1 Updated',
                 'schedule_type' => 'shift',
+                'calculation_type' => WorkScheduleCalculationType::Shift123->value,
                 'working_hours_per_day' => 7,
                 'working_days_per_week' => 6,
                 'active' => true,
@@ -178,6 +192,7 @@ class WorkScheduleTest extends TestCase
                 'code' => 'BAD_PRECISION',
                 'name' => 'Invalid Precision',
                 'schedule_type' => 'shift',
+                'calculation_type' => WorkScheduleCalculationType::Shift123->value,
                 'working_hours_per_day' => '7.555',
                 'working_days_per_week' => 6,
                 'active' => true,

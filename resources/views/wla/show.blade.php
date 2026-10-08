@@ -33,13 +33,13 @@
                 <div><dt class="text-xs uppercase text-slate-500">Department</dt><dd class="mt-1 font-medium text-slate-800">{{ $wla->department->name }}</dd></div>
                 <div><dt class="text-xs uppercase text-slate-500">Unit</dt><dd class="mt-1 font-medium text-slate-800">{{ $wla->unit->name }}</dd></div>
                 <div><dt class="text-xs uppercase text-slate-500">Position</dt><dd class="mt-1 font-medium text-slate-800">{{ $wla->position->name }}</dd></div>
-                <div><dt class="text-xs uppercase text-slate-500">Work Schedule</dt><dd class="mt-1 font-medium text-slate-800">{{ $wla->workSchedule->name }} · {{ $wla->workSchedule->working_hours_per_day }} h/day · {{ $wla->workSchedule->working_days_per_week }} days/week · {{ $wla->workSchedule->working_hours_per_week }} h/week</dd></div>
-                <div><dt class="text-xs uppercase text-slate-500">Work Calendar</dt><dd class="mt-1 font-medium text-slate-800">{{ $wla->workCalendar->year }} · {{ $wla->workCalendar->total_days }} days · annual leave {{ $wla->workCalendar->annual_leave }} · national holiday {{ $wla->workCalendar->national_holiday }} · common leave {{ $wla->workCalendar->common_leave }}</dd></div>
+                <div><dt class="text-xs uppercase text-slate-500">Work Schedule</dt><dd class="mt-1 font-medium text-slate-800">{{ $wla->workSchedule->name }} · {{ $wla->workSchedule->calculationTypeForWla()?->label() ?? 'Perlu klasifikasi' }}</dd></div>
+                <div><dt class="text-xs uppercase text-slate-500">Work Calendar</dt><dd class="mt-1 font-medium text-slate-800">{{ $wla->workCalendar->year }} · {{ $calculationState['total_days'] }} hari · cuti tahunan {{ $wla->workCalendar->annual_leave }} · libur nasional {{ $wla->workCalendar->national_holiday }} · cuti bersama {{ $wla->workCalendar->common_leave }}</dd></div>
                 <div><dt class="text-xs uppercase text-slate-500">Efficiency Factor</dt><dd class="mt-1 font-medium text-slate-800">{{ number_format((float) $wla->efficiency_factor * 100, 2) }}%</dd></div>
             </dl>
         </section>
 
         @include('wla._activities', ['wla' => $wla])
-        @include('wla._foundation-preview', ['assessment' => $wla, 'foundationPreview' => $foundationPreview])
+        @include('wla._foundation-preview', ['assessment' => $wla, 'calculationState' => $calculationState])
     </div>
 @endsection

@@ -67,11 +67,34 @@ class EmployeeManagementTest extends TestCase
             'search' => 'PN201',
             'department' => 'Operasional',
             'position' => 'Staff',
-            'organic_status' => '2025-01-01',
         ]))->assertOk()
             ->assertViewHas('search', 'PN201')
             ->assertSee('SAP201')
             ->assertDontSee('SAP202');
+    }
+
+    public function test_employee_list_can_be_sorted_by_organic_date(): void
+    {
+        $user = User::factory()->create();
+        Employee::create($this->employeeAttributes('SAP-ORGANIC-OLDEST', ['organilk' => '2024-01-01']));
+        Employee::create($this->employeeAttributes('SAP-ORGANIC-NEWEST', ['organilk' => '2025-01-01']));
+        Employee::create($this->employeeAttributes('SAP-ORGANIC-NO-DATE'));
+
+        $ascendingResponse = $this->actingAs($user)->get(route('data-pegawai', ['sort_by' => 'organic_oldest']))
+            ->assertOk()
+            ->assertViewHas('sortBy', 'organic_oldest');
+
+        $this->assertSame(
+            ['SAP-ORGANIC-OLDEST', 'SAP-ORGANIC-NEWEST', 'SAP-ORGANIC-NO-DATE'],
+            $ascendingResponse->viewData('employees')->pluck('sap')->all(),
+        );
+
+        $descendingResponse = $this->get(route('data-pegawai', ['sort_by' => 'organic_newest']))->assertOk();
+
+        $this->assertSame(
+            ['SAP-ORGANIC-NEWEST', 'SAP-ORGANIC-OLDEST', 'SAP-ORGANIC-NO-DATE'],
+            $descendingResponse->viewData('employees')->pluck('sap')->all(),
+        );
     }
 
     public function test_employee_list_uses_workbook_columns_and_keeps_all_workbook_fields_in_detail(): void

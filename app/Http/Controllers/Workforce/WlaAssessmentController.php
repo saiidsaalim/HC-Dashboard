@@ -3,9 +3,7 @@
 namespace App\Http\Controllers\Workforce;
 
 use App\Enums\WlaAssessmentStatus;
-use App\Enums\WlaFrequencyUnit;
-use App\Enums\WlaTimeUnit;
-use App\Enums\WlaVolumeUnit;
+use App\Enums\WlaPeriodUnit;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreWlaAssessmentRequest;
 use App\Http\Requests\UpdateWlaAssessmentRequest;
@@ -15,17 +13,18 @@ use App\Models\Unit;
 use App\Models\WlaAssessment;
 use App\Models\WorkCalendar;
 use App\Models\WorkSchedule;
-use App\Services\Workforce\WorkCalendarService;
+use App\Services\Workforce\WlaCalculationService;
 use Illuminate\Contracts\View\View;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 
 class WlaAssessmentController extends Controller
 {
-    public function __construct(private WorkCalendarService $workCalendarService) {}
+    public function __construct(private WlaCalculationService $wlaCalculationService) {}
 
     public function index(): View
     {
@@ -63,7 +62,7 @@ class WlaAssessmentController extends Controller
                 'assessment_code' => sprintf('WLA-%04d-%06d', $assessment->period, $assessment->id),
             ]);
 
-            return $assessment;
+            return $this->wlaCalculationService->recalculate($assessment);
         });
 
         return to_route('wla.show', $assessment)->with('status', 'Draft WLA berhasil dibuat.');
@@ -74,9 +73,9 @@ class WlaAssessmentController extends Controller
         Gate::authorize('view', $wla);
 
         $wla->load(['department', 'unit', 'position', 'workSchedule', 'workCalendar', 'creator', 'activities']);
-        $foundationPreview = $this->foundationPreview($wla);
+        $calculationState = $this->wlaCalculationService->calculationState($wla);
 
-        return view('wla.show', compact('wla', 'foundationPreview'));
+        return view('wla.show', compact('wla', 'calculationState'));
     }
 
     public function edit(WlaAssessment $wla): View
@@ -87,84 +86,84 @@ class WlaAssessmentController extends Controller
 
         return view('wla.edit', [
             ...$this->formData($wla),
-            'foundationPreview' => $this->foundationPreview($wla),
+            'calculationState' => $this->wlaCalculationService->calculationState($wla),
         ]);
     }
 
     public function update(UpdateWlaAssessmentRequest $request, WlaAssessment $wla): RedirectResponse
     {
-        $wla->update([
-            ...$request->validated(),
-            'updated_by' => $request->user()->id,
-        ]);
+        DB::transaction(function () use ($request, $wla): void {
+            $lockedAssessment = $this->lockAuthorizedAssessment($wla, 'update');
+            $lockedAssessment->update([
+                ...$request->validated(),
+                'updated_by' => $request->user()->id,
+            ]);
+
+            $this->wlaCalculationService->recalculate($lockedAssessment);
+        });
 
         return to_route('wla.show', $wla)->with('status', 'Draft WLA berhasil diperbarui.');
     }
 
     public function destroy(WlaAssessment $wla): RedirectResponse
     {
-        Gate::authorize('delete', $wla);
-
         DB::transaction(function () use ($wla): void {
-            $wla->activities()->delete();
-            $wla->delete();
+            $lockedAssessment = $this->lockAuthorizedAssessment($wla, 'delete');
+            $lockedAssessment->activities()->lockForUpdate()->get(['id']);
+            $lockedAssessment->activities()->delete();
+            $lockedAssessment->delete();
         });
 
         return to_route('wla')->with('status', 'Draft WLA berhasil dihapus.');
     }
 
-    /** @return array{departments: Collection, units: Collection, positions: Collection, workSchedules: Collection, workCalendars: Collection, frequencyUnits: array, volumeUnits: array, timeUnits: array, assessment: WlaAssessment|null} */
+    /** @return array{departments: Collection, units: Collection, positions: Collection, workSchedules: Collection, workCalendars: Collection, periodUnits: array, assessment: WlaAssessment|null} */
     private function formData(?WlaAssessment $assessment = null): array
     {
         return [
             'assessment' => $assessment,
-            'departments' => Department::query()->orderBy('name')->get(),
-            'units' => Unit::query()->with('department')->orderBy('name')->get(),
-            'positions' => Position::query()->with('unit')->orderBy('name')->get(),
-            'workSchedules' => WorkSchedule::query()->orderBy('name')->get(),
-            'workCalendars' => WorkCalendar::query()->orderByDesc('year')->get(),
-            'frequencyUnits' => WlaFrequencyUnit::cases(),
-            'volumeUnits' => WlaVolumeUnit::cases(),
-            'timeUnits' => WlaTimeUnit::cases(),
+            'departments' => $this->activeOrCurrent(
+                Department::query(),
+                $assessment?->department_id,
+            )->orderBy('name')->get(),
+            'units' => $this->activeOrCurrent(
+                Unit::query(),
+                $assessment?->unit_id,
+            )->with('department')->orderBy('name')->get(),
+            'positions' => $this->activeOrCurrent(
+                Position::query(),
+                $assessment?->position_id,
+            )->with('unit')->orderBy('name')->get(),
+            'workSchedules' => $this->activeOrCurrent(
+                WorkSchedule::query(),
+                $assessment?->work_schedule_id,
+            )->orderBy('name')->get(),
+            'workCalendars' => $this->activeOrCurrent(
+                WorkCalendar::query(),
+                $assessment?->work_calendar_id,
+            )->orderByDesc('year')->get(),
+            'periodUnits' => WlaPeriodUnit::cases(),
         ];
     }
 
-    /** @return array{working_days: int|string, working_hours_year: string, effective_working_hours: string, preview: bool} */
-    private function foundationPreview(WlaAssessment $assessment): array
+    private function activeOrCurrent(Builder $query, ?int $currentId): Builder
     {
-        if ($assessment->working_days !== null
-            && $assessment->working_hours_year !== null
-            && $assessment->effective_working_hours !== null) {
-            return [
-                'working_days' => $assessment->working_days,
-                'working_hours_year' => $assessment->working_hours_year,
-                'effective_working_hours' => $assessment->effective_working_hours,
-                'preview' => false,
-            ];
-        }
+        return $query->where(function (Builder $query) use ($currentId): void {
+            $query->where('active', true);
 
-        try {
-            $calendar = $assessment->workCalendar;
-            $schedule = $assessment->workSchedule;
-            $workingDays = $this->workCalendarService->calculateWorkingDays($calendar, $schedule);
-            $workingHoursYear = $this->workCalendarService->calculateWorkingHoursPerYear($calendar, $schedule);
+            if ($currentId !== null) {
+                $query->orWhere($query->getModel()->getKeyName(), $currentId);
+            }
+        });
+    }
 
-            return [
-                'working_days' => $workingDays,
-                'working_hours_year' => $workingHoursYear,
-                'effective_working_hours' => $this->workCalendarService->calculateEffectiveWorkingHours(
-                    $workingHoursYear,
-                    $assessment->efficiency_factor,
-                ),
-                'preview' => true,
-            ];
-        } catch (ValidationException) {
-            return [
-                'working_days' => 'Pending Calculation',
-                'working_hours_year' => 'Pending Calculation',
-                'effective_working_hours' => 'Pending Calculation',
-                'preview' => true,
-            ];
-        }
+    private function lockAuthorizedAssessment(WlaAssessment $assessment, string $ability): WlaAssessment
+    {
+        $lockedAssessment = WlaAssessment::query()
+            ->lockForUpdate()
+            ->findOrFail($assessment->getKey());
+        Gate::authorize($ability, $lockedAssessment);
+
+        return $lockedAssessment;
     }
 }

@@ -28,15 +28,15 @@
         <div
             class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(125,211,252,0.12),transparent_38%),linear-gradient(135deg,rgba(2,6,23,0.98),rgba(30,27,75,0.92),rgba(8,47,73,0.95))]">
         </div>
-        <div class="relative z-10 w-full sm:max-w-md">
-            <div class="mb-6 flex justify-center">
+        <div class="relative z-10 w-full sm:max-w-xl">
+            <div class="mb-7 flex justify-center">
                 <a href="/"
-                    class="rounded-2xl border border-white/20 bg-white/10 p-3 shadow-2xl shadow-sky-950/30 backdrop-blur-md">
-                    <img src="{{ asset('image/SM.png') }}" alt="Logo" class="h-20 w-20 object-contain" />
+                    class="flex h-[132px] w-[132px] items-center justify-center rounded-3xl border border-white/20 bg-white/10 p-5 shadow-2xl shadow-sky-950/30 backdrop-blur-md">
+                    <img src="{{ asset('image/SM.png') }}" alt="Semen Tonasa" class="h-full w-full object-contain" />
                 </a>
             </div>
             <div
-                class="overflow-hidden rounded-3xl border border-white/20 bg-white/10 px-6 py-7 shadow-2xl shadow-slate-950/40 backdrop-blur-2xl sm:px-8">
+                class="overflow-hidden rounded-[2rem] border border-white/25 bg-white/10 px-6 py-7 shadow-2xl shadow-slate-950/40 backdrop-blur-2xl sm:px-10 sm:py-9">
                 {{ $slot }}
             </div>
         </div>

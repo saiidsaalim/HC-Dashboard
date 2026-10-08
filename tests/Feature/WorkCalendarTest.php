@@ -3,17 +3,27 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Enums\WorkScheduleCalculationType;
 use App\Models\User;
 use App\Models\WorkCalendar;
 use App\Models\WorkSchedule;
 use App\Services\Workforce\WorkCalendarService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class WorkCalendarTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function migrateDatabases(): void
+    {
+        $this->assertSame('sqlite', config('database.default'));
+        $this->assertSame('sqlite', DB::connection()->getDriverName());
+        $this->assertSame(':memory:', DB::connection()->getDatabaseName());
+        $this->artisan('migrate', ['--no-interaction' => true])->assertExitCode(0);
+    }
 
     public function test_super_admin_can_view_work_calendar_pages(): void
     {
@@ -41,7 +51,6 @@ class WorkCalendarTest extends TestCase
         $this->actingAs($this->superAdmin())
             ->post(route('work-calendars.store'), [
                 'year' => 2026,
-                'total_days' => 365,
                 'total_weeks' => 52,
                 'annual_leave' => 12,
                 'national_holiday' => 10,
@@ -55,6 +64,7 @@ class WorkCalendarTest extends TestCase
         $this->assertDatabaseHas('work_calendars', [
             'year' => 2026,
             'total_days' => 365,
+            'total_weeks' => 52,
             'annual_leave' => 12,
             'national_holiday' => 10,
             'common_leave' => 2,
@@ -79,7 +89,6 @@ class WorkCalendarTest extends TestCase
         $this->actingAs($this->superAdmin())
             ->put(route('work-calendars.update', $calendar), [
                 'year' => 2027,
-                'total_days' => 366,
                 'total_weeks' => 52,
                 'annual_leave' => 13,
                 'national_holiday' => 9,
@@ -90,7 +99,7 @@ class WorkCalendarTest extends TestCase
                 'active' => true,
             ])->assertRedirect(route('work-calendars.index'));
 
-        $this->assertDatabaseHas('work_calendars', ['id' => $calendar->id, 'notes' => 'Updated', 'total_days' => 366]);
+        $this->assertDatabaseHas('work_calendars', ['id' => $calendar->id, 'notes' => 'Updated', 'total_days' => 365]);
 
         $this->actingAs($this->superAdmin())
             ->delete(route('work-calendars.destroy', $calendar))
@@ -118,7 +127,6 @@ class WorkCalendarTest extends TestCase
             ->from(route('work-calendars.create'))
             ->post(route('work-calendars.store'), [
                 'year' => 2028,
-                'total_days' => 365,
                 'total_weeks' => 52,
                 'annual_leave' => 12,
                 'national_holiday' => 11,
@@ -137,7 +145,6 @@ class WorkCalendarTest extends TestCase
             ->from(route('work-calendars.create'))
             ->post(route('work-calendars.store'), [
                 'year' => 2025,
-                'total_days' => 0,
                 'total_weeks' => 0,
                 'annual_leave' => -1,
                 'national_holiday' => -1,
@@ -147,7 +154,71 @@ class WorkCalendarTest extends TestCase
                 'notes' => '',
                 'active' => true,
             ])->assertRedirect(route('work-calendars.create'))
-            ->assertSessionHasErrors(['total_days', 'total_weeks', 'annual_leave', 'national_holiday', 'common_leave', 'saturday_days', 'sunday_days']);
+            ->assertSessionHasErrors(['annual_leave', 'national_holiday', 'common_leave', 'saturday_days', 'sunday_days']);
+    }
+
+    public function test_total_weeks_is_automatic_and_not_editable_in_the_form(): void
+    {
+        $this->actingAs($this->superAdmin())
+            ->get(route('work-calendars.create'))
+            ->assertOk()
+            ->assertDontSee('name="total_weeks"', false)
+            ->assertSee('Total minggu disimpan otomatis sebagai 52');
+
+        $this->post(route('work-calendars.store'), [
+            'year' => 2032,
+            'total_weeks' => 1,
+            'annual_leave' => 12,
+            'national_holiday' => 10,
+            'common_leave' => 2,
+            'saturday_days' => 52,
+            'sunday_days' => 52,
+            'active' => true,
+        ])->assertRedirect(route('work-calendars.index'));
+
+        $this->assertDatabaseHas('work_calendars', ['year' => 2032, 'total_weeks' => 52]);
+    }
+
+    public function test_calendar_deductions_must_leave_positive_days_for_dayshift_and_shift(): void
+    {
+        $this->actingAs($this->superAdmin())
+            ->from(route('work-calendars.create'))
+            ->post(route('work-calendars.store'), [
+                'year' => 2033,
+                'annual_leave' => 200,
+                'national_holiday' => 100,
+                'common_leave' => 10,
+                'saturday_days' => 30,
+                'sunday_days' => 30,
+                'active' => true,
+            ])
+            ->assertSessionHasErrors('annual_leave');
+
+        $calendar = WorkCalendar::create([
+            'year' => 2034,
+            'total_days' => 365,
+            'total_weeks' => 52,
+            'annual_leave' => 12,
+            'national_holiday' => 10,
+            'common_leave' => 2,
+            'saturday_days' => 52,
+            'sunday_days' => 52,
+            'active' => true,
+        ]);
+
+        $this->from(route('work-calendars.edit', $calendar))
+            ->put(route('work-calendars.update', $calendar), [
+                'year' => 2034,
+                'annual_leave' => 300,
+                'national_holiday' => 0,
+                'common_leave' => 65,
+                'saturday_days' => 0,
+                'sunday_days' => 0,
+                'active' => true,
+            ])
+            ->assertSessionHasErrors('common_leave');
+
+        $this->assertSame(12, $calendar->fresh()->annual_leave);
     }
 
     public function test_non_super_admin_cannot_manage_work_calendar(): void
@@ -169,7 +240,6 @@ class WorkCalendarTest extends TestCase
 
         $this->actingAs($admin)->post(route('work-calendars.store'), [
             'year' => 2030,
-            'total_days' => 365,
             'total_weeks' => 52,
             'annual_leave' => 12,
             'national_holiday' => 10,
@@ -202,16 +272,37 @@ class WorkCalendarTest extends TestCase
         $calendar = $this->calendarInput();
         $dayshift = $this->scheduleInput('DAYSHIFT', '7.00', 5);
 
-        $workingDays = $service->calculateWorkingDays($calendar, $dayshift);
-        $workingHoursYear = $service->calculateWorkingHoursPerYear($calendar, $dayshift);
+        $workingDays = $service->calculateWorkingDays(2025, $calendar, $dayshift);
+        $workingHoursYear = $service->calculateWorkingHoursPerYear(2025, $calendar, $dayshift);
         $effectiveWorkingHours = $service->calculateEffectiveWorkingHours($workingHoursYear, '0.90');
 
-        $this->assertSame(227, $workingDays);
-        $this->assertSame('1589.00', $workingHoursYear);
-        $this->assertSame('1430.10', $effectiveWorkingHours);
-        $this->assertSame('119.1750', $service->calculateEffectiveHoursPerMonth($effectiveWorkingHours));
-        $this->assertSame('27.5019', $service->calculateEffectiveHoursPerWeek($effectiveWorkingHours, $calendar));
-        $this->assertSame('6.3000', $service->calculateEffectiveHoursPerDay($effectiveWorkingHours, $calendar, $dayshift));
+        $this->assertSame(226, $workingDays);
+        $this->assertSame('1582.00', $workingHoursYear);
+        $this->assertSame('1423.80', $effectiveWorkingHours);
+        $this->assertSame('118.6500', $service->calculateEffectiveHoursPerMonth($effectiveWorkingHours));
+        $this->assertSame('27.3808', $service->calculateEffectiveHoursPerWeek($effectiveWorkingHours));
+        $this->assertSame('6.3000', $service->calculateEffectiveHoursPerDay($effectiveWorkingHours, 2025, $calendar, $dayshift));
+    }
+
+    public function test_calendar_days_are_derived_from_common_and_leap_years(): void
+    {
+        $service = app(WorkCalendarService::class);
+
+        $this->assertSame(365, $service->calculateTotalDays(2025));
+        $this->assertSame(366, $service->calculateTotalDays(2024));
+    }
+
+    public function test_dayshift_formula_uses_the_selected_assessment_year(): void
+    {
+        $service = app(WorkCalendarService::class);
+        $dayshift = $this->scheduleInput('DAYSHIFT', '7.00', 5);
+
+        $this->assertSame(226, $service->calculateWorkingDays(2025, $this->calendarInput(), $dayshift));
+        $this->assertSame(227, $service->calculateWorkingDays(
+            2024,
+            $this->calendarInput(['year' => 2024]),
+            $dayshift,
+        ));
     }
 
     public function test_non_dayshift_uses_zero_conditional_holiday_and_weekend_values(): void
@@ -220,18 +311,54 @@ class WorkCalendarTest extends TestCase
         $calendar = $this->calendarInput();
         $shiftOne = $this->scheduleInput('SHIFT_1', '7.50', 6);
 
-        $this->assertSame(348, $service->calculateWorkingDays($calendar, $shiftOne));
-        $this->assertSame('2610.00', $service->calculateWorkingHoursPerYear($calendar, $shiftOne));
+        $this->assertSame(347, $service->calculateWorkingDays(2025, $calendar, $shiftOne));
+        $this->assertSame('2602.50', $service->calculateWorkingHoursPerYear(2025, $calendar, $shiftOne));
     }
 
-    public function test_working_day_and_hour_calculations_keep_zero_floor(): void
+    public function test_shift_one_two_and_three_use_seven_and_a_half_hours_per_day(): void
     {
         $service = app(WorkCalendarService::class);
-        $calendar = $this->calendarInput(['total_days' => 10]);
+        $calendar = $this->calendarInput();
+
+        foreach (['SHIFT_1', 'SHIFT_2', 'SHIFT_3'] as $code) {
+            $schedule = $this->scheduleInput($code, '1.00', 1);
+            $this->assertSame('2602.50', $service->calculateWorkingHoursPerYear(2025, $calendar, $schedule));
+        }
+    }
+
+    public function test_shift_seven_patterns_use_ten_hours_per_day(): void
+    {
+        $service = app(WorkCalendarService::class);
+
+        foreach (['SHIFT_7_7', 'SHIFT_7_19', 'SHIFT_19_7'] as $code) {
+            $schedule = $this->scheduleInput($code, '1.00', 1);
+            $this->assertSame('3470.00', $service->calculateWorkingHoursPerYear(2025, $this->calendarInput(), $schedule));
+        }
+    }
+
+    public function test_calendar_and_assessment_year_mismatch_is_rejected(): void
+    {
+        $this->expectException(ValidationException::class);
+
+        app(WorkCalendarService::class)->calculateWorkingDays(
+            2024,
+            $this->calendarInput(),
+            $this->scheduleInput('DAYSHIFT', '7.00', 5),
+        );
+    }
+
+    public function test_working_day_calculation_rejects_non_positive_results(): void
+    {
+        $service = app(WorkCalendarService::class);
+        $calendar = $this->calendarInput(['annual_leave' => 365]);
         $dayshift = $this->scheduleInput('DAYSHIFT', '7.00', 5);
 
-        $this->assertSame(0, $service->calculateWorkingDays($calendar, $dayshift));
-        $this->assertSame('0.00', $service->calculateWorkingHoursPerYear($calendar, $dayshift));
+        try {
+            $service->calculateWorkingDays(2025, $calendar, $dayshift);
+            $this->fail('A non-positive working-day result should be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('working_days', $exception->errors());
+        }
     }
 
     public function test_effective_working_hours_uses_the_supplied_efficiency_factor(): void
@@ -240,7 +367,12 @@ class WorkCalendarTest extends TestCase
 
         $this->assertSame('1430.10', $service->calculateEffectiveWorkingHours('1589.00', '0.90'));
         $this->assertSame('794.50', $service->calculateEffectiveWorkingHours('1589.00', '0.50'));
-        $this->assertSame('0.00', $service->calculateEffectiveWorkingHours('1589.00', '0'));
+        try {
+            $service->calculateEffectiveWorkingHours('1589.00', '0');
+            $this->fail('A zero efficiency factor should be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('efficiency_factor', $exception->errors());
+        }
 
         try {
             $service->calculateEffectiveWorkingHours('1589.00', '1.01');
@@ -271,14 +403,14 @@ class WorkCalendarTest extends TestCase
         $schedule = $this->scheduleInput('DAYSHIFT', '7.00', 5);
 
         try {
-            $service->calculateWorkingDays($calendar, null);
+            $service->calculateWorkingDays(2025, $calendar, null);
             $this->fail('A missing schedule should be rejected.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('work_schedule_id', $exception->errors());
         }
 
         try {
-            $service->calculateWorkingHoursPerYear(null, $schedule);
+            $service->calculateWorkingHoursPerYear(2025, null, $schedule);
             $this->fail('A missing calendar should be rejected.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('work_calendar_id', $exception->errors());
@@ -288,11 +420,11 @@ class WorkCalendarTest extends TestCase
     public function test_effective_hours_per_day_rejects_a_zero_working_day_denominator(): void
     {
         $service = app(WorkCalendarService::class);
-        $calendar = $this->calendarInput(['total_days' => 10]);
+        $calendar = $this->calendarInput(['annual_leave' => 365]);
         $dayshift = $this->scheduleInput('DAYSHIFT', '7.00', 5);
 
         try {
-            $service->calculateEffectiveHoursPerDay('0.00', $calendar, $dayshift);
+            $service->calculateEffectiveHoursPerDay('0.00', 2025, $calendar, $dayshift);
             $this->fail('A zero working-day denominator should be rejected.');
         } catch (ValidationException $exception) {
             $this->assertArrayHasKey('working_days', $exception->errors());
@@ -321,6 +453,7 @@ class WorkCalendarTest extends TestCase
             'code' => $code,
             'name' => $code,
             'schedule_type' => $code,
+            'calculation_type' => WorkScheduleCalculationType::fromLegacyCode($code),
             'working_hours_per_day' => $hoursPerDay,
             'working_days_per_week' => $daysPerWeek,
             'active' => true,

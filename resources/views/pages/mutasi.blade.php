@@ -187,7 +187,7 @@
                     @endif
                 </form>
                 <div class="flex items-center gap-3">
-                    @if ($canManageMutationRecords)
+                    @if ($canManageMutationRecords && $mutations->contains(fn($mutation): bool => $mutation->verification_status !== 'Final'))
                         <label class="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-600">
                             <input id="select-all-mutations" type="checkbox"
                                 onchange="document.querySelectorAll('.mutation-checkbox').forEach((checkbox) => checkbox.checked = this.checked)"
@@ -231,9 +231,11 @@
                                 @php($hasApproved = $mutation->approvals->contains(fn($approval): bool => $approval->manager_id === auth()->id() && $approval->status === 'Approved'))
                                 @if ($canManageMutationRecords)
                                     <td data-label="Pilih" class="px-4 py-3 text-center align-middle">
-                                        <input type="checkbox" name="mutation_ids[]" value="{{ $mutation->id }}"
-                                            class="mutation-checkbox rounded border-slate-300 text-slate-950 focus:ring-amber-400"
-                                            onchange="document.getElementById('select-all-mutations').checked = document.querySelectorAll('.mutation-checkbox').length > 0 && document.querySelectorAll('.mutation-checkbox:not(:checked)').length === 0">
+                                        @if ($mutation->verification_status !== 'Final')
+                                            <input type="checkbox" name="mutation_ids[]" value="{{ $mutation->id }}"
+                                                class="mutation-checkbox rounded border-slate-300 text-slate-950 focus:ring-amber-400"
+                                                onchange="document.getElementById('select-all-mutations').checked = document.querySelectorAll('.mutation-checkbox').length > 0 && document.querySelectorAll('.mutation-checkbox:not(:checked)').length === 0">
+                                        @endif
                                     </td>
                                 @endif
                                 <td data-label="SAP" class="px-4 py-3 align-middle font-semibold text-slate-700">
@@ -352,7 +354,7 @@
                         </div>
                     @endforeach
                 </div>
-                @if ($canManageMutationRecords)
+                @if ($canManageMutationRecords && $mutation->verification_status !== 'Final')
                     <details class="mt-8 rounded-xl border border-slate-200 bg-slate-50 p-4">
                         <summary class="cursor-pointer text-sm font-semibold text-slate-700">Edit Data</summary>
                         <form method="POST" action="{{ route('mutasi.update', $mutation) }}"

@@ -40,13 +40,15 @@
                 class="min-h-0 flex-1 space-y-0 overflow-y-auto overscroll-contain scrollbar-hidden focus:outline-none">
                 @php($navigation = [['route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'home'], ['route' => 'data-pegawai', 'label' => 'Data Pegawai', 'icon' => 'users'], ['route' => 'wla', 'label' => 'WLA', 'icon' => 'chart'], ['route' => 'fit-proper', 'label' => 'Fit & Proper', 'icon' => 'clipboard'], ['route' => 'mutasi', 'label' => 'Mutasi', 'icon' => 'arrows'], ['route' => 'promosi', 'label' => 'Promosi', 'icon' => 'chart'], ['route' => 'demosi', 'label' => 'Demosi', 'icon' => 'demosi'], ['route' => 'formasi', 'label' => 'Formasi', 'icon' => 'formasi'], ['route' => 'definitif', 'label' => 'Definitif', 'icon' => 'clipboard'], ['route' => 'laporan', 'label' => 'Laporan', 'icon' => 'document']])
                 @foreach ($navigation as $item)
-                    <a href="{{ route($item['route']) }}" title="{{ $item['label'] }}"
-                        :class="{ 'justify-center': !sidebarExpanded && !sidebarOpen }"
-                        class="flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium leading-5 transition {{ ($item['route'] === 'wla' ? request()->routeIs('wla*') : request()->routeIs($item['route'])) ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/10' : 'text-slate-400 hover:bg-slate-900 hover:text-white' }}">
-                        <x-dashboard-icon :name="$item['icon']" class="h-[22px] w-[22px]" />
-                        <span x-show="sidebarExpanded || sidebarOpen" x-transition.opacity
-                            class="whitespace-nowrap">{{ $item['label'] }}</span>
-                    </a>
+                    @if ($item['route'] !== 'wla' || auth()->user()->canManageRbac())
+                        <a href="{{ route($item['route']) }}" title="{{ $item['label'] }}"
+                            :class="{ 'justify-center': !sidebarExpanded && !sidebarOpen }"
+                            class="flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium leading-5 transition {{ ($item['route'] === 'wla' ? request()->routeIs('wla*') : request()->routeIs($item['route'])) ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/10' : 'text-slate-400 hover:bg-slate-900 hover:text-white' }}">
+                            <x-dashboard-icon :name="$item['icon']" class="h-[22px] w-[22px]" />
+                            <span x-show="sidebarExpanded || sidebarOpen" x-transition.opacity
+                                class="whitespace-nowrap">{{ $item['label'] }}</span>
+                        </a>
+                    @endif
                 @endforeach
                 @if (auth()->user()->roleEnum()->canManageAllRoles())
                     <a href="{{ route('organization.departments.index') }}" title="Master Organization"

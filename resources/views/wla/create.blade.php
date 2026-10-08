@@ -20,6 +20,11 @@
             <p class="mt-3 text-sm text-slate-600">Save the draft to add, edit, or remove activity rows.</p>
         </section>
 
-        @include('wla._foundation-preview', ['foundationPreview' => ['working_days' => 'Pending Calculation', 'working_hours_year' => 'Pending Calculation', 'effective_working_hours' => 'Pending Calculation', 'preview' => true]])
+        @include('wla._foundation-preview', ['calculationState' => [
+            'calculation_available' => false,
+            'calculation_complete' => false,
+            'unavailable_reason' => 'Simpan draft untuk menjalankan kalkulasi WLA.',
+            'preview' => true,
+        ]])
     </div>
 @endsection

@@ -56,11 +56,11 @@
                             Import SAP
                         </button>
                     </form>
+                    <button type="button" @click="open = true"
+                        class="rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
+                        Tambah Pegawai
+                    </button>
                 @endif
-                <button type="button" @click="open = true"
-                    class="rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
-                    Tambah Pegawai
-                </button>
             </div>
         </div>
 
@@ -85,11 +85,12 @@
             </div>
         @endif
 
-        <div x-cloak x-show="open" x-transition.opacity @keydown.escape.window="open = false"
-            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 p-4 sm:p-8"
-            @click.self="open = false">
-            <section class="my-4 w-full max-w-6xl rounded-2xl bg-white p-6 shadow-2xl sm:my-8 sm:p-8" role="dialog"
-                aria-modal="true" aria-labelledby="employee-modal-title">
+        @if ($canManageEmployees)
+            <div x-cloak x-show="open" x-transition.opacity @keydown.escape.window="open = false"
+                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 p-4 sm:p-8"
+                @click.self="open = false">
+                <section class="my-4 w-full max-w-6xl rounded-2xl bg-white p-6 shadow-2xl sm:my-8 sm:p-8" role="dialog"
+                    aria-modal="true" aria-labelledby="employee-modal-title">
                 <div class="flex items-start justify-between gap-4">
                     <div>
                         <h3 id="employee-modal-title" class="font-display text-xl font-bold text-slate-950">Tambah Data Pegawai</h3>
@@ -277,8 +278,9 @@
                         </button>
                     </div>
                 </form>
-            </section>
-        </div>
+                </section>
+            </div>
+        @endif
     </div>
 
     <div class="mt-8 space-y-6">
@@ -327,18 +329,17 @@
                             </select>
                         </div>
                         <div>
-                            <label for="employee-status-filter" class="sr-only">Filter Organilk</label>
-                            <select id="employee-status-filter" name="organic_status"
+                            <label for="employee-sort" class="sr-only">Urutkan berdasarkan</label>
+                            <select id="employee-sort" name="sort_by"
                                 class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 sm:w-40">
-                                <option value="">Semua Organilk</option>
-                                @foreach ($organicStatuses as $statusOption)
-                                    <option value="{{ $statusOption }}" @selected($organicStatus === $statusOption)>{{ $statusOption }}</option>
-                                @endforeach
+                                <option value="latest" @selected($sortBy === 'latest')>Terbaru ditambahkan</option>
+                                <option value="organic_newest" @selected($sortBy === 'organic_newest')>Organik terbaru</option>
+                                <option value="organic_oldest" @selected($sortBy === 'organic_oldest')>Organik terlama</option>
                             </select>
                         </div>
                         <div class="col-span-2 flex gap-2 sm:col-span-1">
                             <button type="submit" class="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700">Cari</button>
-                            @if ($search !== '' || $department !== '' || $position !== '' || $departmentId !== '' || $unitId !== '' || $positionId !== '' || $organicStatus !== '')
+                            @if ($search !== '' || $department !== '' || $position !== '' || $departmentId !== '' || $unitId !== '' || $positionId !== '' || $sortBy !== 'latest')
                                 <a href="{{ route('data-pegawai') }}" class="rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50">Reset</a>
                             @endif
                         </div>

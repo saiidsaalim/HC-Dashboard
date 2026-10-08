@@ -9,6 +9,7 @@ use App\Imports\PromotionImport;
 use App\Models\EmployeePromotion;
 use App\Models\User;
 use App\Services\Personnel\ApprovalService;
+use App\Services\Personnel\PersonnelActionGuard;
 use DOMDocument;
 use DOMNodeList;
 use DOMXPath;
@@ -67,14 +68,17 @@ class PromotionController extends Controller
         return to_route('promosi')->with('status', 'Data promosi berhasil ditambahkan.');
     }
 
-    public function update(UpdatePersonnelActionRequest $request, EmployeePromotion $employeePromotion): RedirectResponse
-    {
-        $employeePromotion->update($request->validated());
+    public function update(
+        UpdatePersonnelActionRequest $request,
+        EmployeePromotion $employeePromotion,
+        PersonnelActionGuard $personnelActionGuard,
+    ): RedirectResponse {
+        $personnelActionGuard->update($employeePromotion, $request->validated());
 
         return to_route('promosi')->with('status', 'Data promosi berhasil diperbarui.');
     }
 
-    public function destroyMany(Request $request): RedirectResponse
+    public function destroyMany(Request $request, PersonnelActionGuard $personnelActionGuard): RedirectResponse
     {
         abort_unless($request->user()?->roleEnum() === UserRole::SUPER_ADMIN, 403);
 
@@ -83,7 +87,9 @@ class PromotionController extends Controller
             'promotion_ids.*' => ['integer', 'distinct', 'exists:employee_promotions,id'],
         ]);
 
-        $deleted = EmployeePromotion::query()->whereIn('id', $validated['promotion_ids'])->delete();
+        $deleted = $personnelActionGuard->deleteMany(
+            EmployeePromotion::query()->whereIn('id', $validated['promotion_ids']),
+        );
 
         return to_route('promosi')->with('status', "Berhasil menghapus {$deleted} data promosi.");
     }

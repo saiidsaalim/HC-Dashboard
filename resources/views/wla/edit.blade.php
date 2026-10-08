@@ -14,6 +14,6 @@
 
         @include('wla._assessment-form', ['action' => route('wla.update', $assessment), 'method' => 'PUT'])
         @include('wla._activities', ['wla' => $assessment])
-        @include('wla._foundation-preview', ['assessment' => $assessment, 'foundationPreview' => $foundationPreview])
+        @include('wla._foundation-preview', ['assessment' => $assessment, 'calculationState' => $calculationState])
     </div>
 @endsection
