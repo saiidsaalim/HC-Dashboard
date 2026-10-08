@@ -361,20 +361,27 @@ class WlaBackfillLegacyCommandTest extends TestCase
 
     public function test_command_stops_when_stage_one_columns_are_missing(): void
     {
-        config([
-            'database.default' => 'wla_missing_stage_one',
-            'database.connections.wla_missing_stage_one' => [
-                'driver' => 'sqlite',
-                'database' => ':memory:',
-                'prefix' => '',
-                'foreign_key_constraints' => true,
-            ],
-        ]);
-        DB::purge('wla_missing_stage_one');
+        $originalDefaultConnection = (string) config('database.default');
 
-        $this->artisan('wla:backfill-legacy')
-            ->expectsOutput('Migration WLA tahap 1 belum dijalankan.')
-            ->assertFailed();
+        try {
+            config([
+                'database.default' => 'wla_missing_stage_one',
+                'database.connections.wla_missing_stage_one' => [
+                    'driver' => 'sqlite',
+                    'database' => ':memory:',
+                    'prefix' => '',
+                    'foreign_key_constraints' => true,
+                ],
+            ]);
+            DB::purge('wla_missing_stage_one');
+
+            $this->artisan('wla:backfill-legacy')
+                ->expectsOutput('Migration WLA tahap 1 belum dijalankan.')
+                ->assertFailed();
+        } finally {
+            config(['database.default' => $originalDefaultConnection]);
+            DB::purge('wla_missing_stage_one');
+        }
     }
 
     /** @return array<string, mixed> */
