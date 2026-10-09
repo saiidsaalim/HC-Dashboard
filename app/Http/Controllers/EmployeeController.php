@@ -15,6 +15,7 @@ use App\Models\Position;
 use App\Models\Unit;
 use App\Models\User;
 use App\Services\Employees\EmployeeImportStagingService;
+use App\Services\Employees\EmployeeOrganizationSyncService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -23,6 +24,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use InvalidArgumentException;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class EmployeeController extends Controller
@@ -118,6 +120,42 @@ class EmployeeController extends Controller
     public function exportExcel(EmployeeSpreadsheet $spreadsheet): BinaryFileResponse
     {
         return $spreadsheet->download();
+    }
+
+    public function organizationSyncPreview(Request $request, EmployeeOrganizationSyncService $service): View
+    {
+        $this->authorizeImportReview($request);
+
+        return view('pages.employee-organization-sync', [
+            'result' => $service->audit(),
+        ]);
+    }
+
+    public function organizationSyncApply(Request $request, EmployeeOrganizationSyncService $service): RedirectResponse
+    {
+        $this->authorizeImportReview($request);
+
+        try {
+            $result = $service->apply();
+        } catch (RuntimeException $exception) {
+            throw ValidationException::withMessages([
+                'organization_sync' => $exception->getMessage(),
+            ]);
+        }
+
+        $applied = $result['applied'];
+
+        return to_route('data-pegawai.organization-sync.preview')->with(
+            'status',
+            sprintf(
+                'Sinkronisasi selesai: %d pegawai dan %d foreign key diperbarui; %d department, %d unit, dan %d position dibuat.',
+                $applied['employees_updated'],
+                $applied['foreign_keys_updated'],
+                $applied['departments_created'],
+                $applied['units_created'],
+                $applied['positions_created'],
+            ),
+        );
     }
 
     public function upload(Request $request, EmployeeImport $employeeImport): RedirectResponse

@@ -59,6 +59,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/data-pegawai', [EmployeeController::class, 'index'])->name('data-pegawai');
     Route::get('/data-pegawai/print', [EmployeeController::class, 'print'])->name('data-pegawai.print');
     Route::get('/data-pegawai/export/excel', [EmployeeController::class, 'exportExcel'])->name('data-pegawai.export');
+    Route::get('/data-pegawai/sinkronisasi-organisasi', [EmployeeController::class, 'organizationSyncPreview'])->name('data-pegawai.organization-sync.preview');
+    Route::post('/data-pegawai/sinkronisasi-organisasi', [EmployeeController::class, 'organizationSyncApply'])->name('data-pegawai.organization-sync.apply');
     Route::post('/data-pegawai', [EmployeeController::class, 'store'])->name('data-pegawai.store');
     Route::post('/data-pegawai/import', [EmployeeController::class, 'upload'])->name('data-pegawai.import');
     Route::get('/data-pegawai/import/review', [EmployeeController::class, 'importReviewIndex'])->name('data-pegawai.import.review.index');
