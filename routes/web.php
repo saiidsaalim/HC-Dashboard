@@ -5,6 +5,7 @@ use App\Http\Controllers\DemotionController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\MutationController;
 use App\Http\Controllers\Organization\DepartmentController;
+use App\Http\Controllers\Organization\OrganizationController;
 use App\Http\Controllers\Organization\PositionController;
 use App\Http\Controllers\Organization\UnitController;
 use App\Http\Controllers\PortalController;
@@ -14,6 +15,7 @@ use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\Workforce\WlaActivityController;
 use App\Http\Controllers\Workforce\WlaAssessmentController;
+use App\Http\Controllers\Workforce\WlaHeadcountAnalysisController;
 use App\Http\Controllers\Workforce\WorkCalendarController;
 use App\Http\Controllers\Workforce\WorkScheduleController;
 use Illuminate\Support\Facades\Route;
@@ -77,6 +79,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/employees', [EmployeeController::class, 'index'])->name('employees.index');
     Route::get('/employees/{id}', [EmployeeController::class, 'show'])->name('employees.show');
     Route::get('/wla', [WlaAssessmentController::class, 'index'])->name('wla');
+    Route::get('/wla/headcount-analysis', [WlaHeadcountAnalysisController::class, 'index'])->name('wla.headcount-analysis');
     Route::get('/wla/create', [WlaAssessmentController::class, 'create'])->name('wla.create');
     Route::post('/wla', [WlaAssessmentController::class, 'store'])->name('wla.store');
     Route::get('/wla/{wla}/edit', [WlaAssessmentController::class, 'edit'])->name('wla.edit');
@@ -97,6 +100,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('work-calendars', WorkCalendarController::class)->except('show');
 
     Route::prefix('organization')->name('organization.')->group(function (): void {
+        Route::get('/', OrganizationController::class)->name('index');
         Route::resource('departments', DepartmentController::class)->except('show');
         Route::resource('units', UnitController::class)->except('show');
         Route::resource('positions', PositionController::class)->except('show');

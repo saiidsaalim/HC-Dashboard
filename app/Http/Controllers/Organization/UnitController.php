@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Organization;
 use App\Http\Controllers\Controller;
 use App\Models\Department;
 use App\Models\Unit;
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -36,12 +38,18 @@ class UnitController extends Controller
         return view('organization.units.index', compact('units', 'departments', 'search', 'departmentId', 'active'));
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
         Gate::authorize('create', Unit::class);
 
+        $departments = Department::query()->where('active', true)->orderBy('name')->get();
+        $requestedDepartmentId = $request->integer('department_id');
+
         return view('organization.units.create', [
-            'departments' => Department::query()->orderBy('name')->get(),
+            'departments' => $departments,
+            'selectedDepartmentId' => $departments->contains('id', $requestedDepartmentId)
+                ? (string) $requestedDepartmentId
+                : '',
         ]);
     }
 
@@ -60,7 +68,13 @@ class UnitController extends Controller
 
         return view('organization.units.edit', [
             'unit' => $unit,
-            'departments' => Department::query()->orderBy('name')->get(),
+            'departments' => Department::query()
+                ->where(fn (EloquentBuilder $query): EloquentBuilder => $query
+                    ->where('active', true)
+                    ->orWhere('id', $unit->department_id))
+                ->orderBy('name')
+                ->get(),
+            'selectedDepartmentId' => (string) $unit->department_id,
         ]);
     }
 
@@ -98,14 +112,31 @@ class UnitController extends Controller
     /** @return array{department_id: int, code: string, name: string, active: bool} */
     private function validatedData(Request $request, ?Unit $unit = null): array
     {
+        $departmentRule = Rule::exists('departments', 'id')->where(
+            fn (QueryBuilder $query): QueryBuilder => $query
+                ->where('active', true)
+                ->when($unit !== null, fn (QueryBuilder $query): QueryBuilder => $query->orWhere('id', $unit->department_id)),
+        );
+
         return $request->validate([
-            'department_id' => ['required', 'integer', 'exists:departments,id'],
+            'department_id' => ['required', 'integer', $departmentRule],
             'code' => [
                 'required', 'string', 'max:50',
                 Rule::unique('units', 'code')->where('department_id', $request->input('department_id'))->ignore($unit),
             ],
             'name' => ['required', 'string', 'max:255'],
             'active' => ['required', 'boolean'],
+        ], [
+            'department_id.required' => 'Pilih Department untuk Unit ini.',
+            'department_id.integer' => 'Department yang dipilih tidak valid.',
+            'department_id.exists' => 'Department yang dipilih tidak tersedia atau tidak aktif.',
+            'code.required' => 'Kode Unit wajib diisi.',
+            'code.max' => 'Kode Unit maksimal 50 karakter.',
+            'code.unique' => 'Kode Unit sudah digunakan pada Department tersebut.',
+            'name.required' => 'Nama Unit wajib diisi.',
+            'name.max' => 'Nama Unit maksimal 255 karakter.',
+            'active.required' => 'Status Unit wajib dipilih.',
+            'active.boolean' => 'Status Unit tidak valid.',
         ]);
     }
 }

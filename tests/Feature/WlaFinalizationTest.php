@@ -262,6 +262,8 @@ class WlaFinalizationTest extends TestCase
             ->assertSee('Hasil WLA Final sudah dibekukan')
             ->assertDontSee('Edit Draft')->assertDontSee('Delete Draft')
             ->assertDontSee('Finalisasi WLA')->assertDontSee('Tambah Aktivitas')
+            ->assertDontSee('<form method="POST" action="'.route('wla.destroy', $assessment).'"', false)
+            ->assertDontSee('<form method="POST" action="'.route('wla.finalize', $assessment).'"', false)
             ->assertDontSee('name="activity_name"', false);
     }
 
@@ -271,8 +273,33 @@ class WlaFinalizationTest extends TestCase
         $assessment = $this->assessment($data);
         $this->activity($assessment);
 
-        $this->actingAs($data['user'])->get(route('wla.show', $assessment))
-            ->assertOk()->assertSee('Finalisasi WLA');
+        $response = $this->actingAs($data['user'])->get(route('wla.show', $assessment));
+
+        $response
+            ->assertOk()
+            ->assertSee('<form method="POST" action="'.route('wla.destroy', $assessment).'" data-confirm-submit', false)
+            ->assertSee('data-confirm-title="Hapus Draft WLA ini?"', false)
+            ->assertSee('data-confirm-text="Seluruh aktivitas dalam Draft ini akan ikut dihapus dan tidak dapat dikembalikan."', false)
+            ->assertSee('data-confirm-button-text="Ya, hapus Draft"', false)
+            ->assertSee('data-cancel-button-text="Batal"', false)
+            ->assertSee('data-confirm-button-color="#dc2626"', false)
+            ->assertSee('data-cancel-button-color="#64748b"', false)
+            ->assertSee('name="_token"', false)
+            ->assertSee('name="_method" value="DELETE"', false)
+            ->assertSee('<form method="POST" action="'.route('wla.finalize', $assessment).'" data-confirm-submit', false)
+            ->assertSee('data-confirm-title="Finalisasi WLA ini?"', false)
+            ->assertSee('data-confirm-text="Setelah difinalisasi, assessment dan aktivitas tidak dapat diubah atau dihapus. Pastikan seluruh data sudah benar."', false)
+            ->assertSee('data-confirm-button-text="Ya, finalisasi"', false)
+            ->assertSee('data-cancel-button-text="Periksa kembali"', false)
+            ->assertSee('data-confirm-button-color="#059669"', false);
+        $this->assertDoesNotMatchRegularExpression(
+            '/<form[^>]+action="'.preg_quote(route('wla.destroy', $assessment), '/').'"[^>]*confirm\(/',
+            $response->getContent(),
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/<form[^>]+action="'.preg_quote(route('wla.finalize', $assessment), '/').'"[^>]*confirm\(/',
+            $response->getContent(),
+        );
         $this->post(route('wla.finalize', $assessment))->assertRedirect();
         $snapshot = $assessment->fresh()->getRawOriginal('final_snapshot');
         $this->post(route('wla.finalize', $assessment))->assertForbidden();

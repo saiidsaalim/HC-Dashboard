@@ -42,7 +42,7 @@
                             <td class="px-4 py-3 text-slate-600">{{ $workSchedule->working_days_per_week }}</td>
                             <td class="px-4 py-3 font-medium text-slate-700">{{ $workSchedule->working_hours_per_week }}</td>
                             <td class="px-4 py-3"><span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $workSchedule->active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600' }}">{{ $workSchedule->active ? 'Aktif' : 'Nonaktif' }}</span></td>
-                            <td class="px-4 py-3"><div class="flex justify-end gap-3"><a class="font-semibold text-sky-700 hover:text-sky-900" href="{{ route('work-schedules.edit', $workSchedule) }}">Ubah</a><form method="POST" action="{{ route('work-schedules.destroy', $workSchedule) }}" onsubmit="return confirm('Hapus schedule ini?')">@csrf @method('DELETE')<button class="font-semibold text-red-600 hover:text-red-800">Hapus</button></form></div></td>
+                            <td class="px-4 py-3"><div class="flex justify-end gap-3"><a class="font-semibold text-sky-700 hover:text-sky-900" href="{{ route('work-schedules.edit', $workSchedule) }}">Ubah</a><form method="POST" action="{{ route('work-schedules.destroy', $workSchedule) }}" data-confirm-delete data-confirm-title="Hapus Work Schedule ini?" data-confirm-text="Work Schedule hanya dapat dihapus jika tidak sedang digunakan. Data yang dihapus tidak dapat dikembalikan.">@csrf @method('DELETE')<button class="font-semibold text-red-600 hover:text-red-800">Hapus</button></form></div></td>
                         </tr>
                     @empty
                         <tr><td colspan="9" class="px-4 py-10 text-center text-slate-500">Belum ada Work Schedule.</td></tr>

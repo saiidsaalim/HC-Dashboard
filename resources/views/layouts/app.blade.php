@@ -51,7 +51,7 @@
                     @endif
                 @endforeach
                 @if (auth()->user()->roleEnum()->canManageAllRoles())
-                    <a href="{{ route('organization.departments.index') }}" title="Master Organization"
+                    <a href="{{ route('organization.index') }}" title="Master Organization"
                         :class="{ 'justify-center': !sidebarExpanded && !sidebarOpen }"
                         class="flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium leading-5 transition {{ request()->routeIs('organization.*') ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/10' : 'text-slate-400 hover:bg-slate-900 hover:text-white' }}">
                         <x-dashboard-icon name="users" class="h-[22px] w-[22px]" />

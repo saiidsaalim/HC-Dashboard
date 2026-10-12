@@ -3,8 +3,12 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Enums\WlaAssessmentStatus;
 use App\Enums\WorkScheduleCalculationType;
+use App\Models\Department;
 use App\Models\User;
+use App\Models\WlaAssessment;
+use App\Models\WorkCalendar;
 use App\Models\WorkSchedule;
 use Database\Seeders\WorkScheduleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -41,6 +45,31 @@ class WorkScheduleTest extends TestCase
             ->assertOk()
             ->assertSee('Jam harian formula WLA berasal dari Kelompok Kalkulasi WLA');
         $this->get(route('work-schedules.edit', $schedule))->assertOk();
+    }
+
+    public function test_work_schedule_delete_form_uses_reusable_sweet_alert_confirmation(): void
+    {
+        $schedule = WorkSchedule::create([
+            'code' => 'DELETE-FORM',
+            'name' => 'Delete Form Schedule',
+            'schedule_type' => 'fixed',
+            'calculation_type' => WorkScheduleCalculationType::Dayshift,
+            'working_hours_per_day' => 8,
+            'working_days_per_week' => 5,
+            'active' => true,
+        ]);
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('work-schedules.index'))
+            ->assertOk()
+            ->assertSee('action="'.route('work-schedules.destroy', $schedule).'"', false)
+            ->assertSee('data-confirm-delete', false)
+            ->assertSee('data-confirm-title="Hapus Work Schedule ini?"', false)
+            ->assertSee('data-confirm-text="Work Schedule hanya dapat dihapus jika tidak sedang digunakan. Data yang dihapus tidak dapat dikembalikan."', false)
+            ->assertSee('name="_token"', false)
+            ->assertSee('name="_method" value="DELETE"', false)
+            ->assertDontSee('confirm(', false)
+            ->assertDontSee('onsubmit=', false);
     }
 
     public function test_super_admin_can_create_a_work_schedule(): void
@@ -132,6 +161,42 @@ class WorkScheduleTest extends TestCase
         $this->assertDatabaseMissing('work_schedules', ['id' => $schedule->id]);
     }
 
+    public function test_work_schedule_used_by_an_assessment_cannot_be_deleted(): void
+    {
+        $user = $this->superAdmin();
+        $schedule = WorkSchedule::create([
+            'code' => 'USED-SCHEDULE',
+            'name' => 'Used Schedule',
+            'schedule_type' => 'fixed',
+            'calculation_type' => WorkScheduleCalculationType::Dayshift,
+            'working_hours_per_day' => 8,
+            'working_days_per_week' => 5,
+            'active' => true,
+        ]);
+        $calendar = WorkCalendar::create([
+            'year' => 2035,
+            'total_days' => 365,
+            'total_weeks' => 52,
+            'annual_leave' => 12,
+            'national_holiday' => 10,
+            'common_leave' => 2,
+            'saturday_days' => 52,
+            'sunday_days' => 52,
+            'active' => true,
+        ]);
+        $this->createAssessment($schedule, $calendar, $user);
+
+        $this->actingAs($user)
+            ->from(route('work-schedules.index'))
+            ->delete(route('work-schedules.destroy', $schedule))
+            ->assertRedirect(route('work-schedules.index'))
+            ->assertSessionHasErrors([
+                'master' => 'Jadwal kerja tidak dapat dihapus karena masih digunakan oleh WLA.',
+            ]);
+
+        $this->assertDatabaseHas('work_schedules', ['id' => $schedule->id]);
+    }
+
     public function test_non_super_admin_cannot_manage_work_schedule(): void
     {
         $schedule = WorkSchedule::create([
@@ -203,5 +268,25 @@ class WorkScheduleTest extends TestCase
     private function superAdmin(): User
     {
         return User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+    }
+
+    private function createAssessment(WorkSchedule $schedule, WorkCalendar $calendar, User $user): WlaAssessment
+    {
+        $department = Department::create(['code' => 'D-SCHEDULE', 'name' => 'Schedule Department', 'active' => true]);
+        $unit = $department->units()->create(['code' => 'U-SCHEDULE', 'name' => 'Schedule Unit', 'active' => true]);
+        $position = $unit->positions()->create(['code' => 'P-SCHEDULE', 'name' => 'Schedule Position', 'active' => true]);
+
+        return WlaAssessment::create([
+            'assessment_code' => 'WLA-USED-SCHEDULE',
+            'period' => $calendar->year,
+            'department_id' => $department->id,
+            'unit_id' => $unit->id,
+            'position_id' => $position->id,
+            'work_schedule_id' => $schedule->id,
+            'work_calendar_id' => $calendar->id,
+            'efficiency_factor' => '0.9000',
+            'status' => WlaAssessmentStatus::Draft,
+            'created_by' => $user->id,
+        ]);
     }
 }

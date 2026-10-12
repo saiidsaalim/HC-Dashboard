@@ -8,9 +8,14 @@
             <p class="text-sm text-slate-500">Draft and immutable Final workload assessments.</p>
             <h2 class="mt-1 font-display text-2xl font-bold text-slate-950">WLA Assessments</h2>
         </div>
-        @can('create', \App\Models\WlaAssessment::class)
-            <a href="{{ route('wla.create') }}" class="w-fit rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700">New Assessment</a>
-        @endcan
+        <div class="flex flex-wrap gap-2">
+            @can('viewAny', \App\Models\WlaAssessment::class)
+                <a href="{{ route('wla.headcount-analysis') }}" class="w-fit rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Analisis Headcount</a>
+            @endcan
+            @can('create', \App\Models\WlaAssessment::class)
+                <a href="{{ route('wla.create') }}" class="w-fit rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700">New Assessment</a>
+            @endcan
+        </div>
     </div>
 
     @if (session('status'))

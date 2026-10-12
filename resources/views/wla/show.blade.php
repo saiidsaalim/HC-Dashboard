@@ -43,13 +43,13 @@
                 @endif
                 @can('update', $wla)
                     <a href="{{ route('wla.edit', $wla) }}" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Edit Draft</a>
-                    <form method="POST" action="{{ route('wla.destroy', $wla) }}" onsubmit="return confirm('Delete this draft and its activities?')">
+                    <form method="POST" action="{{ route('wla.destroy', $wla) }}" data-confirm-submit data-confirm-title="Hapus Draft WLA ini?" data-confirm-text="Seluruh aktivitas dalam Draft ini akan ikut dihapus dan tidak dapat dikembalikan." data-confirm-button-text="Ya, hapus Draft" data-cancel-button-text="Batal" data-confirm-button-color="#dc2626" data-cancel-button-color="#64748b">
                         @csrf @method('DELETE')
                         <button class="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50">Delete Draft</button>
                     </form>
                 @endcan
                 @can('finalize', $wla)
-                    <form method="POST" action="{{ route('wla.finalize', $wla) }}" onsubmit="return confirm('Finalisasi WLA ini? Data dan hasil perhitungan akan dibekukan.')">
+                    <form method="POST" action="{{ route('wla.finalize', $wla) }}" data-confirm-submit data-confirm-title="Finalisasi WLA ini?" data-confirm-text="Setelah difinalisasi, assessment dan aktivitas tidak dapat diubah atau dihapus. Pastikan seluruh data sudah benar." data-confirm-button-text="Ya, finalisasi" data-cancel-button-text="Periksa kembali" data-confirm-button-color="#059669" data-cancel-button-color="#64748b">
                         @csrf
                         <button @disabled($finalizationReasons !== []) class="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50">Finalisasi WLA</button>
                     </form>

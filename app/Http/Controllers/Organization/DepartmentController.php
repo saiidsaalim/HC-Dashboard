@@ -20,6 +20,7 @@ class DepartmentController extends Controller
         $active = $request->input('active', '');
 
         $departments = Department::query()
+            ->withCount('units')
             ->when($search !== '', fn ($query) => $query->where(fn ($query) => $query
                 ->where('code', 'like', "%{$search}%")
                 ->orWhere('name', 'like', "%{$search}%")))
