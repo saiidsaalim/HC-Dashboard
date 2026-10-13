@@ -50,25 +50,41 @@ class EmployeeManagementTest extends TestCase
     public function test_authenticated_user_can_search_and_filter_employees(): void
     {
         $user = User::factory()->create();
+        $operationsDepartment = Department::create(['code' => 'DPT-OPS', 'name' => 'Operasional', 'active' => true]);
+        $operationsUnit = $operationsDepartment->units()->create(['code' => 'UNT-OPS', 'name' => 'Operasional Utama', 'active' => true]);
+        $staffPosition = $operationsUnit->positions()->create(['code' => 'POS-STAFF', 'name' => 'Staff', 'active' => true]);
+        $financeDepartment = Department::create(['code' => 'DPT-FIN', 'name' => 'Keuangan', 'active' => true]);
+        $financeUnit = $financeDepartment->units()->create(['code' => 'UNT-FIN', 'name' => 'Keuangan Utama', 'active' => true]);
+        $managerPosition = $financeUnit->positions()->create(['code' => 'POS-MGR', 'name' => 'Manager', 'active' => true]);
         Employee::create($this->employeeAttributes('SAP201', [
             'personal_number' => 'PN201',
             'txt_dept' => 'Operasional',
             'position' => 'Staff',
             'organilk' => '2025-01-01',
+            'department_id' => $operationsDepartment->id,
+            'unit_id' => $operationsUnit->id,
+            'position_id' => $staffPosition->id,
         ]));
         Employee::create($this->employeeAttributes('SAP202', [
             'personal_number' => 'PN202',
             'txt_dept' => 'Keuangan',
             'position' => 'Manager',
             'organilk' => '2025-02-01',
+            'department_id' => $financeDepartment->id,
+            'unit_id' => $financeUnit->id,
+            'position_id' => $managerPosition->id,
         ]));
 
         $this->actingAs($user)->get(route('data-pegawai', [
             'search' => 'PN201',
-            'department' => 'Operasional',
-            'position' => 'Staff',
+            'department_id' => $operationsDepartment->id,
+            'unit_id' => $operationsUnit->id,
+            'position_id' => $staffPosition->id,
         ]))->assertOk()
             ->assertViewHas('search', 'PN201')
+            ->assertViewHas('departmentId', (string) $operationsDepartment->id)
+            ->assertViewHas('unitId', (string) $operationsUnit->id)
+            ->assertViewHas('positionId', (string) $staffPosition->id)
             ->assertSee('SAP201')
             ->assertDontSee('SAP202');
     }
@@ -719,33 +735,176 @@ class EmployeeManagementTest extends TestCase
     {
         $user = User::factory()->create();
         $department = Department::create(['code' => 'DPT-E', 'name' => 'Department E', 'active' => true]);
-        $unit = $department->units()->create(['code' => 'UNT-E', 'name' => 'Unit E', 'active' => true]);
-        $position = $unit->positions()->create(['code' => 'POS-E', 'name' => 'Position E', 'active' => true]);
-        $employee = Employee::create([
+        $firstUnit = $department->units()->create(['code' => 'UNT-E1', 'name' => 'Unit E1', 'active' => true]);
+        $firstPosition = $firstUnit->positions()->create(['code' => 'POS-E1', 'name' => 'Position E1', 'active' => true]);
+        $secondUnit = $department->units()->create(['code' => 'UNT-E2', 'name' => 'Unit E2', 'active' => true]);
+        $secondPosition = $secondUnit->positions()->create(['code' => 'POS-E2', 'name' => 'Position E2', 'active' => true]);
+        $firstEmployee = Employee::create([
             ...$this->employeeAttributes('SAPFK004'),
             'department_id' => $department->id,
-            'unit_id' => $unit->id,
-            'position_id' => $position->id,
+            'unit_id' => $firstUnit->id,
+            'position_id' => $firstPosition->id,
         ]);
-        Employee::create($this->employeeAttributes('SAPFK005'));
-        $this->assertDatabaseHas('employees', [
-            'sap' => 'SAPFK004',
+        $secondEmployee = Employee::create([
+            ...$this->employeeAttributes('SAPFK005'),
             'department_id' => $department->id,
-            'unit_id' => $unit->id,
-            'position_id' => $position->id,
+            'unit_id' => $secondUnit->id,
+            'position_id' => $secondPosition->id,
         ]);
+        Employee::create($this->employeeAttributes('SAPFK006'));
 
-        $response = $this->actingAs($user)->get(route('data-pegawai', [
+        $departmentResponse = $this->actingAs($user)->get(route('data-pegawai', [
+            'department_id' => $department->id,
+        ]))->assertOk();
+        $this->assertSame(2, $departmentResponse->viewData('employees')->total());
+
+        $unitResponse = $this->get(route('data-pegawai', [
+            'department_id' => $department->id,
+            'unit_id' => $firstUnit->id,
+        ]))->assertOk();
+        $this->assertSame(1, $unitResponse->viewData('employees')->total());
+        $this->assertSame($firstEmployee->id, $unitResponse->viewData('employees')->first()->id);
+
+        $positionResponse = $this->get(route('data-pegawai', [
+            'department_id' => $department->id,
+            'unit_id' => $secondUnit->id,
+            'position_id' => $secondPosition->id,
+        ]))->assertOk();
+        $this->assertSame(1, $positionResponse->viewData('employees')->total());
+        $positionResponse
+            ->assertSee('SAPFK005')
+            ->assertDontSee('SAPFK004')
+            ->assertDontSee('SAPFK006')
+            ->assertViewHas('employees', fn ($employees): bool => $employees->first()->id === $secondEmployee->id);
+    }
+
+    public function test_employee_filter_pagination_preserves_search_sort_and_organization_ids(): void
+    {
+        $user = User::factory()->create();
+        $department = Department::create(['code' => 'DPT-PAGE', 'name' => 'Pagination Department', 'active' => true]);
+        $unit = $department->units()->create(['code' => 'UNT-PAGE', 'name' => 'Pagination Unit', 'active' => true]);
+        $position = $unit->positions()->create(['code' => 'POS-PAGE', 'name' => 'Pagination Position', 'active' => true]);
+
+        for ($index = 1; $index <= 11; $index++) {
+            Employee::create($this->employeeAttributes("SAPPAGE{$index}", [
+                'department_id' => $department->id,
+                'unit_id' => $unit->id,
+                'position_id' => $position->id,
+            ]));
+        }
+
+        $this->actingAs($user)->get(route('data-pegawai', [
+            'search' => 'SAPPAGE',
             'department_id' => $department->id,
             'unit_id' => $unit->id,
             'position_id' => $position->id,
-        ]))->assertOk();
-        $this->assertSame(1, $response->viewData('employees')->total());
-        $response
-            ->assertSee('SAPFK004')
-            ->assertDontSee('SAPFK005')
-            ->assertViewHas('employees', fn ($employees): bool => $employees->total() === 1
-                && $employees->first()->id === $employee->id);
+            'sort_by' => 'organic_oldest',
+        ]))->assertOk()
+            ->assertSee('search=SAPPAGE', false)
+            ->assertSee('department_id='.$department->id, false)
+            ->assertSee('unit_id='.$unit->id, false)
+            ->assertSee('position_id='.$position->id, false)
+            ->assertSee('sort_by=organic_oldest', false)
+            ->assertSee('page=2', false);
+    }
+
+    public function test_employee_master_filters_reject_invalid_and_inconsistent_organization_ids(): void
+    {
+        $user = User::factory()->create();
+        $department = Department::create(['code' => 'DPT-F', 'name' => 'Department F', 'active' => true]);
+        $unit = $department->units()->create(['code' => 'UNT-F', 'name' => 'Unit F', 'active' => true]);
+        $unit->positions()->create(['code' => 'POS-F', 'name' => 'Position F', 'active' => true]);
+        $otherDepartment = Department::create(['code' => 'DPT-G', 'name' => 'Department G', 'active' => true]);
+        $otherUnit = $otherDepartment->units()->create(['code' => 'UNT-G', 'name' => 'Unit G', 'active' => true]);
+        $otherPosition = $otherUnit->positions()->create(['code' => 'POS-G', 'name' => 'Position G', 'active' => true]);
+
+        $this->actingAs($user)->from(route('data-pegawai'))->get(route('data-pegawai', [
+            'department_id' => 'invalid',
+        ]))->assertRedirect(route('data-pegawai'))
+            ->assertSessionHasErrors('department_id');
+
+        $this->from(route('data-pegawai'))->get(route('data-pegawai', [
+            'unit_id' => $unit->id,
+        ]))->assertRedirect(route('data-pegawai'))
+            ->assertSessionHasErrors('department_id');
+
+        $this->from(route('data-pegawai'))->get(route('data-pegawai', [
+            'position_id' => $otherPosition->id,
+        ]))->assertRedirect(route('data-pegawai'))
+            ->assertSessionHasErrors(['department_id', 'unit_id']);
+
+        $this->from(route('data-pegawai'))->get(route('data-pegawai', [
+            'department_id' => $department->id,
+            'unit_id' => $otherUnit->id,
+        ]))->assertRedirect(route('data-pegawai'))
+            ->assertSessionHasErrors('unit_id');
+
+        $this->from(route('data-pegawai'))->get(route('data-pegawai', [
+            'department_id' => $department->id,
+            'unit_id' => $unit->id,
+            'position_id' => $otherPosition->id,
+        ]))->assertRedirect(route('data-pegawai'))
+            ->assertSessionHasErrors('position_id');
+    }
+
+    public function test_employee_filter_dropdowns_render_each_level_after_its_parent_is_selected(): void
+    {
+        $user = User::factory()->create();
+        $department = Department::create(['code' => 'DPT-FILTER', 'name' => 'Filter Department', 'active' => true]);
+        $unit = $department->units()->create(['code' => 'UNT-FILTER', 'name' => 'Filter Unit', 'active' => true]);
+        $position = $unit->positions()->create(['code' => 'POS-FILTER', 'name' => 'Filter Position', 'active' => true]);
+        $otherDepartment = Department::create(['code' => 'DPT-OTHER', 'name' => 'Other Department', 'active' => true]);
+        $otherUnit = $otherDepartment->units()->create(['code' => 'UNT-OTHER', 'name' => 'Other Unit', 'active' => true]);
+        $otherPosition = $otherUnit->positions()->create(['code' => 'POS-OTHER', 'name' => 'Other Position', 'active' => true]);
+
+        $initialResponse = $this->actingAs($user)->get(route('data-pegawai'))
+            ->assertOk()
+            ->assertViewHas('organizationDepartments', fn ($departments): bool => $departments->contains($department)
+                && $departments->contains($otherDepartment))
+            ->assertViewHas('organizationUnits', fn ($units): bool => $units->contains($unit)
+                && $units->contains($otherUnit))
+            ->assertViewHas('organizationPositions', fn ($positions): bool => $positions->contains($position)
+                && $positions->contains($otherPosition))
+            ->assertViewHas('filterUnits', fn ($units): bool => $units->isEmpty())
+            ->assertViewHas('filterPositions', fn ($positions): bool => $positions->isEmpty())
+            ->assertViewHas('departmentId', '')
+            ->assertViewHas('unitId', '')
+            ->assertViewHas('positionId', '');
+        $initialResponse->assertSee('Semua Department');
+
+        $departmentResponse = $this->get(route('data-pegawai', [
+            'department_id' => $department->id,
+        ]))->assertOk()
+            ->assertViewHas('filterUnits', fn ($units): bool => $units->modelKeys() === [$unit->id])
+            ->assertViewHas('filterPositions', fn ($positions): bool => $positions->isEmpty())
+            ->assertViewHas('departmentId', (string) $department->id)
+            ->assertViewHas('unitId', '')
+            ->assertViewHas('positionId', '');
+        $departmentResponse
+            ->assertSee('<option value="'.$unit->id.'" >'.$unit->name.'</option>', false)
+            ->assertDontSee('<option value="'.$otherUnit->id.'" >'.$otherUnit->name.'</option>', false);
+
+        $unitResponse = $this->get(route('data-pegawai', [
+            'department_id' => $department->id,
+            'unit_id' => $unit->id,
+        ]))->assertOk()
+            ->assertViewHas('filterUnits', fn ($units): bool => $units->modelKeys() === [$unit->id])
+            ->assertViewHas('filterPositions', fn ($positions): bool => $positions->modelKeys() === [$position->id])
+            ->assertViewHas('unitId', (string) $unit->id);
+        $unitResponse
+            ->assertSee('<option value="'.$position->id.'" >'.$position->name.'</option>', false)
+            ->assertDontSee('<option value="'.$otherPosition->id.'" >'.$otherPosition->name.'</option>', false);
+
+        $this->get(route('data-pegawai', [
+            'department_id' => $department->id,
+            'unit_id' => $unit->id,
+            'position_id' => $position->id,
+        ]))->assertOk()
+            ->assertViewHas('positionId', (string) $position->id)
+            ->assertSee('<option value="'.$position->id.'" selected>'.$position->name.'</option>', false)
+            ->assertSee("this.form.elements.namedItem('unit_id').value = ''", false)
+            ->assertSee("this.form.elements.namedItem('position_id').value = ''", false)
+            ->assertSee('this.form.submit()', false);
     }
 
     public function test_deleting_a_position_nulls_only_its_employee_fk_and_keeps_legacy_text(): void

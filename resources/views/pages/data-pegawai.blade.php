@@ -285,7 +285,6 @@
                 </section>
             </div>
         @endif
-    </div>
 
     <div class="mt-8 space-y-6">
         <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -295,7 +294,7 @@
                     <p class="mt-1 text-sm text-slate-500">{{ $employees->total() }} data pegawai</p>
                 </div>
                 <div class="flex flex-col gap-3 xl:items-end">
-                    <form method="GET" action="{{ route('data-pegawai') }}" x-data="{ departmentId: @js($departmentId), unitId: @js($unitId), positionId: @js($positionId) }" class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+                    <form method="GET" action="{{ route('data-pegawai') }}" class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
                         <div class="col-span-2 sm:col-span-1">
                             <label for="employee-search" class="sr-only">Cari pegawai</label>
                             <input id="employee-search" name="search" value="{{ $search }}" type="search"
@@ -303,33 +302,37 @@
                                 class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 sm:w-56">
                         </div>
                         <div>
-                            <label for="employee-department-filter" class="sr-only">Filter TXT_DEPT</label>
-                            <select id="employee-department-filter" name="department_id" x-model="departmentId" @change="unitId = ''; positionId = ''"
+                            <label for="employee-department-filter" class="sr-only">Filter Department</label>
+                            <select id="employee-department-filter" name="department_id"
+                                onchange="this.form.elements.namedItem('unit_id').value = ''; this.form.elements.namedItem('position_id').value = ''; this.form.submit()"
                                 class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 sm:w-40">
-                                <option value="">Semua TXT_DEPT</option>
+                                <option value="">Semua Department</option>
                                 @foreach ($organizationDepartments as $departmentOption)
-                                    <option value="{{ $departmentOption->id }}">{{ $departmentOption->name }}</option>
+                                    <option value="{{ $departmentOption->id }}" @selected((string) $departmentOption->id === $departmentId)>{{ $departmentOption->name }}</option>
                                 @endforeach
                             </select>
                         </div>
                         <div>
                             <label for="employee-unit-filter" class="sr-only">Filter unit</label>
-                            <select id="employee-unit-filter" name="unit_id" x-model="unitId" @change="positionId = ''"
-                                class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 sm:w-40">
+                            <select id="employee-unit-filter" name="unit_id"
+                                onchange="this.form.elements.namedItem('position_id').value = ''; this.form.submit()"
+                                @disabled($departmentId === '')
+                                class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 disabled:bg-slate-100 sm:w-40">
                                 <option value="">Semua unit</option>
-                                <template x-for="unit in organizationUnits.filter(item => !departmentId || String(item.department_id) === String(departmentId))" :key="unit.id">
-                                    <option :value="String(unit.id)" x-text="unit.name"></option>
-                                </template>
+                                @foreach ($filterUnits as $unitOption)
+                                    <option value="{{ $unitOption->id }}" @selected((string) $unitOption->id === $unitId)>{{ $unitOption->name }}</option>
+                                @endforeach
                             </select>
                         </div>
                         <div>
                             <label for="employee-position-filter" class="sr-only">Filter position</label>
-                            <select id="employee-position-filter" name="position_id" x-model="positionId"
-                                class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 sm:w-40">
+                            <select id="employee-position-filter" name="position_id" onchange="this.form.submit()"
+                                @disabled($unitId === '')
+                                class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 disabled:bg-slate-100 sm:w-40">
                                 <option value="">Semua position</option>
-                                <template x-for="position in organizationPositions.filter(item => (!departmentId || String(item.department_id) === String(departmentId)) && (!unitId || String(item.unit_id) === String(unitId))" :key="position.id">
-                                    <option :value="String(position.id)" x-text="position.name"></option>
-                                </template>
+                                @foreach ($filterPositions as $positionOption)
+                                    <option value="{{ $positionOption->id }}" @selected((string) $positionOption->id === $positionId)>{{ $positionOption->name }}</option>
+                                @endforeach
                             </select>
                         </div>
                         <div>
@@ -343,7 +346,7 @@
                         </div>
                         <div class="col-span-2 flex gap-2 sm:col-span-1">
                             <button type="submit" class="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700">Cari</button>
-                            @if ($search !== '' || $department !== '' || $position !== '' || $departmentId !== '' || $unitId !== '' || $positionId !== '' || $sortBy !== 'latest')
+                            @if ($search !== '' || $departmentId !== '' || $unitId !== '' || $positionId !== '' || $sortBy !== 'latest')
                                 <a href="{{ route('data-pegawai') }}" class="rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50">Reset</a>
                             @endif
                         </div>
@@ -601,5 +604,6 @@
             </dialog>
             @endforeach
         @endif
+    </div>
     </div>
     @endsection

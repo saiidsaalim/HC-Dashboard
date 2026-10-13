@@ -37,14 +37,35 @@ class EmployeeController extends Controller
     public function index(Request $request): View
     {
         $search = trim((string) $request->input('search', ''));
-        $department = trim((string) $request->input('department', ''));
-        $position = trim((string) $request->input('position', ''));
-        $departmentId = trim((string) $request->input('department_id', ''));
-        $unitId = trim((string) $request->input('unit_id', ''));
-        $positionId = trim((string) $request->input('position_id', ''));
-        $sortBy = $request->validate([
+        $validatedFilters = $request->validate([
+            'department_id' => ['nullable', 'integer', 'required_with:unit_id,position_id', Rule::exists(Department::class, 'id')],
+            'unit_id' => ['nullable', 'integer', 'required_with:position_id', Rule::exists(Unit::class, 'id')],
+            'position_id' => ['nullable', 'integer', Rule::exists(Position::class, 'id')],
             'sort_by' => ['nullable', 'string', Rule::in(['latest', 'organic_newest', 'organic_oldest'])],
-        ])['sort_by'] ?? 'latest';
+        ]);
+        $departmentId = isset($validatedFilters['department_id']) ? (int) $validatedFilters['department_id'] : null;
+        $unitId = isset($validatedFilters['unit_id']) ? (int) $validatedFilters['unit_id'] : null;
+        $positionId = isset($validatedFilters['position_id']) ? (int) $validatedFilters['position_id'] : null;
+        $sortBy = $validatedFilters['sort_by'] ?? 'latest';
+
+        if ($unitId !== null && Unit::query()
+            ->whereKey($unitId)
+            ->where('department_id', $departmentId)
+            ->doesntExist()) {
+            throw ValidationException::withMessages([
+                'unit_id' => 'Unit yang dipilih tidak berada dalam Department tersebut.',
+            ]);
+        }
+
+        if ($positionId !== null && Position::query()
+            ->whereKey($positionId)
+            ->where('unit_id', $unitId)
+            ->doesntExist()) {
+            throw ValidationException::withMessages([
+                'position_id' => 'Position yang dipilih tidak berada dalam Unit tersebut.',
+            ]);
+        }
+
         $employeeQuery = Employee::query()->with(['organizationDepartment', 'unit', 'organizationPosition']);
 
         if ($search !== '') {
@@ -55,24 +76,16 @@ class EmployeeController extends Controller
             });
         }
 
-        if ($departmentId !== '') {
+        if ($departmentId !== null) {
             $employeeQuery->where('department_id', $departmentId);
         }
 
-        if ($unitId !== '') {
+        if ($unitId !== null) {
             $employeeQuery->where('unit_id', $unitId);
         }
 
-        if ($positionId !== '') {
+        if ($positionId !== null) {
             $employeeQuery->where('position_id', $positionId);
-        }
-
-        if ($department !== '') {
-            $employeeQuery->where('txt_dept', $department);
-        }
-
-        if ($position !== '') {
-            $employeeQuery->where('position', $position);
         }
 
         if ($sortBy === 'organic_newest' || $sortBy === 'organic_oldest') {
@@ -85,24 +98,31 @@ class EmployeeController extends Controller
         }
 
         $employees = $employeeQuery->paginate(10)->withQueryString();
-        $departmentIds = $employees->pluck('department_id')->filter()->merge($departmentId !== '' ? [$departmentId] : [])->unique()->all();
-        $unitIds = $employees->pluck('unit_id')->filter()->merge($unitId !== '' ? [$unitId] : [])->unique()->all();
-        $positionIds = $employees->pluck('position_id')->filter()->merge($positionId !== '' ? [$positionId] : [])->unique()->all();
+        $departmentIds = $employees->pluck('department_id')->filter()->merge($departmentId !== null ? [$departmentId] : [])->unique()->all();
+        $unitIds = $employees->pluck('unit_id')->filter()->merge($unitId !== null ? [$unitId] : [])->unique()->all();
+        $positionIds = $employees->pluck('position_id')->filter()->merge($positionId !== null ? [$positionId] : [])->unique()->all();
+        $organizationDepartments = Department::query()->where('active', true)->orWhereIn('id', $departmentIds)->orderBy('name')->get();
+        $organizationUnits = Unit::query()->with('department')->where('active', true)->orWhereIn('id', $unitIds)->orderBy('name')->get();
+        $organizationPositions = Position::query()->with('unit.department')->where('active', true)->orWhereIn('id', $positionIds)->orderBy('name')->get();
+        $filterUnits = $departmentId === null
+            ? collect()
+            : $organizationUnits->where('department_id', $departmentId)->values();
+        $filterPositions = $unitId === null
+            ? collect()
+            : $organizationPositions->where('unit_id', $unitId)->values();
 
         return view('pages.data-pegawai', [
             'employees' => $employees,
             'search' => $search,
-            'department' => $department,
-            'position' => $position,
-            'departmentId' => $departmentId,
-            'unitId' => $unitId,
-            'positionId' => $positionId,
+            'departmentId' => (string) ($departmentId ?? ''),
+            'unitId' => (string) ($unitId ?? ''),
+            'positionId' => (string) ($positionId ?? ''),
             'sortBy' => $sortBy,
-            'departments' => Employee::query()->whereNotNull('txt_dept')->where('txt_dept', '!=', '')->distinct()->orderBy('txt_dept')->pluck('txt_dept'),
-            'positions' => Employee::query()->whereNotNull('position')->where('position', '!=', '')->distinct()->orderBy('position')->pluck('position'),
-            'organizationDepartments' => Department::query()->where('active', true)->orWhereIn('id', $departmentIds)->orderBy('name')->get(),
-            'organizationUnits' => Unit::query()->with('department')->where('active', true)->orWhereIn('id', $unitIds)->orderBy('name')->get(),
-            'organizationPositions' => Position::query()->with('unit.department')->where('active', true)->orWhereIn('id', $positionIds)->orderBy('name')->get(),
+            'organizationDepartments' => $organizationDepartments,
+            'organizationUnits' => $organizationUnits,
+            'organizationPositions' => $organizationPositions,
+            'filterUnits' => $filterUnits,
+            'filterPositions' => $filterPositions,
             'canManageEmployees' => $request->user()?->roleEnum() === UserRole::SUPER_ADMIN,
         ]);
     }
