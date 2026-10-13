@@ -2,10 +2,12 @@
 
 namespace App\Providers;
 
+use App\Models\EmployeePromotion;
 use App\Models\WlaAssessment;
 use App\Models\WlaParticipant;
 use App\Models\WorkCalendar;
 use App\Models\WorkSchedule;
+use App\Policies\EmployeePromotionPolicy;
 use App\Policies\WlaAssessmentPolicy;
 use App\Policies\WlaParticipantPolicy;
 use App\Policies\WorkCalendarPolicy;
@@ -20,6 +22,7 @@ class AuthServiceProvider extends ServiceProvider
      * @var array<class-string, class-string>
      */
     protected $policies = [
+        EmployeePromotion::class => EmployeePromotionPolicy::class,
         WorkSchedule::class => WorkSchedulePolicy::class,
         WorkCalendar::class => WorkCalendarPolicy::class,
         WlaAssessment::class => WlaAssessmentPolicy::class,

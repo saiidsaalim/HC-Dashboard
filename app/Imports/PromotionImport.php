@@ -2,6 +2,8 @@
 
 namespace App\Imports;
 
+use App\Enums\PromotionStatus;
+use App\Models\Employee;
 use App\Models\EmployeePromotion;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
@@ -56,7 +58,17 @@ class PromotionImport
                     $data[$header] = $value;
                 }
 
+                if (! Employee::query()->where('sap', $data['sap'])->exists()) {
+                    throw ValidationException::withMessages([
+                        'file' => "SAP {$data['sap']} pada baris {$rowNumber} tidak ditemukan pada Data Pegawai.",
+                    ]);
+                }
+
                 $data['tmt'] = $this->parseDate($data['tmt'], $rowNumber);
+                $data['verification_status'] = PromotionStatus::Draft->value;
+                $data['approval_round'] = 0;
+                $data['current_approval_step'] = null;
+                $data['finalized_at'] = null;
                 EmployeePromotion::create($data);
                 $created++;
             }

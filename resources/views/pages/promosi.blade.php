@@ -3,135 +3,66 @@
 @section('page-title', 'Promosi')
 
 @section('content')
+    @php
+        $canManage = auth()->user()->can('create', \App\Models\EmployeePromotion::class);
+        $statusStyles = [
+            \App\Enums\PromotionStatus::Draft->value => 'bg-slate-100 text-slate-700',
+            \App\Enums\PromotionStatus::LegacyPending->value => 'bg-slate-100 text-slate-700',
+            \App\Enums\PromotionStatus::WaitingApproval->value => 'bg-amber-50 text-amber-700',
+            \App\Enums\PromotionStatus::Returned->value => 'bg-rose-50 text-rose-700',
+            \App\Enums\PromotionStatus::Final->value => 'bg-emerald-50 text-emerald-700',
+        ];
+    @endphp
 
-    @php($canApprovePromotions = in_array(auth()->user()->roleEnum(), [\App\Enums\UserRole::ADMIN, \App\Enums\UserRole::MANAGER], true))
-    @php($canManagePromotionRecords = auth()->user()->roleEnum()->canManageAllRoles())
-    <div x-data="{ open: @js(old('_form') === 'manual') }">
-        <div class="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-            <div>
-                <p class="text-sm text-slate-500">Kelola usulan kenaikan jabatan dan perkembangan karier pegawai.</p>
-                <h2 class="mt-1 font-display text-3xl font-bold tracking-tight text-slate-950">Daftar Promosi</h2>
-            </div>
+    <div class="mb-8 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+        <div>
+            <p class="text-sm text-slate-500">Workflow promosi berurutan dari Draft hingga tiga tahap persetujuan.</p>
+            <h2 class="mt-1 font-display text-3xl font-bold tracking-tight text-slate-950">Daftar Promosi</h2>
+        </div>
+        @if ($canManage)
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <a href="{{ route('promosi.approval-settings.edit') }}"
+                    class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+                    Pengaturan Persetujuan
+                </a>
                 <form method="POST" action="{{ route('promosi.import') }}" enctype="multipart/form-data"
                     class="flex flex-col gap-2 sm:flex-row sm:items-center">
                     @csrf
                     <input type="file" name="file" accept=".xlsx,.csv,.txt" required
                         class="block w-full rounded-lg border border-slate-300 bg-white text-sm text-slate-500 file:mr-3 file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-700 sm:w-auto">
-                    <button type="submit"
-                        class="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700">
+                    <button type="submit" class="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700">
                         Import Promosi
                     </button>
                 </form>
-                <button type="button" @click="open = true"
+                <button type="button" onclick="document.getElementById('create-promotion').showModal()"
                     class="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700">
                     Buat Promosi
                 </button>
             </div>
-        </div>
-
-        @if (session('status'))
-            <div
-                class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-                {{ session('status') }}
-            </div>
         @endif
-        @if ($errors->any())
-            <div class="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                <p class="font-semibold">Data promosi tidak dapat diproses.</p>
-                <ul class="mt-1 list-disc pl-5">
-                    @foreach ($errors->all() as $error)
-                        <li>{{ $error }}</li>
-                    @endforeach
-                </ul>
-            </div>
-        @endif
-
-        <div x-cloak x-show="open" x-transition.opacity @keydown.escape.window="open = false"
-            class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 p-4 sm:p-8"
-            @click.self="open = false">
-            <section class="my-4 w-full max-w-5xl rounded-2xl bg-white p-6 shadow-2xl sm:my-8 sm:p-8" role="dialog"
-                aria-modal="true" aria-labelledby="manual-promotion-title">
-                <div class="flex items-start justify-between gap-4">
-                    <div>
-                        <h3 id="manual-promotion-title" class="font-display text-xl font-bold text-slate-950">Tambah Data
-                            Promosi</h3>
-                        <p class="mt-1 text-sm text-slate-500">Isi data pegawai, jabatan usulan, tanggal, dan detail
-                            golongan.</p>
-                    </div>
-                    <button type="button" @click="open = false" aria-label="Tutup"
-                        class="rounded-lg px-3 py-2 text-xl leading-none text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">&times;</button>
-                </div>
-                <form method="POST" action="{{ route('promosi.store') }}"
-                    class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    @csrf
-                    <input type="hidden" name="_form" value="manual">
-                    <div>
-                        <label for="promotion-sap" class="text-sm font-semibold text-slate-700">SAP</label>
-                        <input id="promotion-sap" name="sap" value="{{ old('sap') }}" required
-                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
-                    </div>
-                    <div>
-                        <label for="promotion-nama" class="text-sm font-semibold text-slate-700">Nama</label>
-                        <input id="promotion-nama" name="nama" value="{{ old('nama') }}" required
-                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
-                    </div>
-                    <div>
-                        <label for="promotion-departemen-lama" class="text-sm font-semibold text-slate-700">Departemen
-                            Lama</label>
-                        <input id="promotion-departemen-lama" name="departemen_lama" value="{{ old('departemen_lama') }}"
-                            required
-                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
-                    </div>
-                    <div>
-                        <label for="promotion-jabatan-lama" class="text-sm font-semibold text-slate-700">Jabatan Saat
-                            Ini</label>
-                        <input id="promotion-jabatan-lama" name="jabatan_lama" value="{{ old('jabatan_lama') }}" required
-                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
-                    </div>
-                    <div>
-                        <label for="promotion-jabatan-baru" class="text-sm font-semibold text-slate-700">Jabatan
-                            Usulan</label>
-                        <input id="promotion-jabatan-baru" name="jabatan_baru" value="{{ old('jabatan_baru') }}" required
-                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
-                    </div>
-                    <div>
-                        <label for="promotion-departemen-baru" class="text-sm font-semibold text-slate-700">Departemen
-                            Baru</label>
-                        <input id="promotion-departemen-baru" name="departemen_baru" value="{{ old('departemen_baru') }}"
-                            required
-                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
-                    </div>
-                    <div>
-                        <label for="promotion-tmt" class="text-sm font-semibold text-slate-700">TMT</label>
-                        <input id="promotion-tmt" name="tmt" type="date" value="{{ old('tmt') }}" required
-                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
-                    </div>
-                    <details class="rounded-xl border border-slate-200 bg-slate-50 p-4 sm:col-span-2 xl:col-span-4">
-                        <summary class="cursor-pointer text-sm font-semibold text-slate-700">Detail PG, BAND, dan JG
-                        </summary>
-                        <div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-                            @foreach (['pg' => 'PG', 'band_lama' => 'BAND Saat Ini', 'jg_lama' => 'JG Saat Ini', 'band_baru' => 'BAND Usulan', 'jg_baru' => 'JG Usulan'] as $field => $label)
-                                <div>
-                                    <label for="promotion-{{ $field }}"
-                                        class="text-sm font-semibold text-slate-700">{{ $label }}</label>
-                                    <input id="promotion-{{ $field }}" name="{{ $field }}"
-                                        value="{{ old($field) }}" required
-                                        class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
-                                </div>
-                            @endforeach
-                        </div>
-                    </details>
-                    <div class="flex justify-end sm:col-span-2 xl:col-span-4">
-                        <button type="submit"
-                            class="w-full rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 sm:w-auto">
-                            Simpan Data Promosi
-                        </button>
-                    </div>
-                </form>
-            </section>
-        </div>
     </div>
+
+    @if (session('status'))
+        <div class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+            {{ session('status') }}
+        </div>
+    @endif
+    @if ($errors->any())
+        <div class="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <p class="font-semibold">Data Promosi tidak dapat diproses.</p>
+            <ul class="mt-1 list-disc pl-5">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
+    @if ($canManage && !$approvalConfigurationComplete)
+        <div class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            Konfigurasi tiga approver Promosi belum lengkap. Ajukan Promosi dinonaktifkan sampai pengaturan diselesaikan.
+        </div>
+    @endif
 
     <div class="grid gap-5 md:grid-cols-3">
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -143,219 +74,254 @@
             <p class="mt-2 font-display text-3xl font-bold text-amber-600">{{ $pendingPromotions }}</p>
         </div>
         <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p class="text-sm text-slate-500">Disetujui tahun ini</p>
+            <p class="text-sm text-slate-500">Final tahun ini</p>
             <p class="mt-2 font-display text-3xl font-bold text-emerald-600">{{ $approvedThisYear }}</p>
         </div>
     </div>
 
     <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div class="flex w-full flex-col items-stretch justify-between gap-4 p-4 sm:p-6 xl:flex-row xl:items-center">
-            <h3 class="font-display text-lg font-bold text-slate-950">Usulan promosi terbaru</h3>
-            <div class="flex flex-wrap items-center justify-end gap-3">
-                <form method="GET" action="{{ route('promosi') }}" class="flex items-center gap-2">
-                    <label for="promotion-search" class="sr-only">Cari data promosi</label>
-                    <input id="promotion-search" name="search" value="{{ $search }}" type="search"
-                        placeholder="Cari SAP, nama, jabatan..."
-                        class="w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 sm:w-56">
-                    <button type="submit"
-                        class="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700">Cari</button>
-                    @if ($search !== '')
-                        <a href="{{ route('promosi') }}"
-                            class="rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50">Reset</a>
-                    @endif
-                </form>
-                <div class="flex items-center gap-3">
-                    @if ($canManagePromotionRecords && $promotions->contains(fn($promotion): bool => $promotion->verification_status !== 'Final'))
-                        <label class="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-600">
-                            <input id="select-all-promotions" type="checkbox"
-                                onchange="document.querySelectorAll('.promotion-checkbox').forEach((checkbox) => checkbox.checked = this.checked)"
-                                class="rounded border-slate-300 text-slate-950 focus:ring-amber-400">
-                            Pilih semua
-                        </label>
-                        <button type="submit" form="bulk-delete-promotions"
-                            class="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700">Hapus
-                            terpilih</button>
-                    @endif
-                </div>
-            </div>
+        <div class="flex flex-col justify-between gap-4 p-4 sm:p-6 xl:flex-row xl:items-center">
+            <h3 class="font-display text-lg font-bold text-slate-950">Usulan Promosi</h3>
+            <form method="GET" action="{{ route('promosi') }}" class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input name="search" value="{{ $search }}" type="search" placeholder="Cari SAP, nama, jabatan..."
+                    aria-label="Cari data Promosi"
+                    class="rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 sm:w-56">
+                <select name="status" aria-label="Filter status Promosi"
+                    class="rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
+                    @foreach (['all' => 'Semua', 'draft' => 'Draft', 'waiting' => 'Menunggu Persetujuan', 'returned' => 'Dikembalikan', 'final' => 'Final', 'mine' => 'Menunggu Persetujuan Saya'] as $value => $label)
+                        <option value="{{ $value }}" @selected($filter === $value)>{{ $label }}</option>
+                    @endforeach
+                </select>
+                <button type="submit" class="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700">Terapkan</button>
+                @if ($search !== '' || $filter !== 'all')
+                    <a href="{{ route('promosi') }}" class="rounded-lg border border-slate-200 px-3 py-2.5 text-center text-sm font-semibold text-slate-600 hover:bg-slate-50">Reset</a>
+                @endif
+            </form>
         </div>
+
         <form id="bulk-delete-promotions" method="POST" action="{{ route('promosi.destroy-many') }}"
-            data-confirm-submit data-confirm-title="Hapus data terpilih?" data-confirm-text="Data yang dihapus tidak dapat dikembalikan."
+            data-confirm-submit data-confirm-title="Hapus data terpilih?" data-confirm-text="Hanya Draft dan data Dikembalikan yang dapat dihapus."
             data-confirm-button-text="Ya, hapus" data-confirm-button-color="#dc2626" data-confirm-require-checkbox=".promotion-checkbox"
-            data-confirm-empty-text="Centang minimal satu usulan promosi.">
+            data-confirm-empty-text="Centang minimal satu usulan Promosi.">
             @csrf
             @method('DELETE')
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-sm whitespace-nowrap">
                     <thead class="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wider text-slate-400">
                         <tr>
-                            @if ($canManagePromotionRecords)
-                                <th class="w-12 px-4 py-3 text-center">Pilih</th>
-                            @endif
+                            @if ($canManage)<th class="w-12 px-4 py-3 text-center">Pilih</th>@endif
                             <th class="px-4 py-3">SAP</th>
-                            <th class="min-w-[150px] px-4 py-3">Pegawai</th>
-                            <th class="min-w-[140px] px-4 py-3">Departemen Lama</th>
-                            <th class="min-w-[140px] px-4 py-3">Jabatan Saat Ini</th>
-                            <th class="min-w-[140px] px-4 py-3">Departemen Baru</th>
-                            <th class="min-w-[140px] px-4 py-3">Jabatan Usulan</th>
-                            <th class="px-4 py-3 text-center">TMT</th>
-                            <th class="px-4 py-3 text-center">Status / Aksi</th>
-                            <th class="px-4 py-3 text-center">Detail</th>
+                            <th class="min-w-[160px] px-4 py-3">Pegawai</th>
+                            <th class="min-w-[150px] px-4 py-3">Posisi Saat Ini</th>
+                            <th class="min-w-[150px] px-4 py-3">Usulan</th>
+                            <th class="px-4 py-3">Workflow</th>
+                            <th class="px-4 py-3 text-center">Aksi</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         @forelse ($promotions as $promotion)
-                            @php($approvedCount = $promotion->approvals->where('status', 'Approved')->unique('manager_id')->count())
-                            @php($hasApproved = $promotion->approvals->contains(fn($approval): bool => $approval->manager_id === auth()->id() && $approval->status === 'Approved'))
-                            <tr>
-                                @if ($canManagePromotionRecords)
-                                    <td class="px-4 py-3 text-center">
-                                        @if ($promotion->verification_status !== 'Final')
+                            @php
+                                $status = $promotion->statusEnum();
+                                $roundApprovals = $promotion->approvals->where('approval_round', $promotion->approval_round);
+                                $approvedCount = $roundApprovals->where('status', \App\Enums\PromotionApprovalStatus::Approved)->count();
+                                $activeConfig = $promotion->current_approval_step ? $approvalConfiguration->get($promotion->current_approval_step) : null;
+                                $activeApprover = $activeConfig?->user;
+                                $isActiveApprover = $status === \App\Enums\PromotionStatus::WaitingApproval
+                                    && $activeApprover?->id === auth()->id()
+                                    && in_array(auth()->user()->roleEnum(), [\App\Enums\UserRole::ADMIN, \App\Enums\UserRole::MANAGER], true);
+                                $latestReturn = $promotion->approvals
+                                    ->where('status', \App\Enums\PromotionApprovalStatus::Returned)
+                                    ->sortByDesc('id')->first();
+                            @endphp
+                            <tr class="align-top">
+                                @if ($canManage)
+                                    <td class="px-4 py-4 text-center">
+                                        @can('delete', $promotion)
                                             <input type="checkbox" name="promotion_ids[]" value="{{ $promotion->id }}"
-                                                class="promotion-checkbox rounded border-slate-300 text-slate-950 focus:ring-amber-400"
-                                                onchange="document.getElementById('select-all-promotions').checked = document.querySelectorAll('.promotion-checkbox').length > 0 && document.querySelectorAll('.promotion-checkbox:not(:checked)').length === 0">
-                                        @endif
+                                                class="promotion-checkbox rounded border-slate-300 text-slate-950 focus:ring-amber-400">
+                                        @endcan
                                     </td>
                                 @endif
-                                <td class="px-4 py-3 font-semibold text-slate-700">{{ $promotion->sap }}</td>
-                                <td class="px-4 py-3 font-semibold text-slate-700">{{ $promotion->nama }}</td>
-                                <td class="px-4 py-3 text-slate-500">{{ $promotion->departemen_lama }}</td>
-                                <td class="px-4 py-3 text-slate-500">{{ $promotion->jabatan_lama }}</td>
-                                <td class="px-4 py-3 text-slate-500">{{ $promotion->departemen_baru }}</td>
-                                <td class="px-4 py-3 text-slate-500">{{ $promotion->jabatan_baru }}</td>
-                                <td class="px-4 py-3 text-center text-slate-500">{{ $promotion->tmt->format('d M Y') }}
+                                <td class="px-4 py-4 font-semibold text-slate-700">{{ $promotion->sap }}</td>
+                                <td class="px-4 py-4">
+                                    <p class="font-semibold text-slate-700">{{ $promotion->nama }}</p>
+                                    <p class="mt-1 text-xs text-slate-500">TMT {{ $promotion->tmt->format('d M Y') }}</p>
                                 </td>
-                                <td class="px-4 py-3 text-center">
-                                    <div class="flex flex-col items-center justify-center gap-2 py-2">
-                                        @if ($promotion->verification_status === 'Final')
-                                            <span
-                                                class="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 sm:text-xs">Final</span>
-                                            @if ($canManagePromotionRecords)
-                                                <a href="{{ route('promosi.print', $promotion) }}" target="_blank"
-                                                    rel="noopener"
-                                                    class="w-full max-w-[100px] rounded-md bg-sky-600 px-4 py-1.5 text-center text-sm font-medium text-white transition-colors hover:bg-sky-700">Print</a>
-                                            @endif
-                                        @else
-                                            <span
-                                                class="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-700 sm:text-xs">Menunggu</span>
-                                            <span class="text-center text-xs text-gray-500">{{ $approvedCount }}/3
-                                                disetujui</span>
-                                            @if ($canApprovePromotions && !$hasApproved)
-                                                <button type="submit" form="approve-promotion-{{ $promotion->id }}"
-                                                    class="w-full max-w-[100px] rounded-md bg-emerald-600 px-4 py-1.5 text-center text-sm font-medium text-white transition-colors hover:bg-emerald-700">Setuju</button>
-                                            @elseif ($hasApproved)
-                                                <span class="text-xs font-medium text-emerald-600">Sudah disetujui</span>
-                                            @endif
+                                <td class="px-4 py-4 text-slate-600">
+                                    <p>{{ $promotion->departemen_lama }}</p>
+                                    <p class="mt-1 text-xs text-slate-500">{{ $promotion->jabatan_lama }}</p>
+                                </td>
+                                <td class="px-4 py-4 text-slate-600">
+                                    <p>{{ $promotion->departemen_baru }}</p>
+                                    <p class="mt-1 text-xs text-slate-500">{{ $promotion->jabatan_baru }}</p>
+                                </td>
+                                <td class="px-4 py-4">
+                                    <span class="rounded-full px-3 py-1 text-xs font-bold {{ $statusStyles[$status->value] ?? 'bg-slate-100 text-slate-700' }}">{{ $status->label() }}</span>
+                                    <p class="mt-2 text-xs text-slate-500">Putaran {{ max((int) $promotion->approval_round, 0) }} · {{ $approvedCount }}/3 disetujui</p>
+                                    @if ($status === \App\Enums\PromotionStatus::WaitingApproval)
+                                        <p class="mt-1 text-xs text-slate-600">
+                                            Tahap {{ $promotion->current_approval_step }}:
+                                            {{ $activeApprover?->name ?? 'Konfigurasi approver tidak valid' }}
+                                        </p>
+                                        @if ($isActiveApprover)
+                                            <span class="mt-2 inline-block rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">Menunggu Persetujuan Anda</span>
                                         @endif
-                                    </div>
+                                    @elseif ($status === \App\Enums\PromotionStatus::Returned && $latestReturn)
+                                        <p class="mt-2 max-w-xs whitespace-normal text-xs text-rose-700">Catatan: {{ $latestReturn->note }}</p>
+                                    @endif
                                 </td>
-                                <td class="px-4 py-3 text-center">
-                                    <button type="button"
-                                        onclick="document.getElementById('promotion-detail-{{ $promotion->id }}').showModal()"
-                                        title="Lihat detail promosi"
-                                        aria-label="Lihat detail promosi {{ $promotion->nama }}"
-                                        class="inline-flex rounded-lg bg-slate-100 p-2 text-slate-700 transition hover:bg-slate-200">
-                                        <x-dashboard-icon name="eye" class="h-4 w-4" />
-                                    </button>
+                                <td class="px-4 py-4 text-center">
+                                    <div class="flex flex-col items-center gap-2">
+                                        <button type="button" onclick="document.getElementById('promotion-detail-{{ $promotion->id }}').showModal()"
+                                            class="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200">Detail</button>
+                                        @if ($isActiveApprover)
+                                            <button type="submit" form="approve-promotion-{{ $promotion->id }}"
+                                                class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Setuju</button>
+                                        @endif
+                                        @can('submit', $promotion)
+                                            <button type="submit" form="submit-promotion-{{ $promotion->id }}" @disabled(!$approvalConfigurationComplete)
+                                                class="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300">Ajukan Promosi</button>
+                                        @endcan
+                                        @can('print', $promotion)
+                                            <a href="{{ route('promosi.print', $promotion) }}" target="_blank" rel="noopener"
+                                                class="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700">Print</a>
+                                        @endcan
+                                    </div>
                                 </td>
                             </tr>
                         @empty
-                            <tr>
-                                <td colspan="{{ $canManagePromotionRecords ? 9 : 8 }}"
-                                    class="px-4 py-10 text-center text-sm text-slate-500">Belum ada data promosi. Tambahkan
-                                    data manual atau impor file.</td>
-                            </tr>
+                            <tr><td colspan="{{ $canManage ? 7 : 6 }}" class="px-4 py-10 text-center text-slate-500">Belum ada data Promosi.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
         </form>
+
+        @if ($canManage && $promotions->contains(fn ($promotion) => auth()->user()->can('delete', $promotion)))
+            <div class="border-t border-slate-100 p-4">
+                <button type="submit" form="bulk-delete-promotions" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">Hapus terpilih</button>
+            </div>
+        @endif
+        <div class="border-t border-slate-100 p-4">{{ $promotions->links() }}</div>
     </div>
 
+    @if ($canManage)
+        <dialog id="create-promotion" @if (old('_form') === 'create') open @endif
+            class="w-[calc(100%-2rem)] max-w-5xl rounded-2xl p-0 shadow-2xl backdrop:bg-slate-950/60">
+            <section class="max-h-[90vh] overflow-y-auto bg-white p-6 sm:p-8">
+                <div class="flex items-start justify-between gap-4">
+                    <div><h3 class="font-display text-xl font-bold text-slate-950">Buat Draft Promosi</h3><p class="mt-1 text-sm text-slate-500">Pilih Employee lalu koreksi snapshot dokumen jika diperlukan.</p></div>
+                    <button type="button" onclick="this.closest('dialog').close()" aria-label="Tutup" class="rounded-lg px-3 py-2 text-xl text-slate-400 hover:bg-slate-100">&times;</button>
+                </div>
+                @include('pages.promosi._form', ['promotion' => null, 'action' => route('promosi.store'), 'method' => 'POST', 'formKey' => 'create', 'submitLabel' => 'Simpan Draft Promosi'])
+            </section>
+        </dialog>
+    @endif
+
     @foreach ($promotions as $promotion)
-        @php($hasApproved = $promotion->approvals->contains(fn($approval): bool => $approval->manager_id === auth()->id() && $approval->status === 'Approved'))
-        @if ($canApprovePromotions && $promotion->verification_status !== 'Final' && !$hasApproved)
-            <form id="approve-promotion-{{ $promotion->id }}" method="POST"
-                action="{{ route('promosi.approve', $promotion) }}" data-confirm-submit data-confirm-title="Setujui promosi ini?"
-                data-confirm-text="Persetujuan Anda akan dicatat sebagai salah satu dari tiga persetujuan manager."
+        @php
+            $status = $promotion->statusEnum();
+            $activeConfig = $promotion->current_approval_step ? $approvalConfiguration->get($promotion->current_approval_step) : null;
+            $activeApprover = $activeConfig?->user;
+            $isActiveApprover = $status === \App\Enums\PromotionStatus::WaitingApproval
+                && $activeApprover?->id === auth()->id()
+                && in_array(auth()->user()->roleEnum(), [\App\Enums\UserRole::ADMIN, \App\Enums\UserRole::MANAGER], true);
+        @endphp
+
+        @if ($isActiveApprover)
+            <form id="approve-promotion-{{ $promotion->id }}" method="POST" action="{{ route('promosi.approve', $promotion) }}"
+                data-confirm-submit data-confirm-title="Setujui Promosi tahap {{ $promotion->current_approval_step }}?"
+                data-confirm-text="Keputusan akan dicatat pada putaran {{ $promotion->approval_round }}."
                 data-confirm-icon="question" data-confirm-button-text="Ya, setujui" data-confirm-button-color="#059669">
                 @csrf
             </form>
         @endif
-    @endforeach
+        @can('submit', $promotion)
+            <form id="submit-promotion-{{ $promotion->id }}" method="POST" action="{{ route('promosi.submit', $promotion) }}"
+                data-confirm-submit data-confirm-title="Ajukan promosi ini?"
+                data-confirm-text="Pengajuan akan dikirim kepada approver Tahap 1 dan tidak dapat diedit selama proses persetujuan."
+                data-confirm-icon="question" data-confirm-button-text="Ya, ajukan" data-confirm-button-color="#0284c7">
+                @csrf
+            </form>
+        @endcan
 
-    @foreach ($promotions as $promotion)
-        <dialog id="promotion-detail-{{ $promotion->id }}"
-            class="w-[calc(100%-2rem)] max-w-4xl rounded-2xl p-0 shadow-2xl backdrop:bg-slate-950/60">
+        <dialog id="promotion-detail-{{ $promotion->id }}" @if (in_array(old('_form'), ["edit-{$promotion->id}", "return-{$promotion->id}"], true)) open @endif
+            class="w-[calc(100%-2rem)] max-w-5xl rounded-2xl p-0 shadow-2xl backdrop:bg-slate-950/60">
             <section class="max-h-[90vh] overflow-y-auto bg-white p-6 sm:p-8">
                 <div class="flex items-start justify-between gap-4">
-                    <div>
-                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Data Pegawai</p>
-                        <h3 class="mt-1 font-display text-2xl font-bold text-slate-950">{{ $promotion->nama }}</h3>
+                    <div><p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Detail Promosi</p><h3 class="mt-1 font-display text-2xl font-bold text-slate-950">{{ $promotion->nama }}</h3></div>
+                    <button type="button" onclick="this.closest('dialog').close()" aria-label="Tutup" class="rounded-lg px-3 py-2 text-xl text-slate-400 hover:bg-slate-100">&times;</button>
+                </div>
+
+                <div class="mt-6 grid gap-5 lg:grid-cols-3">
+                    <div class="rounded-xl border border-slate-200 p-4">
+                        <h4 class="font-semibold text-slate-900">Data Pegawai</h4>
+                        <dl class="mt-3 space-y-2 text-sm"><div><dt class="text-xs text-slate-400">SAP</dt><dd class="font-medium text-slate-700">{{ $promotion->sap }}</dd></div><div><dt class="text-xs text-slate-400">Nama</dt><dd class="font-medium text-slate-700">{{ $promotion->nama }}</dd></div><div><dt class="text-xs text-slate-400">Employee</dt><dd class="font-medium {{ $promotion->employee ? 'text-emerald-700' : 'text-amber-700' }}">{{ $promotion->employee ? 'Masih tersedia' : 'Tidak lagi tersedia' }}</dd></div></dl>
                     </div>
-                    <button type="button" onclick="this.closest('dialog').close()" aria-label="Tutup"
-                        class="rounded-lg px-3 py-2 text-xl leading-none text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">&times;</button>
+                    <div class="rounded-xl border border-slate-200 p-4">
+                        <h4 class="font-semibold text-slate-900">Posisi Saat Ini</h4>
+                        <dl class="mt-3 space-y-2 text-sm">@foreach (['Department Lama' => $promotion->departemen_lama, 'Jabatan Saat Ini' => $promotion->jabatan_lama, 'PG' => $promotion->pg, 'BAND Saat Ini' => $promotion->band_lama, 'JG Saat Ini' => $promotion->jg_lama] as $label => $value)<div><dt class="text-xs text-slate-400">{{ $label }}</dt><dd class="font-medium text-slate-700">{{ $value }}</dd></div>@endforeach</dl>
+                    </div>
+                    <div class="rounded-xl border border-slate-200 p-4">
+                        <h4 class="font-semibold text-slate-900">Usulan Promosi</h4>
+                        <dl class="mt-3 space-y-2 text-sm">@foreach (['Department Baru' => $promotion->departemen_baru, 'Jabatan Usulan' => $promotion->jabatan_baru, 'BAND Usulan' => $promotion->band_baru, 'JG Usulan' => $promotion->jg_baru, 'TMT' => $promotion->tmt->format('d M Y')] as $label => $value)<div><dt class="text-xs text-slate-400">{{ $label }}</dt><dd class="font-medium text-slate-700">{{ $value }}</dd></div>@endforeach</dl>
+                    </div>
                 </div>
-                <div class="mt-6 grid gap-4 sm:grid-cols-2">
-                    @foreach ([
-            'SAP' => $promotion->sap,
-            'Departemen Lama' => $promotion->departemen_lama,
-            'Jabatan Saat Ini' => $promotion->jabatan_lama,
-            'Departemen Baru' => $promotion->departemen_baru,
-            'Jabatan Usulan' => $promotion->jabatan_baru,
-            'TMT' => $promotion->tmt->format('d M Y'),
-            'PG' => $promotion->pg,
-            'BAND Saat Ini' => $promotion->band_lama,
-            'JG Saat Ini' => $promotion->jg_lama,
-            'BAND Usulan' => $promotion->band_baru,
-            'JG Usulan' => $promotion->jg_baru,
-            'Status' => $promotion->verification_status,
-        ] as $label => $value)
-                        <div>
-                            <p class="text-xs text-slate-400">{{ $label }}</p>
-                            <p class="mt-1 font-semibold text-slate-700">{{ $value }}</p>
-                        </div>
-                    @endforeach
+
+                <div class="mt-6 rounded-xl border border-slate-200 p-4">
+                    <div class="flex flex-wrap items-center justify-between gap-2"><h4 class="font-semibold text-slate-900">Timeline Persetujuan</h4><span class="text-xs text-slate-500">Status: {{ $status->label() }}@if($promotion->finalized_at) · Final {{ $promotion->finalized_at->format('d M Y H:i') }}@endif</span></div>
+                    @if ($promotion->approvals->whereNull('approval_round')->isNotEmpty())
+                        <div class="mt-4 rounded-lg bg-slate-50 p-3"><p class="text-sm font-semibold text-slate-700">Riwayat persetujuan lama</p>@foreach ($promotion->approvals->whereNull('approval_round') as $approval)<p class="mt-2 text-xs text-slate-600">{{ $approval->approver_name_snapshot ?? $approval->manager?->name ?? 'User tidak tersedia' }} — {{ $approval->status->label() }} — {{ ($approval->approved_at ?? $approval->created_at)?->format('d M Y H:i') }}</p>@endforeach</div>
+                    @endif
+                    @if ((int) $promotion->approval_round > 0)
+                        @foreach (range(1, (int) $promotion->approval_round) as $round)
+                            <div class="mt-4"><p class="text-sm font-bold text-slate-800">Putaran {{ $round }}</p><div class="mt-2 grid gap-3 md:grid-cols-3">
+                                @foreach ([1, 2, 3] as $step)
+                                    @php
+                                        $decision = $promotion->approvals->first(fn ($item) => $item->approval_round === $round && $item->step_order === $step);
+                                        $isActive = $round === $promotion->approval_round && $promotion->current_approval_step === $step && $status === \App\Enums\PromotionStatus::WaitingApproval;
+                                        $stepConfig = $isActive ? $approvalConfiguration->get($step) : null;
+                                    @endphp
+                                    <div class="rounded-lg border p-3 {{ $isActive ? 'border-sky-200 bg-sky-50' : 'border-slate-200' }}">
+                                        <p class="text-xs font-bold uppercase text-slate-500">Tahap {{ $step }}</p>
+                                        @if ($decision)
+                                            <p class="mt-2 text-sm font-semibold text-slate-800">{{ $decision->approver_name_snapshot ?? $decision->manager?->name ?? 'User tidak tersedia' }}</p>
+                                            <p class="text-xs text-slate-500">{{ $decision->approver_number_snapshot ?: 'Nomor tidak tercatat' }} · {{ $decision->approver_role_snapshot ?: 'Role tidak tercatat' }}</p>
+                                            <p class="mt-2 text-xs font-semibold {{ $decision->status === \App\Enums\PromotionApprovalStatus::Approved ? 'text-emerald-700' : 'text-rose-700' }}">{{ $decision->status->label() }}</p>
+                                            <p class="text-xs text-slate-500">{{ ($decision->approved_at ?? $decision->returned_at)?->format('d M Y H:i') }}</p>
+                                            @if ($decision->note)<p class="mt-2 whitespace-normal text-xs text-rose-700">Catatan: {{ $decision->note }}</p>@endif
+                                        @elseif ($isActive)
+                                            <p class="mt-2 text-sm font-semibold text-sky-800">{{ $stepConfig?->user?->name ?? 'Konfigurasi approver tidak valid' }}</p><p class="mt-1 text-xs font-semibold text-sky-700">Menunggu persetujuan</p>
+                                        @else
+                                            <p class="mt-2 text-xs text-slate-500">Belum aktif</p>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div></div>
+                        @endforeach
+                    @else
+                        <p class="mt-3 text-sm text-slate-500">Belum diajukan ke workflow baru.</p>
+                    @endif
                 </div>
-                @if ($canManagePromotionRecords && $promotion->verification_status !== 'Final')
-                    <details class="mt-8 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                        <summary class="cursor-pointer text-sm font-semibold text-slate-700">Edit Data</summary>
-                        <form method="POST" action="{{ route('promosi.update', $promotion) }}"
-                            class="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                            @csrf
-                            @method('PUT')
-                            @foreach ([
-            'sap' => 'SAP',
-            'nama' => 'Nama',
-            'departemen_lama' => 'Departemen Lama',
-            'jabatan_lama' => 'Jabatan Saat Ini',
-            'departemen_baru' => 'Departemen Baru',
-            'jabatan_baru' => 'Jabatan Usulan',
-            'tmt' => 'TMT',
-            'pg' => 'PG',
-            'band_lama' => 'BAND Saat Ini',
-            'jg_lama' => 'JG Saat Ini',
-            'band_baru' => 'BAND Usulan',
-            'jg_baru' => 'JG Usulan',
-        ] as $field => $label)
-                                <div>
-                                    <label for="edit-promotion-{{ $promotion->id }}-{{ $field }}"
-                                        class="text-sm font-semibold text-slate-700">{{ $label }}</label>
-                                    <input id="edit-promotion-{{ $promotion->id }}-{{ $field }}"
-                                        name="{{ $field }}"
-                                        value="{{ $field === 'tmt' ? $promotion->{$field}->format('Y-m-d') : $promotion->{$field} }}"
-                                        type="{{ $field === 'tmt' ? 'date' : 'text' }}" required
-                                        class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
-                                </div>
-                            @endforeach
-                            <div class="flex justify-end sm:col-span-2 xl:col-span-4">
-                                <button type="submit"
-                                    class="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700">Simpan
-                                    Perubahan</button>
-                            </div>
-                        </form>
-                    </details>
+
+                @if ($isActiveApprover)
+                    <form method="POST" action="{{ route('promosi.send-back', $promotion) }}" class="mt-6 rounded-xl border border-rose-200 bg-rose-50 p-4"
+                        data-confirm-submit data-confirm-title="Kembalikan Promosi ini?" data-confirm-text="Promosi akan dikembalikan kepada Super Admin untuk diperbaiki."
+                        data-confirm-button-text="Ya, kembalikan" data-confirm-button-color="#e11d48">
+                        @csrf
+                        <input type="hidden" name="_form" value="return-{{ $promotion->id }}">
+                        <label for="return-note-{{ $promotion->id }}" class="text-sm font-semibold text-rose-800">Catatan Sendback</label>
+                        <textarea id="return-note-{{ $promotion->id }}" name="return_note" rows="3" maxlength="2000" required class="mt-2 block w-full rounded-xl border-rose-200 text-sm focus:border-rose-400 focus:ring-rose-400">{{ old('_form') === "return-{$promotion->id}" ? old('return_note') : '' }}</textarea>
+                        <button type="submit" class="mt-3 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700">Kembalikan</button>
+                    </form>
                 @endif
+
+                @can('update', $promotion)
+                    <details class="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4" @if (old('_form') === "edit-{$promotion->id}") open @endif>
+                        <summary class="cursor-pointer text-sm font-semibold text-slate-700">Edit Data Promosi</summary>
+                        @include('pages.promosi._form', ['action' => route('promosi.update', $promotion), 'method' => 'PUT', 'formKey' => "edit-{$promotion->id}", 'submitLabel' => 'Simpan Perubahan'])
+                    </details>
+                @endcan
             </section>
         </dialog>
     @endforeach

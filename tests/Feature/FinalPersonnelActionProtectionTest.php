@@ -70,11 +70,15 @@ class FinalPersonnelActionProtectionTest extends TestCase
         $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
         $personnelAction = $this->createPersonnelAction($modelClass, '100003', 'Final');
 
-        $this->actingAs($superAdmin)
+        $response = $this->actingAs($superAdmin)
             ->from(route($indexRoute))
-            ->put(route($updateRoute, $personnelAction), $this->validPayload('100003', 'Nama Diperbarui'))
-            ->assertRedirect(route($indexRoute))
-            ->assertSessionHasErrors('status');
+            ->put(route($updateRoute, $personnelAction), $this->validPayload('100003', 'Nama Diperbarui'));
+
+        if ($modelClass === EmployeePromotion::class) {
+            $response->assertForbidden();
+        } else {
+            $response->assertRedirect(route($indexRoute))->assertSessionHasErrors('status');
+        }
 
         $this->assertDatabaseHas($personnelAction->getTable(), [
             'id' => $personnelAction->getKey(),
@@ -197,6 +201,7 @@ class FinalPersonnelActionProtectionTest extends TestCase
     private function validPayload(string $sap, string $name): array
     {
         return [
+            'employee_id' => (string) Employee::query()->where('sap', $sap)->value('id'),
             'sap' => $sap,
             'nama' => $name,
             'departemen_lama' => 'Departemen Lama',
