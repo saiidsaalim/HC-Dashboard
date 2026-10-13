@@ -363,50 +363,81 @@ class EmployeeOrganizationSyncService
     private function createMissingMasters(array $rows): array
     {
         $created = ['departments' => 0, 'units' => 0, 'positions' => 0];
+        $departmentIndex = [];
+        foreach (Department::query()->get(['id', 'name', 'code']) as $department) {
+            $departmentIndex[$this->normalize($department->name)][] = $department;
+        }
+
+        $unitIndex = [];
+        foreach (Unit::query()->get(['id', 'department_id', 'name', 'code']) as $unit) {
+            $unitIndex[$unit->department_id][$this->normalize($unit->name)][] = $unit;
+        }
+
+        $positionIndex = [];
+        foreach (Position::query()->get(['id', 'unit_id', 'name', 'code']) as $position) {
+            $positionIndex[$position->unit_id][$this->normalize($position->name)][] = $position;
+        }
+
         foreach (collect($rows)->pluck('source', 'keys.department')->sortKeys() as $source) {
-            if ($this->findDepartment((string) $source['department']) !== null) {
+            $normalizedDepartment = $this->normalize((string) $source['department']);
+            if (count($departmentIndex[$normalizedDepartment] ?? []) === 1) {
                 continue;
             }
-            Department::query()->create([
+
+            $department = Department::query()->create([
                 'code' => $this->automaticCode('AUTO-D-', $this->normalize($source['department']), fn (string $code): bool => Department::query()->where('code', $code)->exists()),
                 'name' => $source['department'],
                 'active' => true,
             ]);
+            $departmentIndex[$normalizedDepartment][] = $department;
             $created['departments']++;
         }
 
         foreach (collect($rows)->pluck('source', 'keys.unit')->sortKeys() as $source) {
-            $department = $this->findDepartment((string) $source['department']);
-            if ($department === null) {
+            $departmentMatches = $departmentIndex[$this->normalize((string) $source['department'])] ?? [];
+            if (count($departmentMatches) !== 1) {
                 throw new RuntimeException('Department hasil sinkronisasi tidak dapat ditemukan.');
             }
-            if ($this->findUnit($department->id, (string) $source['unit']) !== null) {
+
+            $department = $departmentMatches[0];
+            $normalizedUnit = $this->normalize((string) $source['unit']);
+            if (count($unitIndex[$department->id][$normalizedUnit] ?? []) === 1) {
                 continue;
             }
-            Unit::query()->create([
+
+            $unit = Unit::query()->create([
                 'department_id' => $department->id,
                 'code' => $this->automaticCode('AUTO-U-', $this->normalize($source['department']).'|'.$this->normalize($source['unit']), fn (string $code): bool => Unit::query()->where('department_id', $department->id)->where('code', $code)->exists()),
                 'name' => $source['unit'],
                 'active' => true,
             ]);
+            $unitIndex[$department->id][$normalizedUnit][] = $unit;
             $created['units']++;
         }
 
         foreach (collect($rows)->pluck('source', 'keys.position')->sortKeys() as $source) {
-            $department = $this->findDepartment((string) $source['department']);
-            $unit = $department === null ? null : $this->findUnit($department->id, (string) $source['unit']);
-            if ($unit === null) {
+            $departmentMatches = $departmentIndex[$this->normalize((string) $source['department'])] ?? [];
+            $department = count($departmentMatches) === 1 ? $departmentMatches[0] : null;
+            $unitMatches = $department === null
+                ? []
+                : ($unitIndex[$department->id][$this->normalize((string) $source['unit'])] ?? []);
+            if (count($unitMatches) !== 1) {
                 throw new RuntimeException('Unit hasil sinkronisasi tidak dapat ditemukan.');
             }
-            if ($this->findPosition($unit->id, (string) $source['position']) !== null) {
+
+            $unit = $unitMatches[0];
+            $normalizedPosition = $this->normalize((string) $source['position']);
+            if (count($positionIndex[$unit->id][$normalizedPosition] ?? []) === 1) {
                 continue;
             }
-            Position::query()->create([
+
+            $position = Position::query()->create([
                 'unit_id' => $unit->id,
                 'code' => $this->automaticCode('AUTO-P-', $this->normalize($source['department']).'|'.$this->normalize($source['unit']).'|'.$this->normalize($source['position']), fn (string $code): bool => Position::query()->where('unit_id', $unit->id)->where('code', $code)->exists()),
                 'name' => $source['position'],
                 'active' => true,
             ]);
+            $positionIndex[$unit->id][$normalizedPosition][] = $position;
             $created['positions']++;
         }
 
@@ -466,27 +497,6 @@ class EmployeeOrganizationSyncService
         }
 
         return ['record' => null, 'status' => 'unmapped'];
-    }
-
-    private function findDepartment(string $name): ?Department
-    {
-        $matches = Department::query()->get()->filter(fn (Department $department): bool => $this->normalize($department->name) === $this->normalize($name));
-
-        return $matches->count() === 1 ? $matches->first() : null;
-    }
-
-    private function findUnit(int $departmentId, string $name): ?Unit
-    {
-        $matches = Unit::query()->where('department_id', $departmentId)->get()->filter(fn (Unit $unit): bool => $this->normalize($unit->name) === $this->normalize($name));
-
-        return $matches->count() === 1 ? $matches->first() : null;
-    }
-
-    private function findPosition(int $unitId, string $name): ?Position
-    {
-        $matches = Position::query()->where('unit_id', $unitId)->get()->filter(fn (Position $position): bool => $this->normalize($position->name) === $this->normalize($name));
-
-        return $matches->count() === 1 ? $matches->first() : null;
     }
 
     private function automaticCode(string $prefix, string $key, callable $exists): string

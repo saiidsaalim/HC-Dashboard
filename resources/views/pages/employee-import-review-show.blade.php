@@ -12,20 +12,29 @@
             if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) return;
             this.busy = true;
             this.message = '';
+            let processedTotal = 0;
             try {
-                const response = await fetch(form.action, {
-                    method: 'POST',
-                    body: new FormData(form),
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
-                    },
-                });
-                const result = await response.json();
-                if (!response.ok) {
-                    throw new Error(result.message || Object.values(result.errors || {}).flat().join(' ') || 'Aksi tidak dapat diproses.');
-                }
+                let result;
+                do {
+                    const response = await fetch(form.action, {
+                        method: 'POST',
+                        body: new FormData(form),
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name=csrf-token]').content,
+                        },
+                    });
+                    result = await response.json();
+                    if (!response.ok) {
+                        throw new Error(result.message || Object.values(result.errors || {}).flat().join(' ') || 'Aksi tidak dapat diproses.');
+                    }
+                    processedTotal += result.processed || 0;
+                    if (form.dataset.processBatch === 'true' && result.remaining > 0) {
+                        this.message = `${processedTotal} row diproses. Sisa ${result.remaining} row...`;
+                    }
+                } while (form.dataset.processBatch === 'true' && result.remaining > 0);
+
                 this.message = form.dataset.success || 'Perubahan tersimpan.';
                 window.location.reload();
             } catch (error) {
@@ -49,7 +58,7 @@
                     </form>
                 @endif
                 @if ($batch->approved_rows > $batch->processed_rows)
-                    <form method="POST" action="{{ route('data-pegawai.import-batches.process', $batch) }}" data-confirm="Proses hanya row yang sudah APPROVED?" data-success="Batch selesai diproses." @submit="submitAction($event)">
+                    <form method="POST" action="{{ route('data-pegawai.import-batches.process', $batch) }}" data-confirm="Proses hanya row yang sudah APPROVED?" data-success="Batch selesai diproses." data-process-batch="true" @submit="submitAction($event)">
                         @csrf
                         <button type="submit" :disabled="busy" class="rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">Proses {{ $batch->approved_rows - $batch->processed_rows }} row approved</button>
                     </form>

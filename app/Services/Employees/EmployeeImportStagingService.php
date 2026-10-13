@@ -18,6 +18,8 @@ use ZipArchive;
 
 class EmployeeImportStagingService
 {
+    private const PROCESSING_CHUNK_SIZE = 50;
+
     private const HEADERS = [
         'SAP', 'ID Number', 'AGKN', 'Position id', 'Personal Number', 'Position',
         'Employee Subgroup', 'Cost Ctr', 'TXT_DIR', 'TXT_DEPT', 'TXT_BIRO', 'TXT_SECT',
@@ -202,7 +204,7 @@ class EmployeeImportStagingService
         });
     }
 
-    /** @return array{processed: int, skipped: int, review_required: int} */
+    /** @return array{processed: int, skipped: int, review_required: int, remaining: int} */
     public function process(EmployeeImportBatch $batch, User $actor): array
     {
         $result = [
@@ -224,6 +226,7 @@ class EmployeeImportStagingService
                 ->whereNull('processed_at')
                 ->orderBy('source_row')
                 ->lockForUpdate()
+                ->limit(self::PROCESSING_CHUNK_SIZE)
                 ->get();
 
             foreach ($rows as $row) {
@@ -270,6 +273,11 @@ class EmployeeImportStagingService
         });
 
         $this->refreshBatchCounters($batch);
+        $result['remaining'] = $batch->rows()
+            ->where('mapping_status', 'APPROVED')
+            ->where('validation_status', 'VALID')
+            ->whereNull('processed_at')
+            ->count();
 
         return $result;
     }

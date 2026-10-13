@@ -528,6 +528,42 @@ class EmployeeImportStagingTest extends TestCase
         $this->assertDatabaseCount('employees', 0);
     }
 
+    public function test_large_approved_batches_are_processed_in_resumable_chunks(): void
+    {
+        Storage::fake('local');
+        $actor = $this->superAdmin();
+        $sourceRows = [];
+        for ($index = 1; $index <= 51; $index++) {
+            $sourceRows[] = $this->canonicalSourceRow('SAP-LARGE-'.$index);
+        }
+
+        $this->actingAs($actor)->post(route('data-pegawai.import'), [
+            'file' => $this->csvFile(self::HEADERS, $sourceRows),
+        ])->assertRedirect();
+
+        $batch = EmployeeImportBatch::query()->firstOrFail();
+        $this->actingAs($actor)->post(route('data-pegawai.import-batches.approve-candidates', $batch))
+            ->assertOk()
+            ->assertJsonPath('approved', 51);
+
+        $this->actingAs($actor)->post(route('data-pegawai.import-batches.process', $batch))
+            ->assertOk()
+            ->assertJsonPath('processed', 50)
+            ->assertJsonPath('remaining', 1);
+
+        $this->assertSame(50, $batch->fresh()->processed_rows);
+        $this->assertDatabaseCount('employees', 50);
+
+        $this->actingAs($actor)->post(route('data-pegawai.import-batches.process', $batch))
+            ->assertOk()
+            ->assertJsonPath('processed', 1)
+            ->assertJsonPath('remaining', 0);
+
+        $this->assertSame('PROCESSED', $batch->fresh()->status);
+        $this->assertSame(51, $batch->fresh()->processed_rows);
+        $this->assertDatabaseCount('employees', 51);
+    }
+
     public function test_unmatched_import_row_cannot_be_approved_or_processed(): void
     {
         Storage::fake('local');

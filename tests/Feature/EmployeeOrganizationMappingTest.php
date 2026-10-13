@@ -15,8 +15,10 @@ use App\Models\WorkCalendar;
 use App\Models\WorkSchedule;
 use App\Services\Employees\EmployeeOrganizationMapper;
 use App\Services\Employees\EmployeeOrganizationSyncService;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 use Tests\TestCase;
@@ -365,6 +367,35 @@ class EmployeeOrganizationMappingTest extends TestCase
         foreach ($codes as $code) {
             $this->assertStringStartsWith('AUTO-', $code);
         }
+    }
+
+    public function test_apply_does_not_reload_master_tables_for_each_new_hierarchy(): void
+    {
+        for ($index = 1; $index <= 10; $index++) {
+            Employee::create($this->employeeAttributes(
+                'SAPSYNC-PERF-'.$index,
+                'Department '.$index,
+                'Unit '.$index,
+                'Position '.$index,
+            ));
+        }
+
+        $unboundedMasterSelects = [];
+        DB::listen(function (QueryExecuted $query) use (&$unboundedMasterSelects): void {
+            foreach (['departments', 'units', 'positions'] as $table) {
+                if (preg_match('/^select\s+\*\s+from\s+[`"]?'.$table.'[`"]?(?:\s|$)/i', trim($query->sql)) === 1) {
+                    $unboundedMasterSelects[] = $query->sql;
+                }
+            }
+        });
+
+        $result = app(EmployeeOrganizationSyncService::class)->apply();
+
+        $this->assertSame(10, $result['applied']['employees_updated']);
+        $this->assertSame([], $unboundedMasterSelects);
+        $this->assertDatabaseCount('departments', 10);
+        $this->assertDatabaseCount('units', 10);
+        $this->assertDatabaseCount('positions', 10);
     }
 
     public function test_same_unit_and_position_names_are_scoped_to_their_parents(): void
