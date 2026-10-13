@@ -203,7 +203,9 @@
             </div>
         </div>
         <form id="bulk-delete-form" method="POST" action="{{ route('mutasi.destroy-many') }}"
-            onsubmit="event.preventDefault(); const form = this; const selected = form.querySelectorAll('.mutation-checkbox:checked'); if (!selected.length) { Swal.fire({ icon: 'info', title: 'Pilih data terlebih dahulu', text: 'Centang minimal satu data pegawai.' }); return; } Swal.fire({ icon: 'warning', title: 'Hapus data terpilih?', text: 'Data yang dihapus tidak dapat dikembalikan.', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'Ya, hapus', cancelButtonText: 'Batal' }).then((result) => { if (result.isConfirmed) form.submit(); });">
+            data-confirm-submit data-confirm-title="Hapus data terpilih?" data-confirm-text="Data yang dihapus tidak dapat dikembalikan."
+            data-confirm-button-text="Ya, hapus" data-confirm-button-color="#dc2626" data-confirm-require-checkbox=".mutation-checkbox"
+            data-confirm-empty-text="Centang minimal satu data pegawai.">
             @csrf
             @method('DELETE')
             <div class="mt-5 overflow-x-auto w-full">
@@ -314,8 +316,9 @@
         @php($hasApproved = $mutation->approvals->contains(fn($approval): bool => $approval->manager_id === auth()->id() && $approval->status === 'Approved'))
         @if ($canApproveMutations && $mutation->verification_status !== 'Final' && !$hasApproved)
             <form id="approve-mutation-{{ $mutation->id }}" method="POST"
-                action="{{ route('mutasi.approve', $mutation) }}"
-                onsubmit="event.preventDefault(); const form = this; Swal.fire({ title: 'Setujui mutasi ini?', text: 'Persetujuan Anda akan dicatat sebagai salah satu dari tiga persetujuan manager.', icon: 'question', showCancelButton: true, confirmButtonColor: '#059669', confirmButtonText: 'Ya, setujui', cancelButtonText: 'Batal' }).then((result) => { if (result.isConfirmed) form.submit(); });">
+                action="{{ route('mutasi.approve', $mutation) }}" data-confirm-submit data-confirm-title="Setujui mutasi ini?"
+                data-confirm-text="Persetujuan Anda akan dicatat sebagai salah satu dari tiga persetujuan manager."
+                data-confirm-icon="question" data-confirm-button-text="Ya, setujui" data-confirm-button-color="#059669">
                 @csrf
             </form>
         @endif

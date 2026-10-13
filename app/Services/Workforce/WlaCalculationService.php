@@ -97,6 +97,21 @@ class WlaCalculationService
         return $recommendedEmployees;
     }
 
+    /** @param iterable<int, string|int|float> $annualWorkloads */
+    public function sumAnnualWorkloads(iterable $annualWorkloads): string
+    {
+        $totalWorkloadTenThousandths = 0;
+
+        foreach ($annualWorkloads as $annualWorkload) {
+            $totalWorkloadTenThousandths = $this->addChecked(
+                $totalWorkloadTenThousandths,
+                $this->decimalToScaledInteger($annualWorkload, 4, 'annual_workload_hours'),
+            );
+        }
+
+        return $this->formatScaledInteger($totalWorkloadTenThousandths, 4);
+    }
+
     public function recalculate(WlaAssessment $assessment): WlaAssessment
     {
         return DB::transaction(function () use ($assessment): WlaAssessment {
@@ -127,7 +142,7 @@ class WlaCalculationService
                 $workingHoursPerYear,
                 $lockedAssessment->efficiency_factor,
             );
-            $totalWorkloadTenThousandths = 0;
+            $annualWorkloads = [];
 
             foreach ($activities as $activity) {
                 if ($activity->period_unit === null || $activity->time_allocated_hours === null) {
@@ -140,20 +155,12 @@ class WlaCalculationService
                     $activity->period_unit,
                     $workingDays,
                 );
-                $annualWorkloadTenThousandths = $this->decimalToScaledInteger(
-                    $annualWorkload,
-                    4,
-                    'annual_workload_hours',
-                );
-                $totalWorkloadTenThousandths = $this->addChecked(
-                    $totalWorkloadTenThousandths,
-                    $annualWorkloadTenThousandths,
-                );
+                $annualWorkloads[] = $annualWorkload;
 
                 $activity->update(['annual_workload_hours' => $annualWorkload]);
             }
 
-            $totalAnnualWorkload = $this->formatScaledInteger($totalWorkloadTenThousandths, 4);
+            $totalAnnualWorkload = $this->sumAnnualWorkloads($annualWorkloads);
             $lockedAssessment->update([
                 'working_days' => $workingDays,
                 'working_hours_year' => $workingHoursPerYear,

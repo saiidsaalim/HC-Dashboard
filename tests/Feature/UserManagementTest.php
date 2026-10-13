@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Models\Employee;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -12,6 +13,57 @@ use Tests\TestCase;
 class UserManagementTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_employee_identity_is_used_when_creating_a_linked_staff_account(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        $employee = Employee::create([
+            'sap' => 'SAP-ACCOUNT-001',
+            'personal_number' => 'PN-ACCOUNT-001',
+            'email' => 'employee@example.com',
+        ]);
+
+        $this->actingAs($admin)->post(route('konfigurasi-user.store'), [
+            'name' => 'Nama dari Request',
+            'email' => 'request@example.com',
+            'password' => 'password123',
+            'role' => UserRole::MEMBER->value,
+            'employee_id' => $employee->id,
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('users', [
+            'name' => 'PN-ACCOUNT-001',
+            'email' => 'employee@example.com',
+            'role' => UserRole::STAFF->value,
+            'employee_id' => $employee->id,
+        ]);
+    }
+
+    public function test_employee_identity_is_used_when_linking_an_existing_staff_account(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        $user = User::factory()->create(['role' => UserRole::STAFF->value]);
+        $employee = Employee::create([
+            'sap' => 'SAP-ACCOUNT-002',
+            'personal_number' => 'PN-ACCOUNT-002',
+            'email' => 'linked@example.com',
+        ]);
+
+        $this->actingAs($admin)->put(route('konfigurasi-user.update', $user), [
+            'name' => 'Nama yang Diabaikan',
+            'email' => 'ignored@example.com',
+            'password' => '',
+            'employee_id' => $employee->id,
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('users', [
+            'id' => $user->id,
+            'name' => 'PN-ACCOUNT-002',
+            'email' => 'linked@example.com',
+            'role' => UserRole::STAFF->value,
+            'employee_id' => $employee->id,
+        ]);
+    }
 
     public function test_super_admin_can_edit_a_managed_user(): void
     {

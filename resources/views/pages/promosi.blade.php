@@ -180,7 +180,9 @@
             </div>
         </div>
         <form id="bulk-delete-promotions" method="POST" action="{{ route('promosi.destroy-many') }}"
-            onsubmit="event.preventDefault(); const form = this; const selected = form.querySelectorAll('.promotion-checkbox:checked'); if (!selected.length) { Swal.fire({ icon: 'info', title: 'Pilih data terlebih dahulu', text: 'Centang minimal satu usulan promosi.' }); return; } Swal.fire({ icon: 'warning', title: 'Hapus data terpilih?', text: 'Data yang dihapus tidak dapat dikembalikan.', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'Ya, hapus', cancelButtonText: 'Batal' }).then((result) => { if (result.isConfirmed) form.submit(); });">
+            data-confirm-submit data-confirm-title="Hapus data terpilih?" data-confirm-text="Data yang dihapus tidak dapat dikembalikan."
+            data-confirm-button-text="Ya, hapus" data-confirm-button-color="#dc2626" data-confirm-require-checkbox=".promotion-checkbox"
+            data-confirm-empty-text="Centang minimal satu usulan promosi.">
             @csrf
             @method('DELETE')
             <div class="overflow-x-auto">
@@ -274,8 +276,9 @@
         @php($hasApproved = $promotion->approvals->contains(fn($approval): bool => $approval->manager_id === auth()->id() && $approval->status === 'Approved'))
         @if ($canApprovePromotions && $promotion->verification_status !== 'Final' && !$hasApproved)
             <form id="approve-promotion-{{ $promotion->id }}" method="POST"
-                action="{{ route('promosi.approve', $promotion) }}"
-                onsubmit="event.preventDefault(); const form = this; Swal.fire({ title: 'Setujui promosi ini?', text: 'Persetujuan Anda akan dicatat sebagai salah satu dari tiga persetujuan manager.', icon: 'question', showCancelButton: true, confirmButtonColor: '#059669', confirmButtonText: 'Ya, setujui', cancelButtonText: 'Batal' }).then((result) => { if (result.isConfirmed) form.submit(); });">
+                action="{{ route('promosi.approve', $promotion) }}" data-confirm-submit data-confirm-title="Setujui promosi ini?"
+                data-confirm-text="Persetujuan Anda akan dicatat sebagai salah satu dari tiga persetujuan manager."
+                data-confirm-icon="question" data-confirm-button-text="Ya, setujui" data-confirm-button-color="#059669">
                 @csrf
             </form>
         @endif

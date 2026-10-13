@@ -38,19 +38,22 @@
             <div class="my-2 border-t border-slate-700"></div>
             <nav aria-label="Navigasi utama" tabindex="0"
                 class="min-h-0 flex-1 space-y-0 overflow-y-auto overscroll-contain scrollbar-hidden focus:outline-none">
-                @php($navigation = [['route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'home'], ['route' => 'data-pegawai', 'label' => 'Data Pegawai', 'icon' => 'users'], ['route' => 'wla', 'label' => 'WLA', 'icon' => 'chart'], ['route' => 'fit-proper', 'label' => 'Fit & Proper', 'icon' => 'clipboard'], ['route' => 'mutasi', 'label' => 'Mutasi', 'icon' => 'arrows'], ['route' => 'promosi', 'label' => 'Promosi', 'icon' => 'chart'], ['route' => 'demosi', 'label' => 'Demosi', 'icon' => 'demosi'], ['route' => 'formasi', 'label' => 'Formasi', 'icon' => 'formasi'], ['route' => 'definitif', 'label' => 'Definitif', 'icon' => 'clipboard'], ['route' => 'laporan', 'label' => 'Laporan', 'icon' => 'document']])
-                @foreach ($navigation as $item)
-                    @if ($item['route'] !== 'wla' || auth()->user()->canManageRbac())
-                        <a href="{{ route($item['route']) }}" title="{{ $item['label'] }}"
-                            :class="{ 'justify-center': !sidebarExpanded && !sidebarOpen }"
-                            class="flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium leading-5 transition {{ ($item['route'] === 'wla' ? request()->routeIs('wla*') : request()->routeIs($item['route'])) ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/10' : 'text-slate-400 hover:bg-slate-900 hover:text-white' }}">
-                            <x-dashboard-icon :name="$item['icon']" class="h-[22px] w-[22px]" />
-                            <span x-show="sidebarExpanded || sidebarOpen" x-transition.opacity
-                                class="whitespace-nowrap">{{ $item['label'] }}</span>
-                        </a>
-                    @endif
-                @endforeach
-                @if (auth()->user()->roleEnum()->canManageAllRoles())
+                @unless (auth()->user()->must_change_password)
+                    @php($navigation = [['route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'home'], ['route' => 'data-pegawai', 'label' => 'Data Pegawai', 'icon' => 'users'], ['route' => 'wla', 'label' => 'WLA', 'icon' => 'chart'], ['route' => 'fit-proper', 'label' => 'Fit & Proper', 'icon' => 'clipboard'], ['route' => 'mutasi', 'label' => 'Mutasi', 'icon' => 'arrows'], ['route' => 'promosi', 'label' => 'Promosi', 'icon' => 'chart'], ['route' => 'demosi', 'label' => 'Demosi', 'icon' => 'demosi'], ['route' => 'formasi', 'label' => 'Formasi', 'icon' => 'formasi'], ['route' => 'definitif', 'label' => 'Definitif', 'icon' => 'clipboard'], ['route' => 'laporan', 'label' => 'Laporan', 'icon' => 'document']])
+                    @foreach ($navigation as $item)
+                        @if ($item['route'] !== 'wla' || auth()->user()->canManageRbac() || auth()->user()->roleEnum() === \App\Enums\UserRole::STAFF)
+                            @php($navigationRoute = $item['route'] === 'wla' && auth()->user()->roleEnum() === \App\Enums\UserRole::STAFF ? 'wla.staff.index' : $item['route'])
+                            @php($navigationLabel = $navigationRoute === 'wla.staff.index' ? 'WLA Saya' : $item['label'])
+                            <a href="{{ route($navigationRoute) }}" title="{{ $navigationLabel }}"
+                                :class="{ 'justify-center': !sidebarExpanded && !sidebarOpen }"
+                                class="flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium leading-5 transition {{ ($item['route'] === 'wla' ? request()->routeIs('wla*') : request()->routeIs($item['route'])) ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/10' : 'text-slate-400 hover:bg-slate-900 hover:text-white' }}">
+                                <x-dashboard-icon :name="$item['icon']" class="h-[22px] w-[22px]" />
+                                <span x-show="sidebarExpanded || sidebarOpen" x-transition.opacity
+                                    class="whitespace-nowrap">{{ $navigationLabel }}</span>
+                            </a>
+                        @endif
+                    @endforeach
+                    @if (auth()->user()->roleEnum()->canManageAllRoles())
                     <a href="{{ route('organization.index') }}" title="Master Organization"
                         :class="{ 'justify-center': !sidebarExpanded && !sidebarOpen }"
                         class="flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium leading-5 transition {{ request()->routeIs('organization.*') ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/10' : 'text-slate-400 hover:bg-slate-900 hover:text-white' }}">
@@ -72,16 +75,15 @@
                         <span x-show="sidebarExpanded || sidebarOpen" x-transition.opacity
                             class="whitespace-nowrap">Work Calendars</span>
                     </a>
-                @endif
-                @if (auth()->user()->canManageRbac())
-                    <a href="{{ route('konfigurasi-user') }}" title="Konfigurasi User"
-                        :class="{ 'justify-center': !sidebarExpanded && !sidebarOpen }"
-                        class="flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium leading-5 transition {{ request()->routeIs('konfigurasi-user*') ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/10' : 'text-slate-400 hover:bg-slate-900 hover:text-white' }}">
-                        <x-dashboard-icon name="users" class="h-[22px] w-[22px]" />
-                        <span x-show="sidebarExpanded || sidebarOpen" x-transition.opacity
-                            class="whitespace-nowrap">Konfigurasi User</span>
-                    </a>
-                @endif
+                    @endif
+                @endunless
+                <a href="{{ route('konfigurasi-user') }}" title="Konfigurasi User"
+                    :class="{ 'justify-center': !sidebarExpanded && !sidebarOpen }"
+                    class="flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium leading-5 transition {{ request()->routeIs('konfigurasi-user*') ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/10' : 'text-slate-400 hover:bg-slate-900 hover:text-white' }}">
+                    <x-dashboard-icon name="users" class="h-[22px] w-[22px]" />
+                    <span x-show="sidebarExpanded || sidebarOpen" x-transition.opacity
+                        class="whitespace-nowrap">Konfigurasi User</span>
+                </a>
             </nav>
             <div class="mt-auto mb-4 shrink-0 border-t border-slate-800 pt-2">
                 <form method="POST" action="{{ route('logout') }}">

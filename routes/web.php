@@ -13,9 +13,11 @@ use App\Http\Controllers\PortalWorkspaceController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\UserManagementController;
+use App\Http\Controllers\Workforce\StaffWlaController;
 use App\Http\Controllers\Workforce\WlaActivityController;
 use App\Http\Controllers\Workforce\WlaAssessmentController;
 use App\Http\Controllers\Workforce\WlaHeadcountAnalysisController;
+use App\Http\Controllers\Workforce\WlaParticipantController;
 use App\Http\Controllers\Workforce\WorkCalendarController;
 use App\Http\Controllers\Workforce\WorkScheduleController;
 use Illuminate\Support\Facades\Route;
@@ -54,6 +56,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/konfigurasi-user', [UserManagementController::class, 'index'])->name('konfigurasi-user');
     Route::post('/konfigurasi-user', [UserManagementController::class, 'store'])->name('konfigurasi-user.store');
     Route::post('/konfigurasi-user/import', [UserManagementController::class, 'import'])->name('konfigurasi-user.import');
+    Route::post('/konfigurasi-user/candidates/approve-all', [UserManagementController::class, 'approveAllCandidates'])->name('konfigurasi-user.candidates.approve-all');
+    Route::post('/konfigurasi-user/candidates/{employee}/approve', [UserManagementController::class, 'approveCandidate'])->name('konfigurasi-user.candidates.approve');
     Route::put('/konfigurasi-user/{user}', [UserManagementController::class, 'update'])->name('konfigurasi-user.update');
     Route::patch('/konfigurasi-user/{user}/role', [UserManagementController::class, 'updateRole'])->name('konfigurasi-user.role');
     Route::delete('/konfigurasi-user/{user}', [UserManagementController::class, 'destroy'])->name('konfigurasi-user.destroy');
@@ -78,6 +82,14 @@ Route::middleware('auth')->group(function () {
     Route::delete('/data-pegawai', [EmployeeController::class, 'destroyMany'])->name('data-pegawai.destroy-many');
     Route::get('/employees', [EmployeeController::class, 'index'])->name('employees.index');
     Route::get('/employees/{id}', [EmployeeController::class, 'show'])->name('employees.show');
+    Route::get('/wla-saya', [StaffWlaController::class, 'index'])->name('wla.staff.index');
+    Route::get('/wla-saya/{participant}', [StaffWlaController::class, 'show'])->name('wla.staff.show');
+    Route::post('/wla-saya/{participant}/submit', [StaffWlaController::class, 'submit'])->name('wla.staff.submit');
+    Route::scopeBindings()->prefix('wla-saya/{participant}/activities')->name('wla.staff.activities.')->group(function (): void {
+        Route::post('/', [StaffWlaController::class, 'storeActivity'])->name('store');
+        Route::put('/{activity}', [StaffWlaController::class, 'updateActivity'])->name('update');
+        Route::delete('/{activity}', [StaffWlaController::class, 'destroyActivity'])->name('destroy');
+    });
     Route::get('/wla', [WlaAssessmentController::class, 'index'])->name('wla');
     Route::get('/wla/headcount-analysis', [WlaHeadcountAnalysisController::class, 'index'])->name('wla.headcount-analysis');
     Route::get('/wla/create', [WlaAssessmentController::class, 'create'])->name('wla.create');
@@ -89,6 +101,15 @@ Route::middleware('auth')->group(function () {
     Route::post('/wla/{wla}/finalize', [WlaAssessmentController::class, 'finalize'])->name('wla.finalize');
     Route::put('/wla/{wla}', [WlaAssessmentController::class, 'update'])->name('wla.update');
     Route::delete('/wla/{wla}', [WlaAssessmentController::class, 'destroy'])->name('wla.destroy');
+
+    Route::scopeBindings()->prefix('wla/{wla}/participants')->name('wla.participants.')->group(function (): void {
+        Route::post('/', [WlaParticipantController::class, 'store'])->name('store');
+        Route::get('/{participant}', [WlaParticipantController::class, 'show'])->name('show');
+        Route::delete('/{participant}', [WlaParticipantController::class, 'destroy'])->name('destroy');
+        Route::post('/{participant}/return', [WlaParticipantController::class, 'returnSubmission'])->name('return');
+        Route::post('/{participant}/approve', [WlaParticipantController::class, 'approve'])->name('approve');
+        Route::post('/{participant}/import-approved', [WlaParticipantController::class, 'importApproved'])->name('import-approved');
+    });
 
     Route::scopeBindings()->prefix('wla/{wla}/activities')->name('wla.activities.')->group(function (): void {
         Route::post('/', [WlaActivityController::class, 'store'])->name('store');

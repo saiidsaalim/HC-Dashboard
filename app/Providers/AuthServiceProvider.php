@@ -3,9 +3,11 @@
 namespace App\Providers;
 
 use App\Models\WlaAssessment;
+use App\Models\WlaParticipant;
 use App\Models\WorkCalendar;
 use App\Models\WorkSchedule;
 use App\Policies\WlaAssessmentPolicy;
+use App\Policies\WlaParticipantPolicy;
 use App\Policies\WorkCalendarPolicy;
 use App\Policies\WorkSchedulePolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
@@ -21,6 +23,7 @@ class AuthServiceProvider extends ServiceProvider
         WorkSchedule::class => WorkSchedulePolicy::class,
         WorkCalendar::class => WorkCalendarPolicy::class,
         WlaAssessment::class => WlaAssessmentPolicy::class,
+        WlaParticipant::class => WlaParticipantPolicy::class,
     ];
 
     public function boot(): void

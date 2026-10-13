@@ -288,7 +288,7 @@ class WlaFinalizationTest extends TestCase
             ->assertSee('name="_method" value="DELETE"', false)
             ->assertSee('<form method="POST" action="'.route('wla.finalize', $assessment).'" data-confirm-submit', false)
             ->assertSee('data-confirm-title="Finalisasi WLA ini?"', false)
-            ->assertSee('data-confirm-text="Setelah difinalisasi, assessment dan aktivitas tidak dapat diubah atau dihapus. Pastikan seluruh data sudah benar."', false)
+            ->assertSee('data-confirm-text="Setelah difinalisasi, assessment dan aktivitas tidak dapat diubah atau dihapus."', false)
             ->assertSee('data-confirm-button-text="Ya, finalisasi"', false)
             ->assertSee('data-cancel-button-text="Periksa kembali"', false)
             ->assertSee('data-confirm-button-color="#059669"', false);

@@ -16,10 +16,12 @@ use App\Models\Unit;
 use App\Models\User;
 use App\Services\Employees\EmployeeImportStagingService;
 use App\Services\Employees\EmployeeOrganizationSyncService;
+use App\Services\Users\StaffUserProvisioningService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -322,9 +324,15 @@ class EmployeeController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(UpdateEmployeeRequest $request, Employee $employee): RedirectResponse
-    {
-        $employee->update($request->validated());
+    public function update(
+        UpdateEmployeeRequest $request,
+        Employee $employee,
+        StaffUserProvisioningService $staffUserProvisioningService,
+    ): RedirectResponse {
+        DB::transaction(function () use ($request, $employee, $staffUserProvisioningService): void {
+            $employee->update($request->validated());
+            $staffUserProvisioningService->synchronizeLinkedUser($employee);
+        });
 
         return to_route('data-pegawai')->with('status', 'Data pegawai berhasil diperbarui.');
     }

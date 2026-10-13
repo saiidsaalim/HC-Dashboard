@@ -155,7 +155,9 @@
             </div>
         </div>
         <form id="bulk-delete-demotions" method="POST" action="{{ route('demosi.destroy-many') }}"
-            onsubmit="event.preventDefault(); const form = this; const selected = form.querySelectorAll('.demotion-checkbox:checked'); if (!selected.length) { Swal.fire({ icon: 'info', title: 'Pilih data terlebih dahulu', text: 'Centang minimal satu usulan demosi.' }); return; } Swal.fire({ icon: 'warning', title: 'Hapus data terpilih?', text: 'Data yang dihapus tidak dapat dikembalikan.', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'Ya, hapus', cancelButtonText: 'Batal' }).then((result) => { if (result.isConfirmed) form.submit(); });">
+            data-confirm-submit data-confirm-title="Hapus data terpilih?" data-confirm-text="Data yang dihapus tidak dapat dikembalikan."
+            data-confirm-button-text="Ya, hapus" data-confirm-button-color="#dc2626" data-confirm-require-checkbox=".demotion-checkbox"
+            data-confirm-empty-text="Centang minimal satu usulan demosi.">
             @csrf
             @method('DELETE')
             <div class="overflow-x-auto">
@@ -249,8 +251,9 @@
         @php($hasApproved = $demotion->approvals->contains(fn($approval): bool => $approval->manager_id === auth()->id() && $approval->status === 'Approved'))
         @if ($canApproveDemotions && $demotion->verification_status !== 'Final' && !$hasApproved)
             <form id="approve-demotion-{{ $demotion->id }}" method="POST"
-                action="{{ route('demosi.approve', $demotion) }}"
-                onsubmit="event.preventDefault(); const form = this; Swal.fire({ title: 'Setujui demosi ini?', text: 'Persetujuan Anda akan dicatat sebagai salah satu dari tiga persetujuan manager.', icon: 'question', showCancelButton: true, confirmButtonColor: '#059669', confirmButtonText: 'Ya, setujui', cancelButtonText: 'Batal' }).then((result) => { if (result.isConfirmed) form.submit(); });">
+                action="{{ route('demosi.approve', $demotion) }}" data-confirm-submit data-confirm-title="Setujui demosi ini?"
+                data-confirm-text="Persetujuan Anda akan dicatat sebagai salah satu dari tiga persetujuan manager."
+                data-confirm-icon="question" data-confirm-button-text="Ya, setujui" data-confirm-button-color="#059669">
                 @csrf
             </form>
         @endif

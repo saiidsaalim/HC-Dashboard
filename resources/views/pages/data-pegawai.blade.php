@@ -362,12 +362,15 @@
                                 class="rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50">Hapus Semua Data</button>
                         </div>
                         <form id="bulk-delete-employees" method="POST" action="{{ route('data-pegawai.destroy-many') }}"
-                            onsubmit="event.preventDefault(); const form = this; const selected = document.querySelectorAll('.employee-checkbox:checked'); if (!selected.length) { Swal.fire({ icon: 'info', title: 'Pilih data terlebih dahulu', text: 'Centang minimal satu pegawai.' }); return; } Swal.fire({ icon: 'warning', title: 'Hapus pegawai terpilih?', text: 'Data yang dihapus tidak dapat dikembalikan.', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'Ya, hapus', cancelButtonText: 'Batal' }).then((result) => { if (result.isConfirmed) form.submit(); });">
+                            data-confirm-submit data-confirm-title="Hapus pegawai terpilih?" data-confirm-text="Data yang dihapus tidak dapat dikembalikan."
+                            data-confirm-button-text="Ya, hapus" data-confirm-button-color="#dc2626" data-confirm-require-checkbox=".employee-checkbox"
+                            data-confirm-empty-text="Centang minimal satu pegawai.">
                         @csrf
                         @method('DELETE')
                         </form>
                         <form id="delete-all-employees" method="POST" action="{{ route('data-pegawai.destroy-all') }}"
-                            onsubmit="event.preventDefault(); const form = this; Swal.fire({ icon: 'warning', title: 'Hapus semua data pegawai?', text: 'Seluruh data pegawai akan dihapus permanen dan tidak dapat dipulihkan.', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'Ya, hapus semua', cancelButtonText: 'Batal' }).then((result) => { if (result.isConfirmed) form.submit(); });">
+                            data-confirm-submit data-confirm-title="Hapus semua data pegawai?" data-confirm-text="Seluruh data pegawai akan dihapus permanen dan tidak dapat dipulihkan."
+                            data-confirm-button-text="Ya, hapus semua" data-confirm-button-color="#dc2626">
                             @csrf
                             @method('DELETE')
                         </form>
@@ -413,7 +416,9 @@
                                                 class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700 transition hover:bg-amber-100">
                                                 Edit
                                             </button>
-                                            <form method="POST" action="{{ route('data-pegawai.destroy', $employee) }}" class="inline-block" onsubmit="event.preventDefault(); const form = this; Swal.fire({ title: 'Hapus pegawai ini?', text: 'Data yang dihapus tidak dapat dikembalikan.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'Ya, hapus', cancelButtonText: 'Batal' }).then((result) => { if (result.isConfirmed) form.submit(); });">
+                                            <form method="POST" action="{{ route('data-pegawai.destroy', $employee) }}" class="inline-block"
+                                                data-confirm-submit data-confirm-title="Hapus pegawai ini?" data-confirm-text="Data yang dihapus tidak dapat dikembalikan."
+                                                data-confirm-button-text="Ya, hapus" data-confirm-button-color="#dc2626">
                                                 @csrf
                                                 @method('DELETE')
                                                 <button type="submit" class="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 transition hover:bg-red-100">

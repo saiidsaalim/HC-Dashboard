@@ -9,7 +9,7 @@
         async submitAction(event) {
             event.preventDefault();
             const form = event.target;
-            if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) return;
+            if (form.dataset.confirmTitle && !await window.confirmFormAction(form)) return;
             this.busy = true;
             this.message = '';
             try {
@@ -34,6 +34,9 @@
             }
         },
     }" class="space-y-6">
+        @if (session('status'))
+            <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ session('status') }}</div>
+        @endif
         <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div>
                 <a href="{{ route('data-pegawai.import.review.index') }}" class="text-sm font-semibold text-slate-500 hover:text-slate-900">Semua batch</a>
@@ -43,13 +46,20 @@
             <div class="flex flex-wrap gap-2">
                 <a href="{{ route('data-pegawai.import.review.index') }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Riwayat batch</a>
                 @if ($approvableCount > 0)
-                    <form method="POST" action="{{ route('data-pegawai.import-batches.approve-candidates', $batch) }}" data-confirm="Setujui semua {{ $approvableCount }} row VALID dengan mapping AUTO_CANDIDATE? INVALID, REVIEW_REQUIRED, dan UNMATCHED tetap tidak disetujui." data-success="{{ $approvableCount }} row valid disetujui." @submit="submitAction($event)">
+                    <form method="POST" action="{{ route('data-pegawai.import-batches.approve-candidates', $batch) }}"
+                        data-confirm-title="Setujui semua {{ $approvableCount }} row valid?"
+                        data-confirm-text="INVALID, REVIEW_REQUIRED, dan UNMATCHED tetap tidak disetujui."
+                        data-confirm-button-text="Ya, setujui" data-confirm-button-color="#059669"
+                        data-success="{{ $approvableCount }} row valid disetujui." @submit="submitAction($event)">
                         @csrf
                         <button type="submit" :disabled="busy" class="rounded-lg border border-emerald-300 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-800 hover:bg-emerald-50 disabled:opacity-50">Setujui semua ({{ $approvableCount }})</button>
                     </form>
                 @endif
                 @if ($batch->approved_rows > $batch->processed_rows)
-                    <form method="POST" action="{{ route('data-pegawai.import-batches.process', $batch) }}" data-confirm="Proses hanya row yang sudah APPROVED?" data-success="Batch selesai diproses." @submit="submitAction($event)">
+                    <form method="POST" action="{{ route('data-pegawai.import-batches.process', $batch) }}"
+                        data-confirm-title="Proses batch import?" data-confirm-text="Hanya row yang sudah APPROVED yang akan diproses."
+                        data-confirm-button-text="Ya, proses" data-confirm-button-color="#059669"
+                        data-success="Batch selesai diproses." @submit="submitAction($event)">
                         @csrf
                         <button type="submit" :disabled="busy" class="rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50">Proses {{ $batch->approved_rows - $batch->processed_rows }} row approved</button>
                     </form>

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Employee extends Model
 {
@@ -105,6 +106,16 @@ class Employee extends Model
     public function mutations(): HasMany
     {
         return $this->hasMany(EmployeeMutation::class, 'sap', 'sap');
+    }
+
+    public function user(): HasOne
+    {
+        return $this->hasOne(User::class);
+    }
+
+    public function wlaParticipations(): HasMany
+    {
+        return $this->hasMany(WlaParticipant::class);
     }
 
     public function organizationDepartmentName(): ?string

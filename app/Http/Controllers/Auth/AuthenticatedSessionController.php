@@ -28,6 +28,10 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
+        if ($request->user()?->must_change_password) {
+            return to_route('password.first.edit');
+        }
+
         return redirect()->intended(route('portal', absolute: false));
     }
 

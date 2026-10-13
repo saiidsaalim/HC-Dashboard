@@ -13,7 +13,15 @@
         @csrf
     </form>
 
-    <form method="post" action="{{ route('profile.update') }}" class="mt-6 space-y-6">
+    @if ($user->employee_id !== null)
+        <dl class="mt-6 space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
+            <div><dt class="font-semibold text-slate-700">Nama</dt><dd class="mt-1 text-slate-600">{{ $user->name }}</dd></div>
+            <div><dt class="font-semibold text-slate-700">Email</dt><dd class="mt-1 text-slate-600">{{ $user->email }}</dd></div>
+            <div><dt class="font-semibold text-slate-700">Role</dt><dd class="mt-1 text-slate-600">{{ $user->role }}</dd></div>
+        </dl>
+        <p class="mt-3 text-sm text-slate-500">Nama akun Staff mengikuti Personal Number dan email mengikuti data Employee. Keduanya hanya dapat diperbarui melalui data Employee.</p>
+    @else
+        <form method="post" action="{{ route('profile.update') }}" class="mt-6 space-y-6">
         @csrf
         @method('patch')
 
@@ -60,5 +68,6 @@
                 >{{ __('Saved.') }}</p>
             @endif
         </div>
-    </form>
+        </form>
+    @endif
 </section>

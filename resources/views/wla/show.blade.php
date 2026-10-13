@@ -49,7 +49,7 @@
                     </form>
                 @endcan
                 @can('finalize', $wla)
-                    <form method="POST" action="{{ route('wla.finalize', $wla) }}" data-confirm-submit data-confirm-title="Finalisasi WLA ini?" data-confirm-text="Setelah difinalisasi, assessment dan aktivitas tidak dapat diubah atau dihapus. Pastikan seluruh data sudah benar." data-confirm-button-text="Ya, finalisasi" data-cancel-button-text="Periksa kembali" data-confirm-button-color="#059669" data-cancel-button-color="#64748b">
+                    <form method="POST" action="{{ route('wla.finalize', $wla) }}" data-confirm-submit data-confirm-title="Finalisasi WLA ini?" data-confirm-text="Setelah difinalisasi, assessment dan aktivitas tidak dapat diubah atau dihapus." data-confirm-button-text="Ya, finalisasi" data-cancel-button-text="Periksa kembali" data-confirm-button-color="#059669" data-cancel-button-color="#64748b">
                         @csrf
                         <button @disabled($finalizationReasons !== []) class="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50">Finalisasi WLA</button>
                     </form>
@@ -86,6 +86,57 @@
             </section>
 
             @include('wla._activities', ['wla' => $wla])
+
+            <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                <div class="flex flex-wrap items-end justify-between gap-4">
+                    <div>
+                        <p class="text-xs font-semibold uppercase text-slate-500">Pengisian Staff</p>
+                        <h3 class="mt-1 font-display text-lg font-bold text-slate-950">Peserta dan Status Pengisian</h3>
+                    </div>
+                    @can('manageParticipants', [\App\Models\WlaParticipant::class, $wla])
+                        <form method="POST" action="{{ route('wla.participants.store', $wla) }}" class="flex flex-wrap items-end gap-2">
+                            @csrf
+                            <label class="text-xs font-medium text-slate-600">Tambahkan Staff
+                                <select name="employee_id" required class="mt-1 block min-w-64 rounded-lg border-slate-300 text-sm">
+                                    <option value="">Pilih Employee</option>
+                                    @foreach ($participantOptions as $employee)
+                                        <option value="{{ $employee->id }}">{{ $employee->user?->name ?? $employee->personal_number ?? $employee->sap }} · {{ $employee->sap }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <button @disabled($participantOptions->isEmpty()) class="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Tambah Peserta</button>
+                        </form>
+                    @endcan
+                </div>
+
+                <div class="mt-5 overflow-x-auto">
+                    <table class="w-full min-w-[900px] text-left text-sm">
+                        <thead class="bg-slate-50 text-xs uppercase text-slate-500"><tr><th class="px-3 py-3">Staff</th><th class="px-3 py-3">Status</th><th class="px-3 py-3">Dikirim</th><th class="px-3 py-3">Direview</th><th class="px-3 py-3">Pemakaian</th><th class="px-3 py-3 text-right">Aksi</th></tr></thead>
+                        <tbody class="divide-y divide-slate-100">
+                            @forelse ($wla->participants as $participant)
+                                <tr>
+                                    <td class="px-3 py-3 font-semibold text-slate-800">{{ $participant->employee->user?->name ?? $participant->employee->personal_number ?? $participant->employee->sap }}</td>
+                                    <td class="px-3 py-3"><span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{{ $participant->status->label() }}</span></td>
+                                    <td class="px-3 py-3 text-slate-600">{{ $participant->submitted_at?->translatedFormat('d M Y H:i') ?? '—' }}</td>
+                                    <td class="px-3 py-3 text-slate-600">{{ $participant->reviewed_at?->translatedFormat('d M Y H:i') ?? '—' }}</td>
+                                    <td class="px-3 py-3 text-slate-600">{{ $participant->applied_at ? 'Sudah digunakan' : 'Belum digunakan' }}</td>
+                                    <td class="px-3 py-3">
+                                        <div class="flex justify-end gap-3">
+                                            <a href="{{ route('wla.participants.show', [$wla, $participant]) }}" class="font-semibold text-sky-700 hover:text-sky-900">Review</a>
+                                            @can('manageParticipants', [\App\Models\WlaParticipant::class, $wla])
+                                                <form method="POST" action="{{ route('wla.participants.destroy', [$wla, $participant]) }}" data-confirm-submit data-confirm-title="Hapus peserta ini?" data-confirm-text="Seluruh aktivitas pengisian peserta akan dihapus." data-confirm-button-text="Ya, hapus" data-confirm-button-color="#dc2626">@csrf @method('DELETE')<button class="font-semibold text-red-600">Hapus</button></form>
+                                            @endcan
+                                        </div>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="6" class="px-3 py-8 text-center text-slate-500">Belum ada Staff yang ditugaskan.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
             @include('wla._foundation-preview', ['assessment' => $wla, 'calculationState' => $calculationState])
         @endif
     </div>

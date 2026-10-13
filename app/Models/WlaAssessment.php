@@ -77,4 +77,9 @@ class WlaAssessment extends Model
     {
         return $this->hasMany(WlaActivity::class)->orderBy('sort_order')->orderBy('id');
     }
+
+    public function participants(): HasMany
+    {
+        return $this->hasMany(WlaParticipant::class)->orderBy('id');
+    }
 }

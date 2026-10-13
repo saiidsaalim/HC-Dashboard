@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\EmployeeImportBatch;
 use App\Models\EmployeeImportRow;
 use App\Models\User;
+use App\Services\Users\StaffUserProvisioningService;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +19,8 @@ use ZipArchive;
 
 class EmployeeImportStagingService
 {
+    public function __construct(private StaffUserProvisioningService $staffUserProvisioningService) {}
+
     private const HEADERS = [
         'SAP', 'ID Number', 'AGKN', 'Position id', 'Personal Number', 'Position',
         'Employee Subgroup', 'Cost Ctr', 'TXT_DIR', 'TXT_DEPT', 'TXT_BIRO', 'TXT_SECT',
@@ -248,6 +251,7 @@ class EmployeeImportStagingService
                     $employee = Employee::query()->create($attributes);
                 } else {
                     $employee->fill($attributes)->save();
+                    $this->staffUserProvisioningService->synchronizeLinkedUser($employee);
                 }
 
                 $row->forceFill([

@@ -9,9 +9,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreWlaAssessmentRequest;
 use App\Http\Requests\UpdateWlaAssessmentRequest;
 use App\Models\Department;
+use App\Models\Employee;
 use App\Models\Position;
 use App\Models\Unit;
 use App\Models\WlaAssessment;
+use App\Models\WlaParticipant;
 use App\Models\WorkCalendar;
 use App\Models\WorkSchedule;
 use App\Services\Workforce\WlaCalculationService;
@@ -91,13 +93,31 @@ class WlaAssessmentController extends Controller
             ]);
         }
 
-        $wla->load(['department', 'unit', 'position', 'workSchedule', 'workCalendar', 'creator', 'activities']);
+        $wla->load([
+            'department', 'unit', 'position', 'workSchedule', 'workCalendar', 'creator', 'activities',
+            'participants.employee.user', 'participants.reviewer', 'participants.appliedBy',
+        ]);
         $calculationState = $this->wlaCalculationService->calculationState($wla);
+        $participantOptions = collect();
+
+        if (Gate::allows('manageParticipants', [WlaParticipant::class, $wla])) {
+            $participantOptions = Employee::query()
+                ->where('department_id', $wla->department_id)
+                ->where('unit_id', $wla->unit_id)
+                ->where('position_id', $wla->position_id)
+                ->whereHas('user', fn (Builder $query): Builder => $query->where('role', 'Staff'))
+                ->whereDoesntHave('wlaParticipations', fn (Builder $query): Builder => $query
+                    ->where('wla_assessment_id', $wla->getKey()))
+                ->with('user:id,employee_id,name')
+                ->orderBy('personal_number')
+                ->get();
+        }
 
         return view('wla.show', [
             'wla' => $wla,
             'calculationState' => $calculationState,
             'finalizationReasons' => $this->finalizationReasons($wla, $calculationState),
+            'participantOptions' => $participantOptions,
         ]);
     }
 

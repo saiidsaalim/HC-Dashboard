@@ -1,7 +1,7 @@
 <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
     <div>
         <p class="text-xs font-semibold uppercase text-slate-500">Section 3</p>
-        <h3 class="mt-1 font-display text-lg font-bold text-slate-950">Aktivitas</h3>
+        <h3 class="mt-1 font-display text-lg font-bold text-slate-950">Aktivitas Resmi</h3>
     </div>
 
     @if ($errors->any())
@@ -86,7 +86,9 @@
                                         <button class="font-semibold text-sky-700 hover:text-sky-900">Simpan</button>
                                     </form>
                                     <form method="POST" action="{{ route('wla.activities.destroy', [$wla, $activity]) }}"
-                                        onsubmit="return confirm('Hapus aktivitas draft ini?')">
+                                        data-confirm-submit data-confirm-title="Hapus aktivitas Draft ini?"
+                                        data-confirm-text="Aktivitas yang dihapus tidak dapat dikembalikan."
+                                        data-confirm-button-text="Ya, hapus" data-confirm-button-color="#dc2626">
                                         @csrf
                                         @method('DELETE')
                                         <button class="font-semibold text-red-600 hover:text-red-800">Hapus</button>

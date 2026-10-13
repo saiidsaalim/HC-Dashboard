@@ -70,7 +70,9 @@
                 </div>
                 @if ($pendingSafe > 0)
                     <form method="POST" action="{{ route('data-pegawai.organization-sync.apply') }}"
-                        onsubmit="return confirm('Terapkan sinkronisasi organisasi untuk data yang aman? Data konflik tidak akan diubah.')">
+                        data-confirm-submit data-confirm-title="Terapkan sinkronisasi organisasi?"
+                        data-confirm-text="Data konflik tidak akan diubah." data-confirm-button-text="Ya, terapkan"
+                        data-confirm-button-color="#059669">
                         @csrf
                         <button type="submit"
                             class="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700">
