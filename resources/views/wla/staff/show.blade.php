@@ -28,6 +28,16 @@
             </dl>
         </section>
 
+        <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-xs font-semibold uppercase text-slate-500">Penugasan</p>
+            @if ($participant->assigner)
+                <p class="mt-1 font-semibold text-slate-800">Ditugaskan oleh: {{ $participant->assigner->name }} ({{ $participant->assigner->roleEnum()->value }})</p>
+                <p class="mt-1 text-sm text-slate-500">{{ $participant->created_at->translatedFormat('d F Y, H.i') }}</p>
+            @else
+                <p class="mt-1 text-sm text-slate-500">Pemberi tugas tidak tercatat (data lama)</p>
+            @endif
+        </section>
+
         @if ($participant->status === \App\Enums\WlaParticipantStatus::Returned && $participant->review_note)
             <div class="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
                 <p class="font-semibold">Catatan Manager</p>
@@ -109,5 +119,6 @@
                 <form method="POST" action="{{ route('wla.staff.submit', $participant) }}" data-confirm-submit data-confirm-title="Kirim WLA ke Manager?" data-confirm-text="Setelah dikirim, aktivitas tidak dapat diubah sampai dikembalikan oleh Manager." data-confirm-button-text="Ya, kirim" data-confirm-button-color="#059669">@csrf<button @disabled(! $isComplete) class="rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">Kirim ke Manager</button></form>
             </div>
         @endif
+
     </div>
 @endsection

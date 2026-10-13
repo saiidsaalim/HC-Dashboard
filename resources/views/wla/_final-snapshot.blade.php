@@ -11,9 +11,9 @@
     <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <h3 class="font-display text-lg font-bold text-slate-950">Konteks Final</h3>
         <dl class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div><dt class="text-xs uppercase text-slate-500">Department</dt><dd class="mt-1 font-medium text-slate-800">{{ data_get($snapshot, 'department.code') }} · {{ data_get($snapshot, 'department.name') }}</dd></div>
-            <div><dt class="text-xs uppercase text-slate-500">Unit</dt><dd class="mt-1 font-medium text-slate-800">{{ data_get($snapshot, 'unit.code') }} · {{ data_get($snapshot, 'unit.name') }}</dd></div>
-            <div><dt class="text-xs uppercase text-slate-500">Position</dt><dd class="mt-1 font-medium text-slate-800">{{ data_get($snapshot, 'position.code') }} · {{ data_get($snapshot, 'position.name') }}</dd></div>
+            <div><dt class="text-xs uppercase text-slate-500">Department</dt><dd class="mt-1 font-medium text-slate-800">{{ data_get($snapshot, 'department.name') }}</dd></div>
+            <div><dt class="text-xs uppercase text-slate-500">Unit</dt><dd class="mt-1 font-medium text-slate-800">{{ data_get($snapshot, 'unit.name') }}</dd></div>
+            <div><dt class="text-xs uppercase text-slate-500">Position</dt><dd class="mt-1 font-medium text-slate-800">{{ data_get($snapshot, 'position.name') }}</dd></div>
             <div><dt class="text-xs uppercase text-slate-500">Jadwal Kerja</dt><dd class="mt-1 font-medium text-slate-800">{{ data_get($snapshot, 'schedule.code') }} · {{ data_get($snapshot, 'schedule.name') }} · {{ data_get($snapshot, 'schedule.calculation_type_label') }}</dd></div>
             <div><dt class="text-xs uppercase text-slate-500">Jam Harian WLA</dt><dd class="mt-1 font-medium text-slate-800">{{ data_get($snapshot, 'schedule.wla_hours_per_day') }} jam</dd></div>
             <div><dt class="text-xs uppercase text-slate-500">Kalender Kerja</dt><dd class="mt-1 font-medium text-slate-800">{{ data_get($snapshot, 'calendar.year') }} · {{ data_get($snapshot, 'calendar.total_days') }} hari</dd></div>
@@ -33,14 +33,30 @@
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     @foreach (data_get($snapshot, 'activities', []) as $activity)
-                        <tr>
-                            <td class="px-3 py-3">{{ $loop->iteration }}</td>
-                            <td class="px-3 py-3">{{ data_get($activity, 'activity_name') }}</td>
-                            <td class="px-3 py-3">{{ data_get($activity, 'frequency') }}</td>
-                            <td class="px-3 py-3">{{ data_get($activity, 'period_unit') }}</td>
-                            <td class="px-3 py-3">{{ data_get($activity, 'time_allocated_hours') }}</td>
-                            <td class="px-3 py-3">{{ data_get($activity, 'annual_workload_hours') }}</td>
-                            <td class="px-3 py-3">{{ data_get($activity, 'notes') ?: '—' }}</td>
+                        @php($isStaffOrigin = data_get($activity, 'origin', 'legacy') === \App\Enums\WlaActivityOrigin::Staff->value)
+                        <tr @class(['align-top', 'bg-sky-50' => $isStaffOrigin])>
+                            <td @class(['px-3 py-3 align-top', 'border-l-2 border-sky-200' => $isStaffOrigin])>{{ $loop->iteration }}</td>
+                            <td class="px-3 py-3 align-top">
+                                <div class="space-y-1">
+                                    <p>{{ data_get($activity, 'activity_name') }}</p>
+                                    <p class="text-xs text-slate-500">
+                                        Dibuat oleh:
+                                        @if (data_get($activity, 'creator.name'))
+                                            {{ data_get($activity, 'creator.name') }} ({{ data_get($activity, 'creator.role') }})
+                                        @else
+                                            Tidak tercatat (data lama)
+                                        @endif
+                                    </p>
+                                    @if (data_get($activity, 'updater.name'))
+                                        <p class="text-xs text-slate-500">Terakhir diubah oleh: {{ data_get($activity, 'updater.name') }} ({{ data_get($activity, 'updater.role') }})</p>
+                                    @endif
+                                </div>
+                            </td>
+                            <td class="px-3 py-3 align-top">{{ data_get($activity, 'frequency') }}</td>
+                            <td class="px-3 py-3 align-top">{{ data_get($activity, 'period_unit') }}</td>
+                            <td class="px-3 py-3 align-top">{{ data_get($activity, 'time_allocated_hours') }}</td>
+                            <td class="px-3 py-3 align-top">{{ data_get($activity, 'annual_workload_hours') }}</td>
+                            <td class="px-3 py-3 align-top">{{ data_get($activity, 'notes') ?: '—' }}</td>
                         </tr>
                     @endforeach
                 </tbody>

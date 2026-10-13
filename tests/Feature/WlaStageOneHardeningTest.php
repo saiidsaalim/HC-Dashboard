@@ -17,6 +17,7 @@ use App\Models\WorkSchedule;
 use App\Services\Workforce\WlaCalculationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class WlaStageOneHardeningTest extends TestCase
@@ -240,6 +241,38 @@ class WlaStageOneHardeningTest extends TestCase
             ->assertDontSee('Simpan')
             ->assertDontSee('Hapus')
             ->assertDontSee('Tambah Aktivitas');
+    }
+
+    public function test_wla_audit_runtime_and_storage_are_removed(): void
+    {
+        foreach ([
+            app_path('Enums/Wla'.'ChangeEvent.php'),
+            app_path('Models/Wla'.'ChangeLog.php'),
+            app_path('Services/Workforce/Wla'.'AuditLogger.php'),
+            app_path('Services/Workforce/Wla'.'ChangeLogPresenter.php'),
+            resource_path('views/wla/_change'.'-history.blade.php'),
+            base_path('tests/Feature/WlaAuditTrailTest.php'),
+        ] as $path) {
+            $this->assertFileDoesNotExist($path);
+        }
+
+        $this->assertFalse(Schema::hasTable('wla_change_logs'));
+
+        foreach ([
+            app_path('Http/Controllers/Workforce/StaffWlaController.php'),
+            app_path('Http/Controllers/Workforce/WlaActivityController.php'),
+            app_path('Http/Controllers/Workforce/WlaAssessmentController.php'),
+            app_path('Http/Controllers/Workforce/WlaParticipantController.php'),
+            app_path('Services/Workforce/WlaFinalizationService.php'),
+            resource_path('views/wla/show.blade.php'),
+            resource_path('views/wla/staff/show.blade.php'),
+        ] as $path) {
+            $contents = file_get_contents($path);
+            $this->assertIsString($contents);
+            $this->assertStringNotContainsString('Wla'.'Change', $contents);
+            $this->assertStringNotContainsString('history'.'_page', $contents);
+            $this->assertStringNotContainsString('change'.'-history', $contents);
+        }
     }
 
     /** @return array{user: User, department: Department, unit: Unit, position: Position, schedule: WorkSchedule, calendar: WorkCalendar} */

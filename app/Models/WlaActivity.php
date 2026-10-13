@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\WlaActivityOrigin;
 use App\Enums\WlaFrequencyUnit;
 use App\Enums\WlaPeriodUnit;
 use App\Enums\WlaTimeUnit;
@@ -12,7 +13,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'activity_name', 'frequency', 'period_unit', 'frequency_unit', 'volume', 'volume_unit',
-    'time_allocated', 'time_unit', 'time_allocated_hours', 'annual_workload_hours', 'sort_order', 'notes',
+    'time_allocated', 'time_unit', 'time_allocated_hours', 'annual_workload_hours', 'sort_order', 'notes', 'origin',
+    'created_by', 'updated_by',
 ])]
 class WlaActivity extends Model
 {
@@ -33,11 +35,22 @@ class WlaActivity extends Model
             'time_allocated_hours' => 'decimal:2',
             'annual_workload_hours' => 'decimal:4',
             'sort_order' => 'integer',
+            'origin' => WlaActivityOrigin::class,
         ];
     }
 
     public function assessment(): BelongsTo
     {
         return $this->belongsTo(WlaAssessment::class, 'wla_assessment_id');
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function updater(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'updated_by');
     }
 }

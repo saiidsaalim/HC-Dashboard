@@ -1,7 +1,7 @@
 <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
     <div>
         <p class="text-xs font-semibold uppercase text-slate-500">Section 3</p>
-        <h3 class="mt-1 font-display text-lg font-bold text-slate-950">Aktivitas Resmi</h3>
+        <h3 class="mt-1 font-display text-lg font-bold text-slate-950">Aktivitas</h3>
     </div>
 
     @if ($errors->any())
@@ -31,20 +31,34 @@
                 @forelse ($wla->activities as $activity)
                     @php($formId = 'activity-update-'.$activity->id)
                     @php($needsReview = $activity->period_unit === null || $activity->time_allocated_hours === null)
-                    <tr>
-                        <td class="px-3 py-3">{{ $loop->iteration }}</td>
-                        <td class="px-3 py-3">
-                            @can('update', $wla)
-                                <input form="{{ $formId }}" name="activity_name" value="{{ $activity->activity_name }}"
-                                    required maxlength="255" class="w-72 rounded-lg border-slate-300 text-sm">
-                            @else
-                                {{ $activity->activity_name }}
-                            @endcan
-                            @if ($needsReview)
-                                <span class="mt-2 block w-fit rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Perlu review</span>
-                            @endif
+                    @php($isStaffOrigin = $activity->origin === \App\Enums\WlaActivityOrigin::Staff)
+                    <tr @class(['align-top', 'bg-sky-50' => $isStaffOrigin])>
+                        <td @class(['px-3 py-3 align-top', 'border-l-2 border-sky-200' => $isStaffOrigin])>{{ $loop->iteration }}</td>
+                        <td class="px-3 py-3 align-top">
+                            <div class="space-y-1">
+                                @can('update', $wla)
+                                    <input form="{{ $formId }}" name="activity_name" value="{{ $activity->activity_name }}"
+                                        required maxlength="255" class="w-72 rounded-lg border-slate-300 text-sm">
+                                @else
+                                    <p>{{ $activity->activity_name }}</p>
+                                @endcan
+                                @if ($needsReview)
+                                    <span class="block w-fit rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Perlu review</span>
+                                @endif
+                                <p class="text-xs text-slate-500">
+                                    Dibuat oleh:
+                                    @if ($activity->creator)
+                                        {{ $activity->creator->name }} ({{ $activity->creator->roleEnum()->value }})
+                                    @else
+                                        Tidak tercatat (data lama)
+                                    @endif
+                                </p>
+                                @if ($activity->updater)
+                                    <p class="text-xs text-slate-500">Terakhir diubah oleh: {{ $activity->updater->name }} ({{ $activity->updater->roleEnum()->value }})</p>
+                                @endif
+                            </div>
                         </td>
-                        <td class="px-3 py-3">
+                        <td class="px-3 py-3 align-top">
                             @can('update', $wla)
                                 <input form="{{ $formId }}" type="number" name="frequency" value="{{ $activity->frequency }}"
                                     min="0.01" max="{{ \App\Models\WlaActivity::MAX_INPUT_VALUE }}" step="0.01" required class="w-28 rounded-lg border-slate-300 text-sm">
@@ -52,7 +66,7 @@
                                 {{ $activity->frequency }}
                             @endcan
                         </td>
-                        <td class="px-3 py-3">
+                        <td class="px-3 py-3 align-top">
                             @can('update', $wla)
                                 <select form="{{ $formId }}" name="period_unit" required class="rounded-lg border-slate-300 text-sm">
                                     <option value="">Pilih periode</option>
@@ -64,7 +78,7 @@
                                 {{ $activity->period_unit?->value ?? 'Perlu review' }}
                             @endcan
                         </td>
-                        <td class="px-3 py-3">
+                        <td class="px-3 py-3 align-top">
                             @can('update', $wla)
                                 <input form="{{ $formId }}" type="number" name="time_allocated_hours"
                                     value="{{ $activity->time_allocated_hours }}" min="0.01" max="{{ \App\Models\WlaActivity::MAX_INPUT_VALUE }}"
@@ -73,10 +87,10 @@
                                 {{ $activity->time_allocated_hours ?? 'Perlu review' }}
                             @endcan
                         </td>
-                        <td class="px-3 py-3 font-semibold text-slate-700">
+                        <td class="px-3 py-3 align-top font-semibold text-slate-700">
                             {{ $needsReview ? 'Perlu review' : $activity->annual_workload_hours }}
                         </td>
-                        <td class="px-3 py-3">
+                        <td class="px-3 py-3 align-top">
                             @can('update', $wla)
                                 <div class="flex items-center gap-3">
                                     <form id="{{ $formId }}" method="POST"

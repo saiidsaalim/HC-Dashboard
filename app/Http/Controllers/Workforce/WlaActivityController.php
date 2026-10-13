@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Workforce;
 
+use App\Enums\WlaActivityOrigin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreWlaActivityRequest;
 use App\Http\Requests\UpdateWlaActivityRequest;
@@ -9,20 +10,21 @@ use App\Models\WlaActivity;
 use App\Models\WlaAssessment;
 use App\Services\Workforce\WlaCalculationService;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
 class WlaActivityController extends Controller
 {
-    public function __construct(private WlaCalculationService $wlaCalculationService) {}
+    public function __construct(
+        private WlaCalculationService $wlaCalculationService,
+    ) {}
 
     public function store(StoreWlaActivityRequest $request, WlaAssessment $wla): RedirectResponse
     {
         $data = $request->validated();
 
-        DB::transaction(function () use ($data, $wla): void {
+        DB::transaction(function () use ($data, $request, $wla): void {
             $lockedAssessment = $this->lockAuthorizedAssessment($wla);
             $maximumSortOrder = $lockedAssessment->activities()->max('sort_order');
 
@@ -38,6 +40,9 @@ class WlaActivityController extends Controller
 
             $lockedAssessment->activities()->create([
                 ...$data,
+                'origin' => WlaActivityOrigin::Management,
+                'created_by' => $request->user()->getKey(),
+                'updated_by' => null,
                 'frequency_unit' => $data['period_unit'],
                 'volume' => '1.00',
                 'volume_unit' => $data['period_unit'],
@@ -62,6 +67,7 @@ class WlaActivityController extends Controller
             $data = $request->validated();
             $lockedActivity->update([
                 ...$data,
+                'updated_by' => $request->user()->getKey(),
                 'frequency_unit' => $data['period_unit'],
                 'volume' => '1.00',
                 'volume_unit' => $data['period_unit'],
@@ -74,7 +80,7 @@ class WlaActivityController extends Controller
         return to_route('wla.show', $wla)->with('status', 'Activity berhasil diperbarui.');
     }
 
-    public function destroy(Request $request, WlaAssessment $wla, WlaActivity $activity): RedirectResponse
+    public function destroy(WlaAssessment $wla, WlaActivity $activity): RedirectResponse
     {
         DB::transaction(function () use ($wla, $activity): void {
             $lockedAssessment = $this->lockAuthorizedAssessment($wla);

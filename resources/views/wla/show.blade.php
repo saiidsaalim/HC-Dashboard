@@ -115,7 +115,15 @@
                         <tbody class="divide-y divide-slate-100">
                             @forelse ($wla->participants as $participant)
                                 <tr>
-                                    <td class="px-3 py-3 font-semibold text-slate-800">{{ $participant->employee->user?->name ?? $participant->employee->personal_number ?? $participant->employee->sap }}</td>
+                                    <td class="px-3 py-3">
+                                        <p class="font-semibold text-slate-800">{{ $participant->employee->user?->name ?? $participant->employee->personal_number ?? $participant->employee->sap }}</p>
+                                        @if ($participant->assigner)
+                                            <p class="mt-1 text-xs text-slate-600">Ditugaskan oleh: {{ $participant->assigner->name }} ({{ $participant->assigner->roleEnum()->value }})</p>
+                                            <p class="mt-0.5 text-xs text-slate-500">{{ $participant->created_at->translatedFormat('d F Y, H.i') }}</p>
+                                        @else
+                                            <p class="mt-1 text-xs text-slate-500">Pemberi tugas tidak tercatat (data lama)</p>
+                                        @endif
+                                    </td>
                                     <td class="px-3 py-3"><span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{{ $participant->status->label() }}</span></td>
                                     <td class="px-3 py-3 text-slate-600">{{ $participant->submitted_at?->translatedFormat('d M Y H:i') ?? '—' }}</td>
                                     <td class="px-3 py-3 text-slate-600">{{ $participant->reviewed_at?->translatedFormat('d M Y H:i') ?? '—' }}</td>
@@ -139,5 +147,6 @@
 
             @include('wla._foundation-preview', ['assessment' => $wla, 'calculationState' => $calculationState])
         @endif
+
     </div>
 @endsection

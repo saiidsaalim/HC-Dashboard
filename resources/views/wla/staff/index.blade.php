@@ -24,9 +24,9 @@
 
             <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <div class="overflow-x-auto">
-                    <table class="w-full min-w-[760px] text-left text-sm">
+                    <table class="w-full min-w-[920px] text-left text-sm">
                         <thead class="bg-slate-50 text-xs uppercase text-slate-500">
-                            <tr><th class="px-4 py-3">Kode</th><th class="px-4 py-3">Periode</th><th class="px-4 py-3">Position</th><th class="px-4 py-3">Status</th><th class="px-4 py-3">Kelengkapan</th><th class="px-4 py-3 text-right">Aksi</th></tr>
+                            <tr><th class="px-4 py-3">Kode</th><th class="px-4 py-3">Periode</th><th class="px-4 py-3">Position</th><th class="px-4 py-3">Ditugaskan oleh</th><th class="px-4 py-3">Status</th><th class="px-4 py-3">Kelengkapan</th><th class="px-4 py-3 text-right">Aksi</th></tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             @forelse ($participants as $participant)
@@ -35,6 +35,14 @@
                                     <td class="px-4 py-3 font-semibold text-slate-800">{{ $participant->assessment->assessment_code }}</td>
                                     <td class="px-4 py-3 text-slate-600">{{ $participant->assessment->period }}</td>
                                     <td class="px-4 py-3 text-slate-600">{{ $participant->assessment->position->name }}</td>
+                                    <td class="px-4 py-3 text-slate-600">
+                                        @if ($participant->assigner)
+                                            <p>{{ $participant->assigner->name }} ({{ $participant->assigner->roleEnum()->value }})</p>
+                                            <p class="mt-0.5 text-xs text-slate-500">{{ $participant->created_at->translatedFormat('d F Y, H.i') }}</p>
+                                        @else
+                                            <span class="text-xs text-slate-500">Pemberi tugas tidak tercatat (data lama)</span>
+                                        @endif
+                                    </td>
                                     <td class="px-4 py-3"><span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{{ $participant->status->label() }}</span></td>
                                     <td class="px-4 py-3">
                                         <div class="h-2 w-28 overflow-hidden rounded-full bg-slate-200"><div class="h-full bg-emerald-500" style="width: {{ $progress }}%"></div></div>
@@ -43,7 +51,7 @@
                                     <td class="px-4 py-3 text-right"><a href="{{ route('wla.staff.show', $participant) }}" class="font-semibold text-sky-700 hover:text-sky-900">Buka</a></td>
                                 </tr>
                             @empty
-                                <tr><td colspan="6" class="px-4 py-10 text-center text-slate-500">Belum ada tugas pengisian WLA untuk Anda.</td></tr>
+                                <tr><td colspan="7" class="px-4 py-10 text-center text-slate-500">Belum ada tugas pengisian WLA untuk Anda.</td></tr>
                             @endforelse
                         </tbody>
                     </table>

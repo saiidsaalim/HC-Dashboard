@@ -21,7 +21,8 @@
         </div>
 
         <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <dl class="grid gap-4 sm:grid-cols-4">
+            <dl class="grid gap-4 sm:grid-cols-5">
+                <div><dt class="text-xs uppercase text-slate-500">Ditugaskan oleh</dt><dd class="mt-1 font-semibold text-slate-800">{{ $participant->assigner ? $participant->assigner->name.' ('.$participant->assigner->roleEnum()->value.')' : 'Pemberi tugas tidak tercatat (data lama)' }}</dd><dd class="mt-0.5 text-xs text-slate-500">{{ $participant->created_at->translatedFormat('d F Y, H.i') }}</dd></div>
                 <div><dt class="text-xs uppercase text-slate-500">Dikirim</dt><dd class="mt-1 font-semibold text-slate-800">{{ $participant->submitted_at?->translatedFormat('d M Y H:i') ?? 'Belum dikirim' }}</dd></div>
                 <div><dt class="text-xs uppercase text-slate-500">Direview</dt><dd class="mt-1 font-semibold text-slate-800">{{ $participant->reviewed_at?->translatedFormat('d M Y H:i') ?? 'Belum direview' }}</dd></div>
                 <div><dt class="text-xs uppercase text-slate-500">Reviewer</dt><dd class="mt-1 font-semibold text-slate-800">{{ $participant->reviewer?->name ?? '—' }}</dd></div>
@@ -64,7 +65,7 @@
 
         @can('importApproved', $participant)
             <div class="flex justify-end">
-                <form method="POST" action="{{ route('wla.participants.import-approved', [$wla, $participant]) }}" data-confirm-submit data-confirm-title="Gunakan aktivitas yang disetujui?" data-confirm-text="Aktivitas akan ditambahkan ke Aktivitas Resmi WLA dan memengaruhi kalkulasi resmi." data-confirm-button-text="Ya, gunakan" data-confirm-button-color="#0284c7">@csrf<button class="rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white">Gunakan sebagai Aktivitas Resmi</button></form>
+                <form method="POST" action="{{ route('wla.participants.import-approved', [$wla, $participant]) }}" data-confirm-submit data-confirm-title="Gunakan aktivitas yang disetujui?" data-confirm-text="Aktivitas akan ditambahkan ke daftar Aktivitas WLA dan memengaruhi kalkulasi." data-confirm-button-text="Ya, gunakan" data-confirm-button-color="#0284c7">@csrf<button class="rounded-lg bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white">Gunakan sebagai Aktivitas</button></form>
             </div>
         @endcan
     </div>

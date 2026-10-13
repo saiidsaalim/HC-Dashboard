@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Enums\WlaActivityOrigin;
 use App\Enums\WlaAssessmentStatus;
 use App\Enums\WlaParticipantStatus;
 use App\Enums\WlaPeriodUnit;
@@ -15,6 +16,8 @@ use App\Models\WlaParticipant;
 use App\Models\WorkCalendar;
 use App\Models\WorkSchedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Routing\Route as IlluminateRoute;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 class WlaStaffSubmissionTest extends TestCase
@@ -185,31 +188,168 @@ class WlaStaffSubmissionTest extends TestCase
         $this->post(route('wla.staff.submit', $participant));
         $this->actingAs($data['manager'])->post(route('wla.participants.approve', [$data['assessment'], $participant]));
         $this->assertSame('0.000000', $data['assessment']->fresh()->fte);
+        $this->get(route('wla.participants.show', [$data['assessment'], $participant]))
+            ->assertOk()
+            ->assertSee('Gunakan sebagai Aktivitas')
+            ->assertDontSee('Gunakan sebagai Aktivitas'.' Resmi');
 
         $this->post(route('wla.participants.import-approved', [$data['assessment'], $participant]))->assertRedirect();
         $this->assertDatabaseCount('wla_activities', 1);
+        $officialActivity = $data['assessment']->activities()->sole();
+        $this->assertSame(WlaActivityOrigin::Staff, $officialActivity->origin);
+        $this->assertSame($data['staff']->id, $officialActivity->created_by);
+        $this->assertNull($officialActivity->updated_by);
+        $this->actingAs($data['manager'])->put(
+            route('wla.activities.update', [$data['assessment'], $officialActivity]),
+            $this->activityPayload([
+                'frequency' => '3.00',
+                'origin' => WlaActivityOrigin::Management->value,
+                'created_by' => $data['manager']->id,
+                'updated_by' => $data['staff']->id,
+            ]),
+        )->assertRedirect();
+        $officialActivity->refresh();
+        $this->assertSame(WlaActivityOrigin::Staff, $officialActivity->origin);
+        $this->assertSame($data['staff']->id, $officialActivity->created_by);
+        $this->assertSame($data['manager']->id, $officialActivity->updated_by);
+
+        $html = $this->get(route('wla.show', $data['assessment']))->assertOk()->getContent();
+        $this->assertMatchesRegularExpression(
+            '/<tr class="align-top bg-sky-50">.*?Membuat laporan.*?Dibuat oleh:.*?'.preg_quote($data['staff']->name, '/').'.*?\(Staff\).*?Terakhir diubah oleh:.*?'.preg_quote($data['manager']->name, '/').'.*?\(Manager\).*?<\/tr>/s',
+            $html,
+        );
+        $this->assertStringContainsString('border-l-2 border-sky-200', $html);
+        $this->assertStringNotContainsString('Dari'.' Staff', $html);
+        $this->assertStringNotContainsString('Aktivitas'.' Resmi', $html);
         $this->assertNotSame('0.000000', $data['assessment']->fresh()->fte);
         $this->assertNotNull($participant->fresh()->applied_at);
     }
 
-    public function test_only_super_admin_can_assign_valid_staff_from_assessment_hierarchy(): void
+    public function test_super_admin_admin_and_manager_can_assign_staff_with_authenticated_assigner(): void
     {
         $data = $this->context();
+        $admin = User::factory()->create(['role' => UserRole::ADMIN->value]);
+        $superAdminStaff = $this->staffEmployee($data, '2001');
+        $adminStaff = $this->staffEmployee($data, '2002');
+        $managerStaff = $this->staffEmployee($data, '2003');
+
+        $this->actingAs($data['superAdmin'])
+            ->post(route('wla.participants.store', $data['assessment']), [
+                'employee_id' => $superAdminStaff['employee']->id,
+                'assigned_by' => $admin->id,
+            ])->assertRedirect();
+        $this->actingAs($admin)
+            ->post(route('wla.participants.store', $data['assessment']), ['employee_id' => $adminStaff['employee']->id])
+            ->assertRedirect();
+        $this->actingAs($data['manager'])
+            ->post(route('wla.participants.store', $data['assessment']), ['employee_id' => $managerStaff['employee']->id])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('wla_participants', [
+            'employee_id' => $superAdminStaff['employee']->id,
+            'assigned_by' => $data['superAdmin']->id,
+        ]);
+        $this->assertDatabaseHas('wla_participants', [
+            'employee_id' => $adminStaff['employee']->id,
+            'assigned_by' => $admin->id,
+        ]);
+        $this->assertDatabaseHas('wla_participants', [
+            'employee_id' => $managerStaff['employee']->id,
+            'assigned_by' => $data['manager']->id,
+        ]);
+    }
+
+    public function test_staff_member_invalid_hierarchy_duplicate_and_final_assignment_are_rejected(): void
+    {
+        $data = $this->context();
+        $member = User::factory()->create(['role' => UserRole::MEMBER->value]);
+        $validStaff = $this->staffEmployee($data, '2100');
+
+        $this->actingAs($data['staff'])
+            ->post(route('wla.participants.store', $data['assessment']), ['employee_id' => $validStaff['employee']->id])
+            ->assertForbidden();
+        $this->actingAs($member)
+            ->post(route('wla.participants.store', $data['assessment']), ['employee_id' => $validStaff['employee']->id])
+            ->assertForbidden();
+
         $otherDepartment = Department::create(['code' => 'D02', 'name' => 'Other', 'active' => true]);
         $otherUnit = $otherDepartment->units()->create(['code' => 'U02', 'name' => 'Other Unit', 'active' => true]);
         $otherPosition = $otherUnit->positions()->create(['code' => 'P02', 'name' => 'Other Position', 'active' => true]);
-        $otherEmployee = Employee::create([
-            'sap' => '9999', 'personal_number' => 'Other Staff',
+        $crossDepartment = Employee::create([
+            'sap' => '2201', 'personal_number' => 'Cross Department',
             'department_id' => $otherDepartment->id, 'unit_id' => $otherUnit->id, 'position_id' => $otherPosition->id,
         ]);
-        User::factory()->create(['role' => UserRole::STAFF->value, 'employee_id' => $otherEmployee->id]);
+        User::factory()->create(['role' => UserRole::STAFF->value, 'employee_id' => $crossDepartment->id]);
 
-        $this->actingAs($data['superAdmin'])
-            ->post(route('wla.participants.store', $data['assessment']), ['employee_id' => $otherEmployee->id])
+        $otherSameDepartmentUnit = $data['department']->units()->create(['code' => 'U03', 'name' => 'Other Unit', 'active' => true]);
+        $otherSameDepartmentPosition = $otherSameDepartmentUnit->positions()->create(['code' => 'P03', 'name' => 'Other Unit Position', 'active' => true]);
+        $crossUnit = Employee::create([
+            'sap' => '2202', 'personal_number' => 'Cross Unit',
+            'department_id' => $data['department']->id, 'unit_id' => $otherSameDepartmentUnit->id,
+            'position_id' => $otherSameDepartmentPosition->id,
+        ]);
+        User::factory()->create(['role' => UserRole::STAFF->value, 'employee_id' => $crossUnit->id]);
+
+        $otherPosition = $data['unit']->positions()->create(['code' => 'P04', 'name' => 'Other Position', 'active' => true]);
+        $crossPosition = Employee::create([
+            'sap' => '2203', 'personal_number' => 'Cross Position',
+            'department_id' => $data['department']->id, 'unit_id' => $data['unit']->id,
+            'position_id' => $otherPosition->id,
+        ]);
+        User::factory()->create(['role' => UserRole::STAFF->value, 'employee_id' => $crossPosition->id]);
+
+        $withoutStaffAccount = Employee::create([
+            'sap' => '2204', 'personal_number' => 'No Staff Account',
+            'department_id' => $data['department']->id, 'unit_id' => $data['unit']->id,
+            'position_id' => $data['position']->id,
+        ]);
+
+        $this->actingAs($data['manager']);
+        foreach ([$crossDepartment, $crossUnit, $crossPosition, $withoutStaffAccount] as $employee) {
+            $this->post(route('wla.participants.store', $data['assessment']), ['employee_id' => $employee->id])
+                ->assertSessionHasErrors('employee_id');
+        }
+
+        $this->post(route('wla.participants.store', $data['assessment']), ['employee_id' => $validStaff['employee']->id])
+            ->assertRedirect();
+        $this->post(route('wla.participants.store', $data['assessment']), ['employee_id' => $validStaff['employee']->id])
             ->assertSessionHasErrors('employee_id');
-        $this->actingAs($data['manager'])
-            ->post(route('wla.participants.store', $data['assessment']), ['employee_id' => $data['employee']->id])
+
+        $finalAssessment = $this->assessment($data, 'WLA-2027-FINAL', 2027);
+        $finalAssessment->forceFill(['status' => WlaAssessmentStatus::Final])->save();
+        $this->post(route('wla.participants.store', $finalAssessment), ['employee_id' => $validStaff['employee']->id])
             ->assertForbidden();
+    }
+
+    public function test_assignment_details_and_legacy_fallback_are_visible_to_management_and_owner(): void
+    {
+        $data = $this->context();
+        $participant = $data['assessment']->participants()->create([
+            'employee_id' => $data['employee']->id,
+            'assigned_by' => $data['manager']->id,
+            'status' => WlaParticipantStatus::Draft,
+        ]);
+
+        $this->actingAs($data['manager'])->get(route('wla.show', $data['assessment']))
+            ->assertOk()
+            ->assertSee('Ditugaskan oleh: '.$data['manager']->name.' (Manager)');
+        $this->actingAs($data['staff'])->get(route('wla.staff.show', $participant))
+            ->assertOk()
+            ->assertSee('Ditugaskan oleh: '.$data['manager']->name.' (Manager)');
+
+        $participant->update(['assigned_by' => null]);
+        $this->get(route('wla.staff.show', $participant))
+            ->assertOk()
+            ->assertSee('Pemberi tugas tidak tercatat (data lama)');
+    }
+
+    public function test_assignment_reuses_the_single_existing_participant_route(): void
+    {
+        $routes = collect(Route::getRoutes()->getRoutes())
+            ->filter(fn (IlluminateRoute $route): bool => $route->getName() === 'wla.participants.store');
+
+        $this->assertCount(1, $routes);
+        $this->assertSame('wla/{wla}/participants', $routes->first()->uri());
     }
 
     public function test_staff_and_review_forms_use_reusable_sweetalert_attributes(): void

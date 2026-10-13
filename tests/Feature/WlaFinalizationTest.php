@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Enums\WlaActivityOrigin;
 use App\Enums\WlaAssessmentStatus;
 use App\Enums\WlaLegacyBackfillCategory;
 use App\Enums\WlaPeriodUnit;
@@ -60,6 +61,31 @@ class WlaFinalizationTest extends TestCase
             $this->assertSame(WlaAssessmentStatus::Final, $assessment->status);
             $this->assertSame($data['user']->id, $assessment->finalized_by);
         }
+    }
+
+    public function test_final_snapshot_freezes_optional_activity_actor_metadata(): void
+    {
+        $data = $this->context();
+        $assessment = $this->assessment($data);
+        $updater = User::factory()->create(['role' => UserRole::MANAGER->value]);
+        $this->activity($assessment, [
+            'origin' => WlaActivityOrigin::Staff,
+            'created_by' => $data['user']->id,
+            'updated_by' => $updater->id,
+        ]);
+
+        $this->actingAs($data['user'])->post(route('wla.finalize', $assessment))->assertRedirect();
+
+        $activitySnapshot = $assessment->fresh()->final_snapshot['activities'][0];
+        $this->assertSame(WlaActivityOrigin::Staff->value, $activitySnapshot['origin']);
+        $this->assertSame([
+            'name' => $data['user']->name,
+            'role' => UserRole::SUPER_ADMIN->value,
+        ], $activitySnapshot['creator']);
+        $this->assertSame([
+            'name' => $updater->name,
+            'role' => UserRole::MANAGER->value,
+        ], $activitySnapshot['updater']);
     }
 
     public function test_staff_and_member_cannot_finalize(): void
@@ -146,6 +172,7 @@ class WlaFinalizationTest extends TestCase
         $this->assertSame($assessment->period, $snapshot['calendar']['year']);
         $this->assertSame('Snapshot note', $snapshot['activities'][0]['notes']);
         $this->assertSame($activity->sort_order, $snapshot['activities'][0]['sort_order']);
+        $this->assertSame(WlaActivityOrigin::Legacy->value, $snapshot['activities'][0]['origin']);
 
         foreach ([
             $snapshot['efficiency_factor'], $snapshot['annual_working_hours'],

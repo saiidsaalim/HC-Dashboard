@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Enums\WlaActivityOrigin;
 use App\Enums\WlaAssessmentStatus;
 use App\Enums\WlaLegacyBackfillCategory;
 use App\Enums\WlaPeriodUnit;
@@ -35,7 +36,12 @@ class WlaActivityTest extends TestCase
         [$user, $assessment] = $this->context();
 
         $this->actingAs($user)
-            ->post(route('wla.activities.store', $assessment), $this->activityPayload())
+            ->post(route('wla.activities.store', $assessment), [
+                ...$this->activityPayload(),
+                'origin' => WlaActivityOrigin::Staff->value,
+                'created_by' => 999,
+                'updated_by' => 999,
+            ])
             ->assertRedirect(route('wla.show', $assessment));
 
         $activity = $assessment->activities()->sole();
@@ -45,6 +51,9 @@ class WlaActivityTest extends TestCase
         $this->assertSame(WlaPeriodUnit::Week, $activity->period_unit);
         $this->assertSame('1.75', $activity->time_allocated_hours);
         $this->assertSame('227.5000', $activity->annual_workload_hours);
+        $this->assertSame(WlaActivityOrigin::Management, $activity->origin);
+        $this->assertSame($user->id, $activity->created_by);
+        $this->assertNull($activity->updated_by);
         $this->assertSame('227.5000', $assessment->total_annual_workload_hours);
         $this->assertSame('0.159784', $assessment->fte);
         $this->assertSame(1, $assessment->recommended_employees);
@@ -83,14 +92,22 @@ class WlaActivityTest extends TestCase
             ->post(route('wla.activities.store', $assessment), $this->activityPayload())
             ->assertRedirect();
         $activity = $assessment->activities()->sole();
+        $creatorId = $activity->created_by;
+        $updater = User::factory()->create(['role' => UserRole::MANAGER->value]);
 
-        $this->put(route('wla.activities.update', [$assessment, $activity]), $this->activityPayload([
+        $this->actingAs($updater)->put(route('wla.activities.update', [$assessment, $activity]), $this->activityPayload([
             'frequency' => '3.25',
             'period_unit' => WlaPeriodUnit::Month->value,
             'time_allocated_hours' => '2.50',
+            'origin' => WlaActivityOrigin::Staff->value,
+            'created_by' => $updater->id,
+            'updated_by' => $user->id,
         ]))->assertRedirect();
 
         $activity->refresh();
+        $this->assertSame(WlaActivityOrigin::Management, $activity->origin);
+        $this->assertSame($creatorId, $activity->created_by);
+        $this->assertSame($updater->id, $activity->updated_by);
         $this->assertSame(WlaPeriodUnit::Month->value, $activity->getRawOriginal('frequency_unit'));
         $this->assertSame('1.00', $activity->volume);
         $this->assertSame(WlaPeriodUnit::Month->value, $activity->getRawOriginal('volume_unit'));
@@ -123,11 +140,14 @@ class WlaActivityTest extends TestCase
     {
         [$user, $assessment] = $this->context();
         $assessment->activities()->create($this->legacyActivityPayload());
+        $this->assertSame(WlaActivityOrigin::Legacy, $assessment->activities()->sole()->origin);
 
         $response = $this->actingAs($user)->get(route('wla.show', $assessment));
 
         $response->assertOk()
             ->assertSee('Perlu review')
+            ->assertSee('Dibuat oleh:')
+            ->assertSee('Tidak tercatat (data lama)')
             ->assertSee('Hasil FTE belum lengkap');
         $this->assertSame('0.0000', $assessment->fresh()->total_annual_workload_hours);
     }
@@ -135,9 +155,17 @@ class WlaActivityTest extends TestCase
     public function test_activity_form_uses_new_structure_and_omits_legacy_fields(): void
     {
         [$user, $assessment] = $this->context();
+        $this->actingAs($user)->post(route('wla.activities.store', $assessment), $this->activityPayload());
 
-        $this->actingAs($user)->get(route('wla.show', $assessment))
+        $this->get(route('wla.show', $assessment))
             ->assertOk()
+            ->assertSee('>Aktivitas</h3>', false)
+            ->assertSee('Dibuat oleh:')
+            ->assertSee($user->name.' (Super Admin)')
+            ->assertSee('align-top', false)
+            ->assertSee('space-y-1', false)
+            ->assertDontSee('Dari'.' Staff')
+            ->assertDontSee('Aktivitas'.' Resmi')
             ->assertSee('name="activity_name"', false)
             ->assertSee('name="frequency"', false)
             ->assertSee('name="period_unit"', false)

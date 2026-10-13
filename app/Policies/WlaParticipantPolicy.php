@@ -48,7 +48,7 @@ class WlaParticipantPolicy
 
     public function manageParticipants(User $user, WlaAssessment $wlaAssessment): bool
     {
-        return $user->roleEnum() === UserRole::SUPER_ADMIN
+        return $user->roleEnum()->canManageRbac()
             && $wlaAssessment->status === WlaAssessmentStatus::Draft;
     }
 

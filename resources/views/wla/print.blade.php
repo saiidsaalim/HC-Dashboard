@@ -24,6 +24,8 @@
         .summary { margin-top: 10px; }
         .summary .value { width: 28%; text-align: right; font-weight: 700; }
         .frozen { margin-top: 10px; text-align: center; font-size: 9px; font-weight: 700; }
+        .staff-origin { background: #f0f9ff; }
+        .actor-meta { margin-top: 3px; color: #64748b; font-size: 8px; }
         @media print {
             .no-print { display: none !important; }
             .sheet { width: 100%; }
@@ -43,9 +45,9 @@
         <table class="identity">
             <tbody>
                 <tr><td class="label">Kode Assessment</td><td>{{ data_get($snapshot, 'assessment_code') }}</td><td class="label">Periode</td><td>{{ data_get($snapshot, 'period') }}</td></tr>
-                <tr><td class="label">Departemen</td><td colspan="3">{{ data_get($snapshot, 'department.code') }} - {{ data_get($snapshot, 'department.name') }}</td></tr>
-                <tr><td class="label">Unit</td><td colspan="3">{{ data_get($snapshot, 'unit.code') }} - {{ data_get($snapshot, 'unit.name') }}</td></tr>
-                <tr><td class="label">Posisi</td><td colspan="3">{{ data_get($snapshot, 'position.code') }} - {{ data_get($snapshot, 'position.name') }}</td></tr>
+                <tr><td class="label">Departemen</td><td colspan="3">{{ data_get($snapshot, 'department.name') }}</td></tr>
+                <tr><td class="label">Unit</td><td colspan="3">{{ data_get($snapshot, 'unit.name') }}</td></tr>
+                <tr><td class="label">Posisi</td><td colspan="3">{{ data_get($snapshot, 'position.name') }}</td></tr>
                 <tr><td class="label">Jadwal Kerja</td><td>{{ data_get($snapshot, 'schedule.code') }} - {{ data_get($snapshot, 'schedule.name') }}</td><td class="label">Kelompok / Jam Harian WLA</td><td>{{ data_get($snapshot, 'schedule.calculation_type_label') }} / {{ data_get($snapshot, 'schedule.wla_hours_per_day') }} jam</td></tr>
             </tbody>
         </table>
@@ -68,9 +70,23 @@
             </thead>
             <tbody>
                 @foreach (data_get($snapshot, 'activities', []) as $activity)
-                    <tr>
+                    @php($isStaffOrigin = data_get($activity, 'origin', 'legacy') === \App\Enums\WlaActivityOrigin::Staff->value)
+                    <tr @class(['staff-origin' => $isStaffOrigin])>
                         <td class="activity-number">{{ $loop->iteration }}</td>
-                        <td>{{ data_get($activity, 'activity_name') }}</td>
+                        <td>
+                            {{ data_get($activity, 'activity_name') }}
+                            <div class="actor-meta">
+                                Dibuat oleh:
+                                @if (data_get($activity, 'creator.name'))
+                                    {{ data_get($activity, 'creator.name') }} ({{ data_get($activity, 'creator.role') }})
+                                @else
+                                    Tidak tercatat (data lama)
+                                @endif
+                            </div>
+                            @if (data_get($activity, 'updater.name'))
+                                <div class="actor-meta">Terakhir diubah oleh: {{ data_get($activity, 'updater.name') }} ({{ data_get($activity, 'updater.role') }})</div>
+                            @endif
+                        </td>
                         <td class="numeric">{{ data_get($activity, 'frequency') }}</td>
                         <td>{{ match (data_get($activity, 'period_unit')) { 'Day' => 'Hari', 'Week' => 'Minggu', 'Month' => 'Bulan', 'Year' => 'Tahun', default => data_get($activity, 'period_unit') } }}</td>
                         <td class="numeric">{{ data_get($activity, 'time_allocated_hours') }}</td>

@@ -2,6 +2,7 @@
 
 namespace App\Services\Workforce;
 
+use App\Enums\WlaActivityOrigin;
 use App\Enums\WlaAssessmentStatus;
 use App\Models\WlaAssessment;
 use Illuminate\Validation\ValidationException;
@@ -94,6 +95,16 @@ class WlaFinalSnapshotService
                 ]);
             }
         }
+
+        $snapshot['activities'] = array_map(
+            fn (array $activity): array => [
+                ...$activity,
+                'origin' => $activity['origin'] ?? WlaActivityOrigin::Legacy->value,
+                'creator' => is_array($activity['creator'] ?? null) ? $activity['creator'] : null,
+                'updater' => is_array($activity['updater'] ?? null) ? $activity['updater'] : null,
+            ],
+            $snapshot['activities'],
+        );
 
         return $snapshot;
     }

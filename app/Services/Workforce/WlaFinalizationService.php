@@ -2,6 +2,7 @@
 
 namespace App\Services\Workforce;
 
+use App\Enums\WlaActivityOrigin;
 use App\Enums\WlaAssessmentStatus;
 use App\Models\User;
 use App\Models\WlaActivity;
@@ -52,7 +53,8 @@ class WlaFinalizationService
                     'position',
                     'workSchedule',
                     'workCalendar',
-                    'activities',
+                    'activities.creator',
+                    'activities.updater',
                 ]);
                 $calculationState = $this->wlaCalculationService->calculationState($recalculatedAssessment);
 
@@ -232,6 +234,15 @@ class WlaFinalizationService
                     'annual_workload_hours' => (string) $activity->annual_workload_hours,
                     'sort_order' => $activity->sort_order,
                     'notes' => $activity->notes,
+                    'origin' => ($activity->origin ?? WlaActivityOrigin::Legacy)->value,
+                    'creator' => $activity->creator === null ? null : [
+                        'name' => $activity->creator->name,
+                        'role' => $activity->creator->roleEnum()->value,
+                    ],
+                    'updater' => $activity->updater === null ? null : [
+                        'name' => $activity->updater->name,
+                        'role' => $activity->updater->roleEnum()->value,
+                    ],
                 ])->all(),
             'total_annual_workload' => (string) $assessment->total_annual_workload_hours,
             'fte' => (string) $assessment->fte,

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Enums\WlaActivityOrigin;
 use App\Enums\WlaAssessmentStatus;
 use App\Enums\WorkScheduleCalculationType;
 use App\Exports\WlaFinalSpreadsheet;
@@ -106,6 +107,9 @@ class WlaFinalExportTest extends TestCase
         $snapshot = $this->snapshot($data, [[
             ...$this->activity(1),
             'activity_name' => '<script>alert("snapshot")</script>',
+            'origin' => WlaActivityOrigin::Staff->value,
+            'creator' => ['name' => 'Snapshot Staff', 'role' => UserRole::STAFF->value],
+            'updater' => ['name' => 'Snapshot Manager', 'role' => UserRole::MANAGER->value],
         ]]);
         $assessment = $this->finalAssessment($data, $snapshot);
         $data['department']->update(['name' => 'Live Department Changed']);
@@ -114,11 +118,19 @@ class WlaFinalExportTest extends TestCase
         $this->actingAs($data['user'])->get(route('wla.print', $assessment))
             ->assertOk()
             ->assertSee('Snapshot Department')
+            ->assertDontSee('D-SNAP')
+            ->assertDontSee('U-SNAP')
+            ->assertDontSee('P-SNAP')
             ->assertSee('Snapshot Schedule')
             ->assertDontSee('Live Department Changed')
             ->assertDontSee('Live Schedule Changed')
             ->assertSee('&lt;script&gt;alert(&quot;snapshot&quot;)&lt;/script&gt;', false)
             ->assertDontSee('<script>alert("snapshot")</script>', false)
+            ->assertSee('Dibuat oleh:')
+            ->assertSee('Snapshot Staff (Staff)')
+            ->assertSee('Terakhir diubah oleh: Snapshot Manager (Manager)')
+            ->assertDontSee('Dari'.' Staff')
+            ->assertSee('staff-origin', false)
             ->assertSee('1.234567')
             ->assertSee('2');
     }
@@ -136,12 +148,17 @@ class WlaFinalExportTest extends TestCase
             'content-type',
             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         );
-        $response->assertDownload('WLA-2025-POS-Very-Long-Position-Code-123456789-WLA-FINAL-2025-01.xlsx');
+        $response->assertDownload('WLA-2025-Snapshot-Position-WLA-FINAL-2025-01.xlsx');
         $sheet = $workbook->getActiveSheet();
 
+        $this->assertSame('Snapshot Position 2025', $sheet->getTitle());
         $this->assertLessThanOrEqual(31, mb_strlen($sheet->getTitle()));
         $this->assertDoesNotMatchRegularExpression('/[*:\/\\?\[\]]/', $sheet->getTitle());
-        $this->assertSame('D-SNAP - Snapshot Department', $sheet->getCell('B14')->getValue());
+        $this->assertStringNotContainsString('POS', $sheet->getTitle());
+        $this->assertSame('Snapshot Position', $sheet->getCell('B13')->getValue());
+        $this->assertSame('Snapshot Department', $sheet->getCell('B14')->getValue());
+        $this->assertSame('Snapshot Unit', $sheet->getCell('B15')->getValue());
+        $this->assertSame('Snapshot Position', $sheet->getCell('B36')->getValue());
         $this->assertSame('Snapshot activity 1', $sheet->getCell('B40')->getValue());
         $this->assertSame('1.25', $sheet->getCell('C40')->getValue());
         $this->assertSame('37.5000', $sheet->getCell('M40')->getValue());
@@ -175,7 +192,7 @@ class WlaFinalExportTest extends TestCase
         [, $workbook] = $this->exportWorkbook($data['user'], $assessment);
         $sheet = $workbook->getActiveSheet();
 
-        $this->assertSame('D-SNAP - Snapshot Department', $sheet->getCell('B14')->getValue());
+        $this->assertSame('Snapshot Department', $sheet->getCell('B14')->getValue());
         $this->assertSame("'=HYPERLINK(\"https://example.test\",\"attack\")", $sheet->getCell('B40')->getValue());
         $this->assertSame(DataType::TYPE_STRING, $sheet->getCell('B40')->getDataType());
         $this->assertStringNotContainsString(
@@ -206,6 +223,71 @@ class WlaFinalExportTest extends TestCase
         $this->assertSame(1, $sheet->getPageSetup()->getFitToWidth());
         $this->assertSame('pageLayout', $sheet->getSheetView()->getView());
         $this->assertSame('456.7890 jam', $sheet->getCell('M66')->getValue());
+    }
+
+    public function test_legacy_snapshot_without_origin_defaults_to_legacy_without_mutating_stored_snapshot(): void
+    {
+        $data = $this->context();
+        $assessment = $this->finalAssessment($data);
+        $storedSnapshot = $assessment->final_snapshot;
+        $this->assertArrayNotHasKey('origin', $storedSnapshot['activities'][0]);
+
+        $validated = app(WlaFinalSnapshotService::class)->validatedSnapshot($assessment);
+
+        $this->assertSame(WlaActivityOrigin::Legacy->value, $validated['activities'][0]['origin']);
+        $this->assertNull($validated['activities'][0]['creator']);
+        $this->assertNull($validated['activities'][0]['updater']);
+        $this->assertArrayNotHasKey('origin', $assessment->fresh()->final_snapshot['activities'][0]);
+        $this->assertArrayNotHasKey('creator', $assessment->fresh()->final_snapshot['activities'][0]);
+        $this->assertArrayNotHasKey('updater', $assessment->fresh()->final_snapshot['activities'][0]);
+        $this->assertSame('D-SNAP', $assessment->fresh()->final_snapshot['department']['code']);
+        $this->assertSame('U-SNAP', $assessment->fresh()->final_snapshot['unit']['code']);
+        $this->assertSame('P-SNAP', $assessment->fresh()->final_snapshot['position']['code']);
+        $this->actingAs($data['user'])->get(route('wla.show', $assessment))
+            ->assertOk()
+            ->assertSee('Snapshot Department')
+            ->assertSee('Snapshot Unit')
+            ->assertSee('Snapshot Position')
+            ->assertDontSee('D-SNAP')
+            ->assertDontSee('U-SNAP')
+            ->assertDontSee('P-SNAP')
+            ->assertSee('Dibuat oleh:')
+            ->assertSee('Tidak tercatat (data lama)')
+            ->assertDontSee('Dari'.' Staff');
+        $this->get(route('wla.print', $assessment))
+            ->assertOk()
+            ->assertSee('Dibuat oleh:')
+            ->assertSee('Tidak tercatat (data lama)');
+    }
+
+    public function test_final_web_marker_comes_from_snapshot_origin_instead_of_live_activity(): void
+    {
+        $data = $this->context();
+        $snapshot = $this->snapshot($data, [[
+            ...$this->activity(1),
+            'activity_name' => 'Aktivitas Staff Beku',
+            'origin' => WlaActivityOrigin::Staff->value,
+            'creator' => ['name' => 'Creator Snapshot Beku', 'role' => UserRole::STAFF->value],
+            'updater' => null,
+        ]]);
+        $assessment = $this->finalAssessment($data, $snapshot);
+        $assessment->activities()->create([
+            'activity_name' => 'Aktivitas Live Management', 'frequency' => '1.00',
+            'frequency_unit' => 'Day', 'volume' => '1.00', 'volume_unit' => 'Day',
+            'time_allocated' => '1.00', 'time_unit' => 'Hour', 'sort_order' => 0,
+            'origin' => WlaActivityOrigin::Management,
+        ]);
+
+        $html = $this->actingAs($data['user'])->get(route('wla.show', $assessment))
+            ->assertOk()
+            ->assertDontSee('Aktivitas Live Management')
+            ->getContent();
+
+        $this->assertMatchesRegularExpression(
+            '/<tr class="align-top bg-sky-50">.*?Aktivitas Staff Beku.*?Dibuat oleh:.*?Creator Snapshot Beku.*?\(Staff\).*?<\/tr>/s',
+            $html,
+        );
+        $this->assertStringNotContainsString('Dari'.' Staff', $html);
     }
 
     public function test_export_does_not_modify_template_or_final_assessment_and_deletes_temp_after_send(): void

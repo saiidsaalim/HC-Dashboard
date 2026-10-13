@@ -104,7 +104,7 @@ class WlaFinalSpreadsheet
         $filename = implode('-', [
             'WLA',
             data_get($snapshot, 'period'),
-            data_get($snapshot, 'position.code'),
+            data_get($snapshot, 'position.name'),
             data_get($snapshot, 'assessment_code'),
         ]);
         $filename = preg_replace('/[^\pL\pN._-]+/u', '-', (string) $filename);
@@ -364,7 +364,7 @@ class WlaFinalSpreadsheet
     /** @param array<string, mixed> $snapshot */
     private function sheetTitle(array $snapshot): string
     {
-        $title = data_get($snapshot, 'position.code').' '.data_get($snapshot, 'period');
+        $title = data_get($snapshot, 'position.name').' '.data_get($snapshot, 'period');
         $title = str_replace(Worksheet::getInvalidCharacters(), '-', (string) $title);
         $title = trim(preg_replace('/\s+/u', ' ', $title) ?? '');
 
@@ -374,7 +374,7 @@ class WlaFinalSpreadsheet
     /** @param array<string, mixed> $snapshot */
     private function identity(array $snapshot, string $key): string
     {
-        return trim(data_get($snapshot, "{$key}.code").' - '.data_get($snapshot, "{$key}.name"), ' -');
+        return (string) data_get($snapshot, "{$key}.name");
     }
 
     private function writeText(Worksheet $sheet, string $coordinate, mixed $value): void

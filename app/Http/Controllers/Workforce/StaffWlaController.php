@@ -42,6 +42,7 @@ class StaffWlaController extends Controller
                 ]),
                 'assessment.position:id,name',
             ])
+            ->with('assigner:id,name,role')
             ->withCount('activities')
             ->orderByDesc('id')
             ->paginate(15);
@@ -62,6 +63,8 @@ class StaffWlaController extends Controller
             'assessment.department:id,name',
             'assessment.unit:id,name',
             'assessment.position:id,name',
+            'assigner:id,name,role',
+            'reviewer:id,name,role',
             'activities',
         ]);
 
@@ -140,11 +143,11 @@ class StaffWlaController extends Controller
     ): RedirectResponse {
         DB::transaction(function () use ($participant, $activity): void {
             $lockedParticipant = $this->lockedEditableParticipant($participant);
-            $lockedParticipant->activities()
+            $lockedActivity = $lockedParticipant->activities()
                 ->whereKey($activity->getKey())
                 ->lockForUpdate()
-                ->firstOrFail()
-                ->delete();
+                ->firstOrFail();
+            $lockedActivity->delete();
         });
 
         return to_route('wla.staff.show', $participant)->with('status', 'Aktivitas berhasil dihapus.');

@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'wla_assessment_id', 'employee_id', 'status', 'submitted_at',
+    'wla_assessment_id', 'employee_id', 'assigned_by', 'status', 'submitted_at',
     'reviewed_at', 'reviewed_by', 'review_note', 'applied_at', 'applied_by',
 ])]
 class WlaParticipant extends Model
@@ -37,6 +37,11 @@ class WlaParticipant extends Model
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    public function assigner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_by');
     }
 
     public function appliedBy(): BelongsTo

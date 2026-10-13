@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Workforce;
 
+use App\Enums\UserRole;
 use App\Enums\WlaAssessmentStatus;
 use App\Enums\WlaPeriodUnit;
 use App\Exports\WlaFinalSpreadsheet;
@@ -89,13 +90,14 @@ class WlaAssessmentController extends Controller
 
             return view('wla.show', [
                 'wla' => $wla,
-                'finalSnapshot' => $wla->final_snapshot,
+                'finalSnapshot' => $this->wlaFinalSnapshotService->validatedSnapshot($wla),
             ]);
         }
 
         $wla->load([
-            'department', 'unit', 'position', 'workSchedule', 'workCalendar', 'creator', 'activities',
-            'participants.employee.user', 'participants.reviewer', 'participants.appliedBy',
+            'department', 'unit', 'position', 'workSchedule', 'workCalendar', 'creator',
+            'activities.creator', 'activities.updater',
+            'participants.employee.user', 'participants.assigner', 'participants.reviewer', 'participants.appliedBy',
         ]);
         $calculationState = $this->wlaCalculationService->calculationState($wla);
         $participantOptions = collect();
@@ -105,7 +107,7 @@ class WlaAssessmentController extends Controller
                 ->where('department_id', $wla->department_id)
                 ->where('unit_id', $wla->unit_id)
                 ->where('position_id', $wla->position_id)
-                ->whereHas('user', fn (Builder $query): Builder => $query->where('role', 'Staff'))
+                ->whereHas('user', fn (Builder $query): Builder => $query->where('role', UserRole::STAFF->value))
                 ->whereDoesntHave('wlaParticipations', fn (Builder $query): Builder => $query
                     ->where('wla_assessment_id', $wla->getKey()))
                 ->with('user:id,employee_id,name')

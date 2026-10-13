@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Workforce;
 
+use App\Enums\WlaActivityOrigin;
 use App\Enums\WlaParticipantStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ReviewWlaParticipantRequest;
@@ -32,6 +33,7 @@ class WlaParticipantController extends Controller
             Gate::authorize('manageParticipants', [WlaParticipant::class, $lockedAssessment]);
             $lockedAssessment->participants()->create([
                 'employee_id' => $request->validated('employee_id'),
+                'assigned_by' => $request->user()->getKey(),
                 'status' => WlaParticipantStatus::Draft,
             ]);
         });
@@ -62,7 +64,7 @@ class WlaParticipantController extends Controller
         Gate::authorize('view', $wla);
         $participant = $wla->participants()->whereKey($participant->getKey())->firstOrFail();
         Gate::authorize('view', $participant);
-        $participant->load(['employee.user', 'reviewer', 'appliedBy', 'activities']);
+        $participant->load(['employee.user', 'assigner', 'reviewer', 'appliedBy', 'activities']);
 
         return view('wla.participants.show', [
             'wla' => $wla->load(['department', 'unit', 'position']),
@@ -139,15 +141,20 @@ class WlaParticipantController extends Controller
 
             $maximumSortOrder = $lockedParticipant->assessment->activities()->max('sort_order');
             $nextSortOrder = ((int) ($maximumSortOrder ?? -1)) + 1;
+            $lockedParticipant->loadMissing('employee.user');
+            $staffUserId = $lockedParticipant->employee?->user?->getKey();
 
             foreach ($activities as $activity) {
                 if ($nextSortOrder > WlaActivity::MAX_SORT_ORDER) {
                     throw ValidationException::withMessages([
-                        'sort_order' => 'Urutan aktivitas resmi telah mencapai batas maksimum.',
+                        'sort_order' => 'Urutan aktivitas telah mencapai batas maksimum.',
                     ]);
                 }
 
                 $lockedParticipant->assessment->activities()->create([
+                    'origin' => WlaActivityOrigin::Staff,
+                    'created_by' => $staffUserId,
+                    'updated_by' => null,
                     'activity_name' => $activity->activity_name,
                     'frequency' => $activity->frequency,
                     'period_unit' => $activity->period_unit,
@@ -170,7 +177,7 @@ class WlaParticipantController extends Controller
         });
 
         return to_route('wla.show', $wla)
-            ->with('status', 'Aktivitas yang disetujui ditambahkan ke Aktivitas Resmi.');
+            ->with('status', 'Aktivitas yang disetujui berhasil ditambahkan ke daftar Aktivitas.');
     }
 
     private function lockedNestedParticipant(
