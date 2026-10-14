@@ -19,7 +19,7 @@
             <div><dt class="font-semibold text-slate-700">Email</dt><dd class="mt-1 text-slate-600">{{ $user->email }}</dd></div>
             <div><dt class="font-semibold text-slate-700">Role</dt><dd class="mt-1 text-slate-600">{{ $user->role }}</dd></div>
         </dl>
-        <p class="mt-3 text-sm text-slate-500">Nama akun Staff mengikuti Personal Number dan email mengikuti data Employee. Keduanya hanya dapat diperbarui melalui data Employee.</p>
+        <p class="mt-3 text-sm text-slate-500">Identitas akun terhubung mengikuti Personal Number dan email pada data Employee. Keduanya hanya dapat diperbarui melalui data Employee.</p>
     @else
         <form method="post" action="{{ route('profile.update') }}" class="mt-6 space-y-6">
         @csrf

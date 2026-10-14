@@ -135,6 +135,91 @@ class UserManagementTest extends TestCase
         $this->assertSame($user->name, $user->fresh()->name);
     }
 
+    public function test_changing_linked_staff_to_manager_or_admin_preserves_employee_relationship(): void
+    {
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+
+        foreach ([UserRole::MANAGER, UserRole::ADMIN] as $newRole) {
+            $employee = Employee::create([
+                'sap' => 'SAP-'.$newRole->value,
+                'personal_number' => 'PN-'.$newRole->value,
+                'email' => strtolower($newRole->value).'@example.com',
+            ]);
+            $user = User::factory()->create([
+                'role' => UserRole::STAFF->value,
+                'employee_id' => $employee->id,
+            ]);
+
+            $this->actingAs($superAdmin)->patch(route('konfigurasi-user.role', $user), [
+                'role' => $newRole->value,
+            ])->assertRedirect()->assertSessionHas('status', 'Role pengguna berhasil diperbarui.');
+
+            $updatedUser = $user->fresh();
+            $this->assertSame($newRole->value, $updatedUser->role);
+            $this->assertSame($employee->id, $updatedUser->employee_id);
+            $this->assertTrue($updatedUser->employee->is($employee));
+        }
+
+        $this->actingAs($superAdmin)->get(route('konfigurasi-user'))
+            ->assertOk()
+            ->assertSee('PN-Manager')
+            ->assertSee('PN-Admin');
+    }
+
+    public function test_changing_role_does_not_create_an_employee_relationship_for_an_unlinked_user(): void
+    {
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        $user = User::factory()->create([
+            'role' => UserRole::STAFF->value,
+            'employee_id' => null,
+        ]);
+
+        $this->actingAs($superAdmin)->patch(route('konfigurasi-user.role', $user), [
+            'role' => UserRole::MANAGER->value,
+        ])->assertRedirect();
+
+        $this->assertSame(UserRole::MANAGER->value, $user->fresh()->role);
+        $this->assertNull($user->fresh()->employee_id);
+    }
+
+    public function test_manager_cannot_change_roles_and_super_admin_cannot_demote_self(): void
+    {
+        $manager = User::factory()->create(['role' => UserRole::MANAGER->value]);
+        $user = User::factory()->create(['role' => UserRole::STAFF->value]);
+
+        $this->actingAs($manager)->patch(route('konfigurasi-user.role', $user), [
+            'role' => UserRole::ADMIN->value,
+        ])->assertForbidden();
+
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        $this->actingAs($superAdmin)->patch(route('konfigurasi-user.role', $superAdmin), [
+            'role' => UserRole::MANAGER->value,
+        ])->assertForbidden();
+
+        $this->assertSame(UserRole::STAFF->value, $user->fresh()->role);
+        $this->assertSame(UserRole::SUPER_ADMIN->value, $superAdmin->fresh()->role);
+    }
+
+    public function test_linked_manager_still_cannot_access_staff_wla(): void
+    {
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        $employee = Employee::create([
+            'sap' => 'SAP-WLA-ROLE',
+            'personal_number' => 'PN-WLA-ROLE',
+            'email' => 'wla-role@example.com',
+        ]);
+        $user = User::factory()->create([
+            'role' => UserRole::STAFF->value,
+            'employee_id' => $employee->id,
+        ]);
+
+        $this->actingAs($superAdmin)->patch(route('konfigurasi-user.role', $user), [
+            'role' => UserRole::MANAGER->value,
+        ])->assertRedirect();
+
+        $this->actingAs($user->fresh())->get(route('wla.staff.index'))->assertForbidden();
+    }
+
     public function test_super_admin_can_import_users_from_csv_with_email_and_password(): void
     {
         $admin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);

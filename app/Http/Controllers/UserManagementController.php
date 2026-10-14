@@ -118,10 +118,7 @@ class UserManagementController extends Controller
 
         abort_if($actor->is($user) && $newRole !== UserRole::SUPER_ADMIN, 403, 'Anda tidak dapat menurunkan role akun sendiri.');
 
-        $user->update([
-            'role' => $newRole->value,
-            ...($newRole === UserRole::STAFF ? [] : ['employee_id' => null]),
-        ]);
+        $user->update(['role' => $newRole->value]);
 
         return back()->with('status', 'Role pengguna berhasil diperbarui.');
     }

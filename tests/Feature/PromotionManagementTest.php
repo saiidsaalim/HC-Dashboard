@@ -93,6 +93,68 @@ class PromotionManagementTest extends TestCase
         $this->assertDatabaseHas('promotion_approval_configs', ['step_order' => 3, 'user_id' => $managerTwo->id]);
     }
 
+    public function test_linked_staff_promoted_to_manager_or_admin_are_selectable_and_snapshot_employee_sap(): void
+    {
+        $superAdmin = $this->user(UserRole::SUPER_ADMIN);
+        $managerEmployee = $this->employee('SAP-LINKED-MANAGER', [
+            'personal_number' => 'PN-LINKED-MANAGER',
+            'email' => 'linked-manager@example.com',
+        ]);
+        $adminEmployee = $this->employee('SAP-LINKED-ADMIN', [
+            'personal_number' => 'PN-LINKED-ADMIN',
+            'email' => 'linked-admin@example.com',
+        ]);
+        $promotedManager = $this->user(UserRole::STAFF, 'Manager Terhubung', $managerEmployee);
+        $promotedAdmin = $this->user(UserRole::STAFF, 'Admin Terhubung', $adminEmployee);
+        $thirdApprover = $this->user(UserRole::MANAGER, 'Approver Ketiga');
+
+        $this->actingAs($superAdmin)->patch(route('konfigurasi-user.role', $promotedManager), [
+            'role' => UserRole::MANAGER->value,
+        ])->assertRedirect();
+        $this->actingAs($superAdmin)->patch(route('konfigurasi-user.role', $promotedAdmin), [
+            'role' => UserRole::ADMIN->value,
+        ])->assertRedirect();
+
+        $this->actingAs($superAdmin)->get(route('promosi.approval-settings.edit'))
+            ->assertOk()
+            ->assertSee('SAP-LINKED-MANAGER')
+            ->assertSee('Manager Terhubung')
+            ->assertSee('SAP-LINKED-ADMIN')
+            ->assertSee('Admin Terhubung');
+
+        $this->actingAs($superAdmin)->put(route('promosi.approval-settings.update'), [
+            'approvers' => [
+                1 => $promotedManager->id,
+                2 => $promotedAdmin->id,
+                3 => $thirdApprover->id,
+            ],
+        ])->assertRedirect(route('promosi.approval-settings.edit'));
+
+        $promotion = $this->promotion($this->employee('SAP-PROMOTION-LINKED-APPROVER'));
+        $this->actingAs($superAdmin)->post(route('promosi.submit', $promotion))->assertRedirect(route('promosi'));
+        $this->actingAs($promotedManager->fresh())->post(route('promosi.approve', $promotion))
+            ->assertRedirect(route('promosi'));
+        $this->actingAs($promotedAdmin->fresh())->post(route('promosi.approve', $promotion))
+            ->assertRedirect(route('promosi'));
+
+        $this->assertDatabaseHas('promotion_approvals', [
+            'employee_promotion_id' => $promotion->id,
+            'manager_id' => $promotedManager->id,
+            'approval_round' => 1,
+            'step_order' => 1,
+            'approver_number_snapshot' => 'SAP-LINKED-MANAGER',
+            'status' => PromotionApprovalStatus::Approved->value,
+        ]);
+        $this->assertDatabaseHas('promotion_approvals', [
+            'employee_promotion_id' => $promotion->id,
+            'manager_id' => $promotedAdmin->id,
+            'approval_round' => 1,
+            'step_order' => 2,
+            'approver_number_snapshot' => 'SAP-LINKED-ADMIN',
+            'status' => PromotionApprovalStatus::Approved->value,
+        ]);
+    }
+
     public function test_employee_selection_uses_server_side_sap_and_saves_correctable_snapshot_only(): void
     {
         $department = Department::query()->create(['code' => 'CANON-DEPT', 'name' => 'Canonical Department', 'active' => true]);
