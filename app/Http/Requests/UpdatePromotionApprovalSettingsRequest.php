@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Enums\UserRole;
 use App\Models\EmployeePromotion;
 use App\Models\User;
+use App\Services\Personnel\PromotionApprovalWorkflowService;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Foundation\Http\FormRequest;
@@ -27,8 +28,14 @@ class UpdatePromotionApprovalSettingsRequest extends FormRequest
      */
     public function rules(): array
     {
+        $approvalSteps = range(1, PromotionApprovalWorkflowService::REQUIRED_STEPS);
+
         return [
-            'approvers' => ['required', 'array:1,2,3', 'size:3'],
+            'approvers' => [
+                'required',
+                'array:'.implode(',', $approvalSteps),
+                'size:'.PromotionApprovalWorkflowService::REQUIRED_STEPS,
+            ],
             'approvers.*' => [
                 'required',
                 'integer',
@@ -47,11 +54,11 @@ class UpdatePromotionApprovalSettingsRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'approvers.required' => 'Ketiga approver wajib dipilih.',
+            'approvers.required' => 'Keempat approver wajib dipilih.',
             'approvers.array' => 'Konfigurasi approver tidak valid.',
-            'approvers.size' => 'Ketiga tahap approver wajib diisi.',
+            'approvers.size' => 'Keempat tahap approver wajib diisi.',
             'approvers.*.required' => 'Approver pada setiap tahap wajib dipilih.',
-            'approvers.*.distinct' => 'Approver Tahap 1, 2, dan 3 harus berbeda.',
+            'approvers.*.distinct' => 'Approver Tahap 1, 2, 3, dan 4 harus berbeda.',
             'approvers.*.exists' => 'Approver harus merupakan User Admin atau Manager yang tersedia.',
         ];
     }

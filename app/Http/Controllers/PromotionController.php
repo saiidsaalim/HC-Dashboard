@@ -99,6 +99,8 @@ class PromotionController extends Controller
             'employeeOptions' => $canManage ? $this->employeeOptions() : collect(),
             'approvalConfiguration' => $workflow->configuration(),
             'approvalConfigurationComplete' => $workflow->isConfigurationComplete(),
+            'approvalSteps' => range(1, PromotionApprovalWorkflowService::REQUIRED_STEPS),
+            'requiredApprovalSteps' => PromotionApprovalWorkflowService::REQUIRED_STEPS,
         ]);
     }
 
@@ -394,8 +396,7 @@ class PromotionController extends Controller
             'PERSETUJUAN PUTARAN FINAL',
         ];
 
-        foreach (range(1, PromotionApprovalWorkflowService::REQUIRED_STEPS) as $step) {
-            $approval = $approvals->get($step);
+        foreach ($approvals->sortKeys() as $step => $approval) {
             $lines[] = sprintf(
                 'Tahap %d: %s | %s | %s | %s',
                 $step,

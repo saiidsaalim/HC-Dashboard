@@ -13,8 +13,11 @@ use App\Models\PromotionApproval;
 use App\Models\PromotionApprovalConfig;
 use App\Models\Unit;
 use App\Models\User;
+use App\Services\Personnel\PromotionApprovalWorkflowService;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Tests\TestCase;
@@ -55,42 +58,79 @@ class PromotionManagementTest extends TestCase
         $this->assertDatabaseCount('promotion_approvals', 0);
     }
 
-    public function test_super_admin_settings_require_three_distinct_admin_or_manager_users(): void
+    public function test_super_admin_settings_require_exactly_four_distinct_admin_or_manager_users(): void
     {
         $superAdmin = $this->user(UserRole::SUPER_ADMIN);
         $admin = $this->user(UserRole::ADMIN, 'Admin Satu');
         $managerOne = $this->user(UserRole::MANAGER, 'Manager Satu');
         $managerTwo = $this->user(UserRole::MANAGER, 'Manager Dua');
+        $managerThree = $this->user(UserRole::MANAGER, 'Manager Tiga');
+        $managerFour = $this->user(UserRole::MANAGER, 'Manager Empat');
         $staff = $this->user(UserRole::STAFF);
+        $member = $this->user(UserRole::MEMBER);
 
         $this->actingAs($superAdmin)->get(route('promosi.approval-settings.edit'))
             ->assertOk()
             ->assertSee('Pengaturan Persetujuan Promosi')
+            ->assertSee('Approver Tahap 4')
             ->assertSee($admin->name)
-            ->assertDontSee($staff->name);
+            ->assertDontSee($staff->name)
+            ->assertDontSee($member->name);
 
         foreach ([UserRole::ADMIN, UserRole::MANAGER, UserRole::STAFF, UserRole::MEMBER] as $role) {
             $unauthorizedUser = $this->user($role);
             $this->actingAs($unauthorizedUser)->get(route('promosi.approval-settings.edit'))->assertForbidden();
             $this->actingAs($unauthorizedUser)->put(route('promosi.approval-settings.update'), [
-                'approvers' => [1 => $admin->id, 2 => $managerOne->id, 3 => $managerTwo->id],
+                'approvers' => [
+                    1 => $admin->id,
+                    2 => $managerOne->id,
+                    3 => $managerTwo->id,
+                    4 => $managerThree->id,
+                ],
             ])->assertForbidden();
         }
 
         $this->actingAs($superAdmin)->put(route('promosi.approval-settings.update'), [
             'approvers' => [1 => $admin->id, 2 => $admin->id, 3 => $managerOne->id],
+        ])->assertSessionHasErrors('approvers');
+
+        $this->actingAs($superAdmin)->put(route('promosi.approval-settings.update'), [
+            'approvers' => [
+                1 => $admin->id,
+                2 => $managerOne->id,
+                3 => $managerTwo->id,
+                4 => $managerThree->id,
+                5 => $managerFour->id,
+            ],
+        ])->assertSessionHasErrors('approvers');
+
+        $this->actingAs($superAdmin)->put(route('promosi.approval-settings.update'), [
+            'approvers' => [1 => $admin->id, 2 => $admin->id, 3 => $managerTwo->id, 4 => $managerThree->id],
         ])->assertSessionHasErrors('approvers.2');
 
-        $this->actingAs($superAdmin)->put(route('promosi.approval-settings.update'), [
-            'approvers' => [1 => $admin->id, 2 => $managerOne->id, 3 => $staff->id],
-        ])->assertSessionHasErrors('approvers.3');
+        foreach ([$staff, $member, $superAdmin] as $ineligibleApprover) {
+            $this->actingAs($superAdmin)->put(route('promosi.approval-settings.update'), [
+                'approvers' => [
+                    1 => $admin->id,
+                    2 => $managerOne->id,
+                    3 => $managerTwo->id,
+                    4 => $ineligibleApprover->id,
+                ],
+            ])->assertSessionHasErrors('approvers.4');
+        }
 
         $this->actingAs($superAdmin)->put(route('promosi.approval-settings.update'), [
-            'approvers' => [1 => $admin->id, 2 => $managerOne->id, 3 => $managerTwo->id],
+            'approvers' => [
+                1 => $admin->id,
+                2 => $managerOne->id,
+                3 => $managerTwo->id,
+                4 => $managerThree->id,
+            ],
         ])->assertRedirect(route('promosi.approval-settings.edit'));
 
         $this->assertDatabaseHas('promotion_approval_configs', ['step_order' => 1, 'user_id' => $admin->id]);
-        $this->assertDatabaseHas('promotion_approval_configs', ['step_order' => 3, 'user_id' => $managerTwo->id]);
+        $this->assertDatabaseHas('promotion_approval_configs', ['step_order' => 4, 'user_id' => $managerThree->id]);
+        $this->assertDatabaseCount('promotion_approval_configs', PromotionApprovalWorkflowService::REQUIRED_STEPS);
     }
 
     public function test_linked_staff_promoted_to_manager_or_admin_are_selectable_and_snapshot_employee_sap(): void
@@ -107,6 +147,7 @@ class PromotionManagementTest extends TestCase
         $promotedManager = $this->user(UserRole::STAFF, 'Manager Terhubung', $managerEmployee);
         $promotedAdmin = $this->user(UserRole::STAFF, 'Admin Terhubung', $adminEmployee);
         $thirdApprover = $this->user(UserRole::MANAGER, 'Approver Ketiga');
+        $fourthApprover = $this->user(UserRole::ADMIN, 'Approver Keempat');
 
         $this->actingAs($superAdmin)->patch(route('konfigurasi-user.role', $promotedManager), [
             'role' => UserRole::MANAGER->value,
@@ -127,6 +168,7 @@ class PromotionManagementTest extends TestCase
                 1 => $promotedManager->id,
                 2 => $promotedAdmin->id,
                 3 => $thirdApprover->id,
+                4 => $fourthApprover->id,
             ],
         ])->assertRedirect(route('promosi.approval-settings.edit'));
 
@@ -247,6 +289,60 @@ class PromotionManagementTest extends TestCase
         $this->assertSame($approvers[0]->id, PromotionApprovalConfig::query()->where('step_order', 1)->value('user_id'));
     }
 
+    public function test_legacy_three_approver_configuration_remains_visible_but_blocks_submission(): void
+    {
+        $superAdmin = $this->user(UserRole::SUPER_ADMIN);
+        $this->configureApprovers();
+        PromotionApprovalConfig::query()->where('step_order', PromotionApprovalWorkflowService::REQUIRED_STEPS)->delete();
+        $promotion = $this->promotion($this->employee('SAP-LEGACY-CONFIG'));
+
+        $this->actingAs($superAdmin)->get(route('promosi.approval-settings.edit'))
+            ->assertOk()
+            ->assertSee('Approver Tahap 4')
+            ->assertViewHas(
+                'configuredApprovers',
+                fn ($configuredApprovers): bool => $configuredApprovers->count() === 3
+                    && ! $configuredApprovers->has(PromotionApprovalWorkflowService::REQUIRED_STEPS),
+            );
+
+        $this->actingAs($superAdmin)->get(route('promosi'))
+            ->assertOk()
+            ->assertSee('Konfigurasi empat approver Promosi belum lengkap.');
+
+        $this->actingAs($superAdmin)->post(route('promosi.submit', $promotion))
+            ->assertSessionHasErrors('approval_config');
+        $this->assertSame(PromotionStatus::Draft->value, $promotion->fresh()->verification_status);
+        $this->assertDatabaseCount('promotion_approval_configs', 3);
+    }
+
+    public function test_active_three_step_workflow_waits_for_complete_configuration_then_continues_to_step_four(): void
+    {
+        $superAdmin = $this->user(UserRole::SUPER_ADMIN);
+        $approvers = $this->configureApprovers();
+        $promotion = $this->promotion($this->employee('SAP-ACTIVE-LEGACY'));
+        $this->actingAs($superAdmin)->post(route('promosi.submit', $promotion));
+        $this->actingAs($approvers[0])->post(route('promosi.approve', $promotion));
+        $this->actingAs($approvers[1])->post(route('promosi.approve', $promotion));
+        PromotionApprovalConfig::query()->where('step_order', PromotionApprovalWorkflowService::REQUIRED_STEPS)->delete();
+
+        $this->actingAs($approvers[2])->post(route('promosi.approve', $promotion))
+            ->assertSessionHasErrors('approval_config');
+        $this->assertSame(3, $promotion->fresh()->current_approval_step);
+        $this->assertDatabaseCount('promotion_approvals', 2);
+
+        PromotionApprovalConfig::query()->create([
+            'step_order' => PromotionApprovalWorkflowService::REQUIRED_STEPS,
+            'user_id' => $approvers[3]->id,
+            'updated_by' => $superAdmin->id,
+        ]);
+
+        $this->actingAs($approvers[2])->post(route('promosi.approve', $promotion))->assertRedirect(route('promosi'));
+        $this->assertSame(4, $promotion->fresh()->current_approval_step);
+        $this->assertSame(PromotionStatus::WaitingApproval->value, $promotion->fresh()->verification_status);
+        $this->actingAs($approvers[3])->post(route('promosi.approve', $promotion))->assertRedirect(route('promosi'));
+        $this->assertSame(PromotionStatus::Final->value, $promotion->fresh()->verification_status);
+    }
+
     public function test_approvals_are_sequential_idempotent_and_store_identity_snapshots(): void
     {
         $superAdmin = $this->user(UserRole::SUPER_ADMIN);
@@ -256,6 +352,7 @@ class PromotionManagementTest extends TestCase
 
         $this->actingAs($approvers[1])->post(route('promosi.approve', $promotion))->assertForbidden();
         $this->actingAs($approvers[2])->post(route('promosi.approve', $promotion))->assertForbidden();
+        $this->actingAs($approvers[3])->post(route('promosi.approve', $promotion))->assertForbidden();
         $this->actingAs($this->user(UserRole::MANAGER, 'Manager Bukan Approver'))
             ->post(route('promosi.approve', $promotion))->assertForbidden();
         $this->actingAs($this->user(UserRole::STAFF))
@@ -269,12 +366,19 @@ class PromotionManagementTest extends TestCase
         $this->actingAs($approvers[1])->post(route('promosi.approve', $promotion));
         $this->assertSame(3, $promotion->fresh()->current_approval_step);
         $this->actingAs($approvers[2])->post(route('promosi.approve', $promotion));
+        $promotion->refresh();
+        $this->assertSame(PromotionStatus::WaitingApproval->value, $promotion->verification_status);
+        $this->assertSame(4, $promotion->current_approval_step);
+        $this->assertNull($promotion->finalized_at);
+        $this->assertDatabaseCount('promotion_approvals', 3);
+
+        $this->actingAs($approvers[3])->post(route('promosi.approve', $promotion));
 
         $promotion->refresh();
         $this->assertSame(PromotionStatus::Final->value, $promotion->verification_status);
         $this->assertNull($promotion->current_approval_step);
         $this->assertNotNull($promotion->finalized_at);
-        $this->assertDatabaseCount('promotion_approvals', 3);
+        $this->assertDatabaseCount('promotion_approvals', PromotionApprovalWorkflowService::REQUIRED_STEPS);
 
         foreach ($approvers as $index => $approver) {
             $this->assertDatabaseHas('promotion_approvals', [
@@ -287,6 +391,12 @@ class PromotionManagementTest extends TestCase
                 'approver_number_snapshot' => $approver->employee->sap,
                 'status' => PromotionApprovalStatus::Approved->value,
             ]);
+        }
+
+        $timelineResponse = $this->actingAs($superAdmin)->get(route('promosi'));
+        $timelineResponse->assertOk()->assertSee('Tahap 4');
+        foreach ($approvers as $approver) {
+            $timelineResponse->assertSee($approver->name);
         }
 
         $originalFirstApproverName = $approvers[0]->name;
@@ -305,6 +415,24 @@ class PromotionManagementTest extends TestCase
         ]);
     }
 
+    public function test_unique_constraint_prevents_duplicate_decision_for_same_round_and_step(): void
+    {
+        $promotion = $this->promotion($this->employee('SAP-UNIQUE-DECISION'));
+        $approver = $this->user(UserRole::MANAGER);
+        $decision = [
+            'employee_promotion_id' => $promotion->id,
+            'approval_round' => 1,
+            'step_order' => 1,
+            'manager_id' => $approver->id,
+            'status' => PromotionApprovalStatus::Approved->value,
+            'approved_at' => now(),
+        ];
+        PromotionApproval::query()->create($decision);
+
+        $this->expectException(QueryException::class);
+        PromotionApproval::query()->create($decision);
+    }
+
     #[DataProvider('workflowSteps')]
     public function test_active_approver_at_each_step_can_send_back_with_required_note(int $step): void
     {
@@ -317,7 +445,7 @@ class PromotionManagementTest extends TestCase
             $this->actingAs($approvers[$approvedStep - 1])->post(route('promosi.approve', $promotion));
         }
 
-        $inactive = $approvers[$step % 3];
+        $inactive = $approvers[$step % count($approvers)];
         $this->actingAs($inactive)->post(route('promosi.send-back', $promotion), ['return_note' => 'Tidak boleh'])
             ->assertForbidden();
         $this->actingAs($approvers[$step - 1])->post(route('promosi.send-back', $promotion), [])
@@ -345,7 +473,13 @@ class PromotionManagementTest extends TestCase
     /** @return array<string, array{int}> */
     public static function workflowSteps(): array
     {
-        return ['step one' => [1], 'step two' => [2], 'step three' => [3]];
+        $steps = [];
+
+        foreach (range(1, PromotionApprovalWorkflowService::REQUIRED_STEPS) as $step) {
+            $steps["step {$step}"] = [$step];
+        }
+
+        return $steps;
     }
 
     public function test_returned_promotion_can_be_edited_and_resubmitted_without_losing_old_round(): void
@@ -388,7 +522,7 @@ class PromotionManagementTest extends TestCase
         }
 
         $this->actingAs($superAdmin)->put(route('promosi.update', $promotion), $this->payload($employee))->assertForbidden();
-        $this->actingAs($approvers[2])->post(route('promosi.send-back', $promotion), ['return_note' => 'Terlambat'])
+        $this->actingAs($approvers[3])->post(route('promosi.send-back', $promotion), ['return_note' => 'Terlambat'])
             ->assertForbidden();
     }
 
@@ -402,7 +536,12 @@ class PromotionManagementTest extends TestCase
         $this->actingAs($approvers[0])->post(route('promosi.approve', $promotion));
 
         $this->actingAs($superAdmin)->put(route('promosi.approval-settings.update'), [
-            'approvers' => [1 => $approvers[0]->id, 2 => $replacement->id, 3 => $approvers[2]->id],
+            'approvers' => [
+                1 => $approvers[0]->id,
+                2 => $replacement->id,
+                3 => $approvers[2]->id,
+                4 => $approvers[3]->id,
+            ],
         ]);
 
         $this->actingAs($approvers[1])->post(route('promosi.approve', $promotion))->assertForbidden();
@@ -438,7 +577,7 @@ class PromotionManagementTest extends TestCase
 
         $this->actingAs($superAdmin)->post(route('promosi.submit', $promotion))
             ->assertSessionHasErrors('approval_config');
-        $this->assertDatabaseCount('promotion_approval_configs', 2);
+        $this->assertDatabaseCount('promotion_approval_configs', 3);
         $this->assertSame(PromotionStatus::Draft->value, $promotion->fresh()->verification_status);
     }
 
@@ -511,7 +650,7 @@ class PromotionManagementTest extends TestCase
         $this->assertSame(1, $promotion->approvals()->whereNull('approval_round')->count());
     }
 
-    public function test_only_super_admin_can_print_final_and_generated_docx_has_safe_name_and_no_supported_placeholders(): void
+    public function test_only_super_admin_can_print_new_final_with_four_approvers_and_safe_document(): void
     {
         $superAdmin = $this->user(UserRole::SUPER_ADMIN);
         $employee = $this->employee('SAP/PRINT');
@@ -523,7 +662,7 @@ class PromotionManagementTest extends TestCase
             'approval_round' => 1,
             'finalized_at' => now(),
         ]);
-        foreach ([1, 2, 3] as $step) {
+        foreach (range(1, PromotionApprovalWorkflowService::REQUIRED_STEPS) as $step) {
             PromotionApproval::query()->create([
                 'employee_promotion_id' => $final->id,
                 'approval_round' => 1,
@@ -542,6 +681,81 @@ class PromotionManagementTest extends TestCase
 
         $response = $this->actingAs($superAdmin)->get(route('promosi.print', $final));
         $response->assertOk()->assertDownload('promosi-sapprint-nama-tidak-aman-2026-12-01.docx');
+        $xml = $this->documentXml($response);
+        $this->assertStringContainsString('Nama / Tidak Aman', $xml);
+        $this->assertStringContainsString('SAP/PRINT', $xml);
+        $this->assertStringContainsString('Operasional', $xml);
+        $this->assertStringContainsString('Keuangan', $xml);
+        $this->assertStringContainsString('Supervisor', $xml);
+        $this->assertStringContainsString('PG-1', $xml);
+        $this->assertStringContainsString('BAND Saat Ini: B1', $xml);
+        $this->assertStringContainsString('JG Usulan: JG-2', $xml);
+        $this->assertStringContainsString('Approver Cetak 1', $xml);
+        $this->assertStringContainsString('Approver Cetak 4', $xml);
+        $this->assertStringContainsString('NOMOR-4', $xml);
+        $this->assertStringContainsString('Status: Final', $xml);
+        $this->assertDoesNotMatchRegularExpression('/\[[A-Z][A-Z0-9 _-]*\]/', $xml);
+    }
+
+    public function test_legacy_final_with_three_approvals_remains_final_and_prints_only_stored_snapshots(): void
+    {
+        $superAdmin = $this->user(UserRole::SUPER_ADMIN);
+        $final = $this->promotion($this->employee('SAP-LEGACY-FINAL'), PromotionStatus::Final, [
+            'approval_round' => 1,
+            'finalized_at' => now(),
+        ]);
+
+        foreach (range(1, 3) as $step) {
+            PromotionApproval::query()->create([
+                'employee_promotion_id' => $final->id,
+                'approval_round' => 1,
+                'step_order' => $step,
+                'manager_id' => $this->user(UserRole::MANAGER, "Approver Lama {$step}")->id,
+                'status' => PromotionApprovalStatus::Approved->value,
+                'approved_at' => now(),
+                'approver_name_snapshot' => "Approver Lama {$step}",
+                'approver_role_snapshot' => UserRole::MANAGER->value,
+                'approver_number_snapshot' => "NOMOR-LAMA-{$step}",
+            ]);
+        }
+
+        $response = $this->actingAs($superAdmin)->get(route('promosi.print', $final));
+        $response->assertOk();
+        $xml = $this->documentXml($response);
+
+        $this->assertSame(PromotionStatus::Final->value, $final->fresh()->verification_status);
+        $this->assertStringContainsString('Approver Lama 1', $xml);
+        $this->assertStringContainsString('Approver Lama 3', $xml);
+        $this->assertStringNotContainsString('Tahap 4:', $xml);
+        $this->assertDoesNotMatchRegularExpression('/\[[A-Z][A-Z0-9 _-]*\]/', $xml);
+
+        $this->actingAs($superAdmin)->get(route('promosi'))
+            ->assertOk()
+            ->assertSee('3/3 disetujui')
+            ->assertDontSee('Tahap 4');
+    }
+
+    /** @return array<int, User> */
+    private function configureApprovers(bool $withEmployees = false): array
+    {
+        $approvers = [];
+
+        foreach (range(1, PromotionApprovalWorkflowService::REQUIRED_STEPS) as $step) {
+            $role = $step % 2 === 0 ? UserRole::ADMIN : UserRole::MANAGER;
+            $employee = $withEmployees ? $this->employee('APPROVER-'.$step) : null;
+            $approver = $this->user($role, 'Approver '.$step, $employee);
+            PromotionApprovalConfig::query()->create([
+                'step_order' => $step,
+                'user_id' => $approver->id,
+            ]);
+            $approvers[] = $approver;
+        }
+
+        return $approvers;
+    }
+
+    private function documentXml(TestResponse $response): string
+    {
         $baseResponse = $response->baseResponse;
         $this->assertInstanceOf(BinaryFileResponse::class, $baseResponse);
         $path = $baseResponse->getFile()->getPathname();
@@ -554,37 +768,8 @@ class PromotionManagementTest extends TestCase
         }
 
         $this->assertIsString($xml);
-        $this->assertStringContainsString('Nama / Tidak Aman', $xml);
-        $this->assertStringContainsString('SAP/PRINT', $xml);
-        $this->assertStringContainsString('Operasional', $xml);
-        $this->assertStringContainsString('Keuangan', $xml);
-        $this->assertStringContainsString('Supervisor', $xml);
-        $this->assertStringContainsString('PG-1', $xml);
-        $this->assertStringContainsString('BAND Saat Ini: B1', $xml);
-        $this->assertStringContainsString('JG Usulan: JG-2', $xml);
-        $this->assertStringContainsString('Approver Cetak 1', $xml);
-        $this->assertStringContainsString('NOMOR-3', $xml);
-        $this->assertStringContainsString('Status: Final', $xml);
-        $this->assertDoesNotMatchRegularExpression('/\[[A-Z][A-Z0-9 _-]*\]/', $xml);
-    }
 
-    /** @return array<int, User> */
-    private function configureApprovers(bool $withEmployees = false): array
-    {
-        $roles = [UserRole::MANAGER, UserRole::ADMIN, UserRole::MANAGER];
-        $approvers = [];
-
-        foreach ($roles as $index => $role) {
-            $employee = $withEmployees ? $this->employee('APPROVER-'.($index + 1)) : null;
-            $approver = $this->user($role, 'Approver '.($index + 1), $employee);
-            PromotionApprovalConfig::query()->create([
-                'step_order' => $index + 1,
-                'user_id' => $approver->id,
-            ]);
-            $approvers[] = $approver;
-        }
-
-        return $approvers;
+        return $xml;
     }
 
     private function user(UserRole $role, ?string $name = null, ?Employee $employee = null): User

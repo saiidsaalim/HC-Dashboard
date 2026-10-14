@@ -16,7 +16,7 @@ use Illuminate\Validation\ValidationException;
 
 class PromotionApprovalWorkflowService
 {
-    public const REQUIRED_STEPS = 3;
+    public const REQUIRED_STEPS = 4;
 
     /** @return Collection<int, PromotionApprovalConfig> */
     public function configuration(): Collection
@@ -139,7 +139,7 @@ class PromotionApprovalWorkflowService
             || $configuredUsers->unique()->count() !== self::REQUIRED_STEPS
             || $configuration->contains(fn (PromotionApprovalConfig $config): bool => ! $this->isEligible($config->user))) {
             throw ValidationException::withMessages([
-                'approval_config' => 'Konfigurasi tiga approver Promosi belum lengkap. Hubungi Super Admin.',
+                'approval_config' => 'Konfigurasi empat approver Promosi belum lengkap. Hubungi Super Admin.',
             ]);
         }
 

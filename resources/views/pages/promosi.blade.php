@@ -16,7 +16,7 @@
 
     <div class="mb-8 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
         <div>
-            <p class="text-sm text-slate-500">Workflow promosi berurutan dari Draft hingga tiga tahap persetujuan.</p>
+            <p class="text-sm text-slate-500">Workflow promosi berurutan dari Draft hingga empat tahap persetujuan.</p>
             <h2 class="mt-1 font-display text-3xl font-bold tracking-tight text-slate-950">Daftar Promosi</h2>
         </div>
         @if ($canManage)
@@ -60,7 +60,7 @@
 
     @if ($canManage && !$approvalConfigurationComplete)
         <div class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            Konfigurasi tiga approver Promosi belum lengkap. Ajukan Promosi dinonaktifkan sampai pengaturan diselesaikan.
+            Konfigurasi empat approver Promosi belum lengkap. Ajukan Promosi dinonaktifkan sampai pengaturan diselesaikan.
         </div>
     @endif
 
@@ -124,10 +124,16 @@
                                 $status = $promotion->statusEnum();
                                 $roundApprovals = $promotion->approvals->where('approval_round', $promotion->approval_round);
                                 $approvedCount = $roundApprovals->where('status', \App\Enums\PromotionApprovalStatus::Approved)->count();
+                                $displayRequiredSteps = $status === \App\Enums\PromotionStatus::Final
+                                    && $approvedCount > 0
+                                    && !$roundApprovals->contains('step_order', $requiredApprovalSteps)
+                                        ? $approvedCount
+                                        : $requiredApprovalSteps;
                                 $activeConfig = $promotion->current_approval_step ? $approvalConfiguration->get($promotion->current_approval_step) : null;
                                 $activeApprover = $activeConfig?->user;
                                 $isActiveApprover = $status === \App\Enums\PromotionStatus::WaitingApproval
                                     && $activeApprover?->id === auth()->id()
+                                    && $approvalConfigurationComplete
                                     && in_array(auth()->user()->roleEnum(), [\App\Enums\UserRole::ADMIN, \App\Enums\UserRole::MANAGER], true);
                                 $latestReturn = $promotion->approvals
                                     ->where('status', \App\Enums\PromotionApprovalStatus::Returned)
@@ -157,7 +163,7 @@
                                 </td>
                                 <td class="px-4 py-4">
                                     <span class="rounded-full px-3 py-1 text-xs font-bold {{ $statusStyles[$status->value] ?? 'bg-slate-100 text-slate-700' }}">{{ $status->label() }}</span>
-                                    <p class="mt-2 text-xs text-slate-500">Putaran {{ max((int) $promotion->approval_round, 0) }} · {{ $approvedCount }}/3 disetujui</p>
+                                    <p class="mt-2 text-xs text-slate-500">Putaran {{ max((int) $promotion->approval_round, 0) }} · {{ $approvedCount }}/{{ $displayRequiredSteps }} disetujui</p>
                                     @if ($status === \App\Enums\PromotionStatus::WaitingApproval)
                                         <p class="mt-1 text-xs text-slate-600">
                                             Tahap {{ $promotion->current_approval_step }}:
@@ -225,6 +231,7 @@
             $activeApprover = $activeConfig?->user;
             $isActiveApprover = $status === \App\Enums\PromotionStatus::WaitingApproval
                 && $activeApprover?->id === auth()->id()
+                && $approvalConfigurationComplete
                 && in_array(auth()->user()->roleEnum(), [\App\Enums\UserRole::ADMIN, \App\Enums\UserRole::MANAGER], true);
         @endphp
 
@@ -275,8 +282,17 @@
                     @endif
                     @if ((int) $promotion->approval_round > 0)
                         @foreach (range(1, (int) $promotion->approval_round) as $round)
-                            <div class="mt-4"><p class="text-sm font-bold text-slate-800">Putaran {{ $round }}</p><div class="mt-2 grid gap-3 md:grid-cols-3">
-                                @foreach ([1, 2, 3] as $step)
+                            @php
+                                $isLegacyFinal = $status === \App\Enums\PromotionStatus::Final
+                                    && !$promotion->approvals
+                                        ->where('approval_round', $promotion->approval_round)
+                                        ->contains('step_order', $requiredApprovalSteps);
+                                $roundSteps = $isLegacyFinal
+                                    ? $promotion->approvals->where('approval_round', $round)->pluck('step_order')->filter()->unique()->sort()->values()
+                                    : $approvalSteps;
+                            @endphp
+                            <div class="mt-4"><p class="text-sm font-bold text-slate-800">Putaran {{ $round }}</p><div class="mt-2 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                                @foreach ($roundSteps as $step)
                                     @php
                                         $decision = $promotion->approvals->first(fn ($item) => $item->approval_round === $round && $item->step_order === $step);
                                         $isActive = $round === $promotion->approval_round && $promotion->current_approval_step === $step && $status === \App\Enums\PromotionStatus::WaitingApproval;

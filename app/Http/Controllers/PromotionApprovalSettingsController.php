@@ -7,6 +7,7 @@ use App\Http\Requests\UpdatePromotionApprovalSettingsRequest;
 use App\Models\EmployeePromotion;
 use App\Models\PromotionApprovalConfig;
 use App\Models\User;
+use App\Services\Personnel\PromotionApprovalWorkflowService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -27,6 +28,7 @@ class PromotionApprovalSettingsController extends Controller
             'configuredApprovers' => PromotionApprovalConfig::query()
                 ->orderBy('step_order')
                 ->pluck('user_id', 'step_order'),
+            'approvalSteps' => range(1, PromotionApprovalWorkflowService::REQUIRED_STEPS),
         ]);
     }
 
@@ -39,7 +41,7 @@ class PromotionApprovalSettingsController extends Controller
             PromotionApprovalConfig::query()->lockForUpdate()->get();
             PromotionApprovalConfig::query()->delete();
 
-            foreach ([1, 2, 3] as $step) {
+            foreach (range(1, PromotionApprovalWorkflowService::REQUIRED_STEPS) as $step) {
                 PromotionApprovalConfig::query()->create([
                     'step_order' => $step,
                     'user_id' => (int) $approvers[$step],

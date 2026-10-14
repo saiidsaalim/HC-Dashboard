@@ -6,7 +6,7 @@
     <div class="mx-auto max-w-3xl">
         <div class="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
             <div>
-                <p class="text-sm text-slate-500">Pilih tiga User berbeda untuk workflow persetujuan berurutan.</p>
+                <p class="text-sm text-slate-500">Pilih empat User berbeda untuk workflow persetujuan berurutan.</p>
                 <h2 class="mt-1 font-display text-3xl font-bold tracking-tight text-slate-950">Pengaturan Persetujuan Promosi</h2>
             </div>
             <a href="{{ route('promosi') }}" class="text-sm font-semibold text-sky-700 hover:text-sky-900">Kembali ke Promosi</a>
@@ -31,7 +31,7 @@
             class="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             @csrf
             @method('PUT')
-            @foreach ([1, 2, 3] as $step)
+            @foreach ($approvalSteps as $step)
                 <div>
                     <label for="approver-{{ $step }}" class="text-sm font-semibold text-slate-700">Approver Tahap {{ $step }}</label>
                     <select id="approver-{{ $step }}" name="approvers[{{ $step }}]" required
