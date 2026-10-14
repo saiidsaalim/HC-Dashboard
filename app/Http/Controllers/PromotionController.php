@@ -290,25 +290,35 @@ class PromotionController extends Controller
             ->orderBy('sap')
             ->get()
             ->map(function (Employee $employee): array {
-                $name = $employee->user?->name;
+                $name = trim((string) $employee->user?->name);
+                $personalNumber = trim((string) $employee->personal_number);
+                $personalNumberLabel = $personalNumber !== ''
+                    ? $personalNumber
+                    : 'Personal Number belum tersedia';
                 $department = $employee->organizationDepartment?->name
                     ?: $employee->getRawOriginal('txt_dept')
                     ?: $employee->getRawOriginal('department');
                 $position = $employee->organizationPosition?->name ?: $employee->getRawOriginal('position');
                 $unit = $employee->unit?->name ?: $employee->getRawOriginal('organizational_unit');
+                $labelParts = [$employee->sap, $personalNumberLabel];
+
+                if ($name !== '' && $name !== $personalNumber) {
+                    $labelParts[] = $name;
+                }
+
+                if ($position !== null && $position !== '') {
+                    $labelParts[] = $position;
+                }
 
                 return [
                     'id' => $employee->id,
                     'sap' => $employee->sap,
-                    'name' => $name ?? '',
+                    'personal_number' => $personalNumber,
+                    'name' => $name,
                     'department' => $department ?? '',
                     'unit' => $unit ?? '',
                     'position' => $position ?? '',
-                    'label' => implode(' — ', array_filter([
-                        $employee->sap,
-                        $name ?? "Employee #{$employee->id}",
-                        $position,
-                    ])),
+                    'label' => implode(' — ', $labelParts),
                 ];
             });
     }

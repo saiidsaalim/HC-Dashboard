@@ -203,6 +203,7 @@ class PromotionManagementTest extends TestCase
         $unit = Unit::query()->create(['department_id' => $department->id, 'code' => 'CANON-UNIT', 'name' => 'Canonical Unit']);
         $position = Position::query()->create(['unit_id' => $unit->id, 'code' => 'CANON-POS', 'name' => 'Canonical Position', 'active' => true]);
         $employee = $this->employee('SAP-CANON', [
+            'personal_number' => 'PN-CANON',
             'department_id' => $department->id,
             'unit_id' => $unit->id,
             'position_id' => $position->id,
@@ -214,7 +215,7 @@ class PromotionManagementTest extends TestCase
 
         $this->actingAs($superAdmin)->get(route('promosi'))
             ->assertOk()
-            ->assertSee('SAP-CANON — Nama Employee — Canonical Position')
+            ->assertSee('SAP-CANON — PN-CANON — Nama Employee — Canonical Position')
             ->assertSee('Canonical Department', escape: false);
 
         $payload = $this->payload($employee, [
@@ -244,6 +245,114 @@ class PromotionManagementTest extends TestCase
         $this->assertSame($employee->id, $employeeUser->employee_id);
     }
 
+    public function test_employee_picker_has_searchable_safe_labels_and_preserves_edit_selection(): void
+    {
+        $department = Department::query()->create([
+            'code' => 'SEARCH-DEPT',
+            'name' => 'Department Pencarian',
+            'active' => true,
+        ]);
+        $unit = Unit::query()->create([
+            'department_id' => $department->id,
+            'code' => 'SEARCH-UNIT',
+            'name' => 'Unit Pencarian',
+        ]);
+        $position = Position::query()->create([
+            'unit_id' => $unit->id,
+            'code' => 'SEARCH-POS',
+            'name' => 'Manager HC',
+            'active' => true,
+        ]);
+        $canonicalEmployee = $this->employee('4809', [
+            'personal_number' => '10002345',
+            'department_id' => $department->id,
+            'unit_id' => $unit->id,
+            'position_id' => $position->id,
+            'txt_dept' => 'Department Legacy Diabaikan',
+            'position' => 'Posisi Legacy Diabaikan',
+        ]);
+        $this->user(UserRole::STAFF, 'FATMA HAERANI, S.AP.', $canonicalEmployee);
+        $withoutPersonalNumber = $this->employee('SAP-TANPA-PN', [
+            'txt_dept' => 'Department Legacy',
+            'organizational_unit' => 'Unit Legacy',
+            'position' => 'Legacy Analyst',
+        ]);
+        $duplicateNameEmployee = $this->employee('SAP-DUPLIKAT', [
+            'personal_number' => 'NAMA-SAMA',
+            'position' => 'Legacy Supervisor',
+        ]);
+        $this->user(UserRole::STAFF, 'NAMA-SAMA', $duplicateNameEmployee);
+        $promotion = $this->promotion($canonicalEmployee);
+        $superAdmin = $this->user(UserRole::SUPER_ADMIN);
+
+        $response = $this->actingAs($superAdmin)->get(route('promosi'));
+
+        $response->assertOk()
+            ->assertViewHas('employeeOptions', function ($employeeOptions) use (
+                $canonicalEmployee,
+                $withoutPersonalNumber,
+                $duplicateNameEmployee,
+            ): bool {
+                $canonicalOption = $employeeOptions->firstWhere('id', $canonicalEmployee->id);
+                $withoutPersonalNumberOption = $employeeOptions->firstWhere('id', $withoutPersonalNumber->id);
+                $duplicateNameOption = $employeeOptions->firstWhere('id', $duplicateNameEmployee->id);
+
+                return $employeeOptions->count() === 3
+                    && $canonicalOption['sap'] === '4809'
+                    && $canonicalOption['personal_number'] === '10002345'
+                    && $canonicalOption['name'] === 'FATMA HAERANI, S.AP.'
+                    && $canonicalOption['department'] === 'Department Pencarian'
+                    && $canonicalOption['unit'] === 'Unit Pencarian'
+                    && $canonicalOption['position'] === 'Manager HC'
+                    && $canonicalOption['label'] === '4809 — 10002345 — FATMA HAERANI, S.AP. — Manager HC'
+                    && $withoutPersonalNumberOption['label'] === 'SAP-TANPA-PN — Personal Number belum tersedia — Legacy Analyst'
+                    && $duplicateNameOption['label'] === 'SAP-DUPLIKAT — NAMA-SAMA — Legacy Supervisor'
+                    && $employeeOptions->every(
+                        fn (array $option): bool => ! str_contains($option['label'], 'Employee #'),
+                    );
+            })
+            ->assertSee('name="employee_id"', escape: false)
+            ->assertSee('type="search"', escape: false)
+            ->assertSee('Cari SAP, Personal Number, nama, department, unit, atau jabatan...')
+            ->assertSee('x-model="employeeSearch"', escape: false)
+            ->assertSee('x-for="employee in employeeSearchResults().options"', escape: false)
+            ->assertSee('employee.sap', escape: false)
+            ->assertSee('employee.personal_number', escape: false)
+            ->assertSee('employee.name', escape: false)
+            ->assertSee('employee.department', escape: false)
+            ->assertSee('employee.unit', escape: false)
+            ->assertSee('employee.position', escape: false)
+            ->assertSee('return { options: this.employees, matchCount: this.employees.length };', escape: false)
+            ->assertSee('options: [selectedEmployee, ...matches]', escape: false)
+            ->assertSee('this.sap = employee.sap;', escape: false)
+            ->assertSee('this.nama = employee.name;', escape: false)
+            ->assertSee('this.departemen_lama = employee.department;', escape: false)
+            ->assertSee('this.jabatan_lama = employee.position;', escape: false)
+            ->assertSee('Employee tidak ditemukan')
+            ->assertSee('Bersihkan')
+            ->assertSee('@click="employeeSearch = \'\'"', escape: false)
+            ->assertDontSee('this.employeeId = employee.id', escape: false)
+            ->assertSee("employeeId: {$canonicalEmployee->id}", escape: false)
+            ->assertDontSee("Employee #{$canonicalEmployee->id}");
+
+        $this->actingAs($superAdmin)->from(route('promosi'))->post(route('promosi.store'), [
+            ...$this->payload($canonicalEmployee),
+            '_form' => 'create',
+            'nama' => '',
+        ])->assertRedirect(route('promosi'))
+            ->assertSessionHasErrors('nama')
+            ->assertSessionHasInput('employee_id', $canonicalEmployee->id);
+        $this->get(route('promosi'))
+            ->assertOk()
+            ->assertSee("employeeId: {$canonicalEmployee->id}", escape: false);
+
+        $this->actingAs($this->user(UserRole::ADMIN))->get(route('promosi'))
+            ->assertOk()
+            ->assertDontSee('create-employee-search');
+
+        $this->assertSame($canonicalEmployee->sap, $promotion->sap);
+    }
+
     public function test_employee_legacy_values_are_frontend_fallback_and_invalid_employee_is_rejected(): void
     {
         $employee = $this->employee('SAP-LEGACY', [
@@ -262,7 +371,9 @@ class PromotionManagementTest extends TestCase
         $this->actingAs($superAdmin)->post(route('promosi.store'), [
             ...$this->payload($employee),
             'employee_id' => 999999,
-        ])->assertSessionHasErrors('employee_id')->assertSessionHasInput('nama');
+        ])->assertSessionHasErrors('employee_id')
+            ->assertSessionHasInput('employee_id', 999999)
+            ->assertSessionHasInput('nama');
 
         $this->assertDatabaseCount('employee_promotions', 0);
     }
