@@ -8,8 +8,8 @@
         departmentId: @js((string) old('department_id', $assessment?->department_id ?? '')),
         unitId: @js((string) old('unit_id', $assessment?->unit_id ?? '')),
         positionId: @js((string) old('position_id', $assessment?->position_id ?? '')),
-        units: @js($units->map(fn ($unit) => ['id' => $unit->id, 'department_id' => $unit->department_id, 'label' => $unit->code.' · '.$unit->name.($unit->active ? '' : ' (Inactive)')])->values()),
-        positions: @js($positions->map(fn ($position) => ['id' => $position->id, 'unit_id' => $position->unit_id, 'label' => $position->code.' · '.$position->name.($position->active ? '' : ' (Inactive)')])->values()),
+        units: @js($units->map(fn ($unit) => ['id' => $unit->id, 'department_id' => $unit->department_id, 'label' => $unit->name.($unit->active ? '' : ' (Inactive)')])->values()),
+        positions: @js($positions->map(fn ($position) => ['id' => $position->id, 'unit_id' => $position->unit_id, 'label' => $position->name.($position->active ? '' : ' (Inactive)')])->values()),
         resetDepartment() { this.unitId = ''; this.positionId = ''; },
         resetUnit() { this.positionId = ''; },
     }"
@@ -38,7 +38,7 @@
                 <select name="department_id" x-model="departmentId" @change="resetDepartment()" required class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
                     <option value="">Select Department</option>
                     @foreach ($departments as $department)
-                        <option value="{{ $department->id }}">{{ $department->code }} · {{ $department->name }}{{ $department->active ? '' : ' (Inactive)' }}</option>
+                        <option value="{{ $department->id }}">{{ $department->name }}{{ $department->active ? '' : ' (Inactive)' }}</option>
                     @endforeach
                 </select>
                 @error('department_id')<span class="mt-1 block text-xs text-red-600">{{ $message }}</span>@enderror

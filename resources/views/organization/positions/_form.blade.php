@@ -5,7 +5,7 @@
         units: @js($units->map(fn ($unit) => [
             'id' => $unit->id,
             'department_id' => $unit->department_id,
-            'label' => $unit->code.' · '.$unit->name.($unit->active ? '' : ' (Nonaktif)'),
+            'label' => $unit->name.($unit->active ? '' : ' (Nonaktif)'),
         ])->values()),
     }"
     class="mt-6 space-y-5 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -21,7 +21,7 @@
             <option value="">Pilih Department</option>
             @foreach ($departments as $department)
                 <option value="{{ $department->id }}">
-                    {{ $department->code }} · {{ $department->name }}{{ $department->active ? '' : ' (Nonaktif)' }}
+                    {{ $department->name }}{{ $department->active ? '' : ' (Nonaktif)' }}
                 </option>
             @endforeach
         </select>

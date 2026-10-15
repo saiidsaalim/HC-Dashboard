@@ -5,8 +5,8 @@
 @section('content')
     <div x-data="{
         open: false,
-        organizationUnits: @js($organizationUnits->map(fn ($unit) => ['id' => $unit->id, 'department_id' => $unit->department_id, 'code' => $unit->code, 'name' => $unit->name])->values()),
-        organizationPositions: @js($organizationPositions->map(fn ($position) => ['id' => $position->id, 'unit_id' => $position->unit_id, 'department_id' => $position->unit->department_id, 'code' => $position->code, 'name' => $position->name])->values()),
+        organizationUnits: @js($organizationUnits->map(fn ($unit) => ['id' => $unit->id, 'department_id' => $unit->department_id, 'name' => $unit->name])->values()),
+        organizationPositions: @js($organizationPositions->map(fn ($position) => ['id' => $position->id, 'unit_id' => $position->unit_id, 'department_id' => $position->unit->department_id, 'name' => $position->name])->values()),
         async chooseExport(pdfUrl, excelUrl) {
             const result = await Swal.fire({
                 title: 'Pilih format laporan',

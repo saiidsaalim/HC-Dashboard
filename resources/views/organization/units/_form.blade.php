@@ -9,8 +9,9 @@
             class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
             <option value="">Pilih Department</option>
             @foreach ($departments as $department)
-                <option value="{{ $department->id }}" @selected(old('department_id', $selectedDepartmentId) == $department->id)>{{ $department->code }} ·
-                    {{ $department->name }}{{ $department->active ? '' : ' (Nonaktif)' }}</option>
+                <option value="{{ $department->id }}" @selected(old('department_id', $selectedDepartmentId) == $department->id)>
+                    {{ $department->name }}{{ $department->active ? '' : ' (Nonaktif)' }}
+                </option>
             @endforeach
         </select>
         @error('department_id')

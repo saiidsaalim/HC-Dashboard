@@ -60,6 +60,47 @@ class OrganizationManagementTest extends TestCase
             ->assertDontSee(route('organization.positions.create'));
     }
 
+    public function test_organization_lists_and_parent_options_show_names_without_codes(): void
+    {
+        $department = Department::create([
+            'code' => 'DEPARTMENT-CODE-HIDDEN',
+            'name' => 'Visible Department Name',
+            'active' => true,
+        ]);
+        $unit = $department->units()->create([
+            'code' => 'UNIT-CODE-HIDDEN',
+            'name' => 'Visible Unit Name',
+            'active' => true,
+        ]);
+        $unit->positions()->create([
+            'code' => 'POSITION-CODE-HIDDEN',
+            'name' => 'Visible Position Name',
+            'active' => true,
+        ]);
+        $this->actingAs($this->superAdmin());
+
+        $this->get(route('organization.departments.index'))
+            ->assertOk()
+            ->assertSee('Visible Department Name')
+            ->assertDontSee('DEPARTMENT-CODE-HIDDEN');
+
+        $this->get(route('organization.units.index'))
+            ->assertOk()
+            ->assertSee('Visible Department Name')
+            ->assertSee('Visible Unit Name')
+            ->assertDontSee('DEPARTMENT-CODE-HIDDEN')
+            ->assertDontSee('UNIT-CODE-HIDDEN');
+
+        $this->get(route('organization.positions.index'))
+            ->assertOk()
+            ->assertSee('Visible Department Name')
+            ->assertSee('Visible Unit Name')
+            ->assertSee('Visible Position Name')
+            ->assertDontSee('DEPARTMENT-CODE-HIDDEN')
+            ->assertDontSee('UNIT-CODE-HIDDEN')
+            ->assertDontSee('POSITION-CODE-HIDDEN');
+    }
+
     public function test_delete_forms_use_reusable_sweet_alert_confirmation(): void
     {
         $unit = $this->unit();
