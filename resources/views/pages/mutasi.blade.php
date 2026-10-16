@@ -6,12 +6,9 @@
     @php($canApproveMutations = in_array(auth()->user()->roleEnum(), [\App\Enums\UserRole::ADMIN, \App\Enums\UserRole::MANAGER], true))
     @php($canManageMutationRecords = auth()->user()->roleEnum()->canManageAllRoles())
     <div x-data="{ open: @js(old('_form') === 'manual') }">
-        <div class="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-            <div>
-                <p class="text-sm text-slate-500">Upload dan pantau perpindahan pegawai.</p>
-                <h2 class="mt-1 font-display text-3xl font-bold tracking-tight text-slate-950">Daftar Mutasi</h2>
-            </div>
-            <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <x-ui.page-header title="Daftar Mutasi" eyebrow="Talent movement"
+            description="Unggah dan pantau perpindahan pegawai.">
+            <x-slot:actions>
                 <form method="POST" action="{{ route('mutasi.import') }}" enctype="multipart/form-data"
                     class="flex flex-col gap-2 sm:flex-row sm:items-center">
                     @csrf
@@ -26,8 +23,8 @@
                     class="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700">
                     Buat Mutasi
                 </button>
-            </div>
-        </div>
+            </x-slot:actions>
+        </x-ui.page-header>
 
         @if (session('status'))
             <div
@@ -169,24 +166,24 @@
     <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div class="flex w-full flex-col items-stretch justify-between gap-4 p-4 sm:p-6 xl:flex-row xl:items-center">
             <h3 class="font-display text-lg font-bold text-slate-950">Data mutasi terbaru</h3>
-            <div class="flex flex-wrap items-center justify-end gap-3">
-                <form method="GET" action="{{ route('mutasi') }}" class="flex items-center gap-2">
+            <div class="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+                <form method="GET" action="{{ route('mutasi') }}" class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
                     <label for="mutation-search" class="sr-only">Cari data mutasi</label>
                     <input id="mutation-search" name="search" value="{{ $search }}" type="search"
                         placeholder="Cari SAP, nama, jabatan..."
                         class="w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 sm:w-56">
                     <button type="submit"
-                        class="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700">
+                        class="w-full rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 sm:w-auto">
                         Cari
                     </button>
                     @if ($search !== '')
                         <a href="{{ route('mutasi') }}"
-                            class="rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50">
+                            class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-center text-sm font-semibold text-slate-600 transition hover:bg-slate-50 sm:w-auto">
                             Reset
                         </a>
                     @endif
                 </form>
-                <div class="flex items-center gap-3">
+                <div class="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
                     @if ($canManageMutationRecords && $mutations->contains(fn($mutation): bool => $mutation->verification_status !== 'Final'))
                         <label class="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-600">
                             <input id="select-all-mutations" type="checkbox"

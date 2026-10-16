@@ -13,7 +13,14 @@
 
         <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div>
-                <a href="{{ route('wla.staff.index') }}" class="text-sm font-semibold text-sky-700 hover:text-sky-900">&larr; WLA Saya</a>
+                <a href="{{ route('wla.staff.index') }}" class="ui-button ui-button-secondary w-fit"
+                    aria-label="Kembali ke WLA Saya">
+                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                        stroke-width="1.8" aria-hidden="true">
+                        <path d="M16 10H4m5-5-5 5 5 5" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    WLA Saya
+                </a>
                 <h2 class="mt-3 font-display text-2xl font-bold text-slate-950">{{ $participant->assessment->assessment_code }}</h2>
                 <p class="mt-1 text-sm text-slate-500">Periode {{ $participant->assessment->period }} · {{ $participant->assessment->position->name }}</p>
             </div>
@@ -114,9 +121,9 @@
         <div class="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">Hasil pengisian ini digunakan sebagai bahan analisis kebutuhan tenaga kerja dan bukan penilaian kinerja individu.</div>
 
         @if ($isEditable)
-            <div class="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="flex flex-col items-stretch justify-between gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center">
                 <div><p class="font-semibold text-slate-900">Kelengkapan: {{ $isComplete ? 'Lengkap' : 'Belum lengkap' }}</p><p class="text-sm text-slate-500">Minimal satu aktivitas diperlukan sebelum pengiriman.</p></div>
-                <form method="POST" action="{{ route('wla.staff.submit', $participant) }}" data-confirm-submit data-confirm-title="Kirim WLA ke Manager?" data-confirm-text="Setelah dikirim, aktivitas tidak dapat diubah sampai dikembalikan oleh Manager." data-confirm-button-text="Ya, kirim" data-confirm-button-color="#059669">@csrf<button @disabled(! $isComplete) class="rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">Kirim ke Manager</button></form>
+                <form method="POST" action="{{ route('wla.staff.submit', $participant) }}" data-confirm-submit data-confirm-title="Kirim WLA ke Manager?" data-confirm-text="Setelah dikirim, aktivitas tidak dapat diubah sampai dikembalikan oleh Manager." data-confirm-button-text="Ya, kirim" data-confirm-button-color="#059669">@csrf<button @disabled(! $isComplete) class="w-full rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto">Kirim ke Manager</button></form>
             </div>
         @endif
 

@@ -105,8 +105,8 @@
         </div>
     </section>
 
-    <div class="flex items-center justify-end gap-3">
-        <a href="{{ route('wla') }}" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</a>
-        <button @disabled($departments->isEmpty() || $units->isEmpty() || $positions->isEmpty() || $workSchedules->isEmpty() || $workCalendars->isEmpty()) class="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50">Save Draft</button>
+    <div class="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
+        <a href="{{ route('wla') }}" class="w-full rounded-lg border border-slate-300 px-4 py-2 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50 sm:w-auto">Cancel</a>
+        <button @disabled($departments->isEmpty() || $units->isEmpty() || $positions->isEmpty() || $workSchedules->isEmpty() || $workCalendars->isEmpty()) class="w-full rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">Save Draft</button>
     </div>
 </form>

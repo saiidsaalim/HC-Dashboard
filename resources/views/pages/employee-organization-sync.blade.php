@@ -10,20 +10,9 @@
     @endphp
 
     <div class="mx-auto max-w-7xl space-y-6">
-        <div class="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-            <div>
-                <p class="text-sm text-slate-500">Preview ini tidak mengubah database.</p>
-                <h2 class="mt-1 font-display text-3xl font-bold tracking-tight text-slate-950">Sinkronisasi Organisasi Pegawai</h2>
-                <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                    Department berasal dari <strong>TXT_DEPT</strong>, Unit dari <strong>TXT_BIRO</strong>, dan Position dari
-                    <strong>Position</strong>. Nilai Organizational Unit tidak digunakan dalam pemetaan ini.
-                </p>
-            </div>
-            <a href="{{ route('data-pegawai') }}"
-                class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
-                Kembali ke Data Pegawai
-            </a>
-        </div>
+        <x-ui.page-header title="Sinkronisasi Organisasi Pegawai" eyebrow="Preview aman"
+            description="Department berasal dari TXT_DEPT, Unit dari TXT_BIRO, dan Position dari Position. Nilai Organizational Unit tidak digunakan dalam pemetaan ini. Preview ini tidak mengubah database."
+            :back-href="route('data-pegawai')" back-label="Kembali ke Data Pegawai" class="mb-0" />
 
         @if (session('status'))
             <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">

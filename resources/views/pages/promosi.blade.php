@@ -14,13 +14,10 @@
         ];
     @endphp
 
-    <div class="mb-8 flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-        <div>
-            <p class="text-sm text-slate-500">Workflow promosi berurutan dari Draft hingga empat tahap persetujuan.</p>
-            <h2 class="mt-1 font-display text-3xl font-bold tracking-tight text-slate-950">Daftar Promosi</h2>
-        </div>
+    <x-ui.page-header title="Daftar Promosi" eyebrow="Talent movement"
+        description="Workflow promosi berurutan dari Draft hingga empat tahap persetujuan.">
         @if ($canManage)
-            <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <x-slot:actions>
                 <a href="{{ route('promosi.approval-settings.edit') }}"
                     class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
                     Pengaturan Persetujuan
@@ -38,9 +35,9 @@
                     class="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700">
                     Buat Promosi
                 </button>
-            </div>
+            </x-slot:actions>
         @endif
-    </div>
+    </x-ui.page-header>
 
     @if (session('status'))
         <div class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">

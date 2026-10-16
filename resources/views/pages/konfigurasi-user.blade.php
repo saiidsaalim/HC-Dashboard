@@ -6,14 +6,12 @@
     @php($currentRole = auth()->user()->roleEnum())
     @php($manageableRoles = $canManageAllRoles ? $roles : collect($roles)->filter(fn($role) => in_array($role, [\App\Enums\UserRole::STAFF, \App\Enums\UserRole::MEMBER], true)))
 
-    <div class="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-        <div>
-            <p class="text-sm text-slate-500">Kelola role dan hak akses pengguna berdasarkan prinsip least privilege.</p>
-            <h2 class="mt-1 font-display text-3xl font-bold tracking-tight text-slate-950">Role Based Access Control</h2>
-        </div><span
-            class="inline-flex w-fit items-center gap-2 rounded-full bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700">Role
-            Anda: {{ $currentRole->value }}</span>
-    </div>
+    <x-ui.page-header title="Role Based Access Control" eyebrow="User management"
+        description="Kelola role dan hak akses pengguna berdasarkan prinsip least privilege.">
+        <x-slot:actions>
+            <x-ui.status-badge tone="info">Role Anda: {{ $currentRole->value }}</x-ui.status-badge>
+        </x-slot:actions>
+    </x-ui.page-header>
 
     @if (session('status'))
         <div class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">

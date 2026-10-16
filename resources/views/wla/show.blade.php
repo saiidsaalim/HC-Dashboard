@@ -3,6 +3,9 @@
 @php($displayAssessmentCode = $wla->status === \App\Enums\WlaAssessmentStatus::Final
     ? data_get($finalSnapshot, 'assessment_code', 'WLA Final')
     : $wla->assessment_code)
+@php($assessmentDescription = $wla->status === \App\Enums\WlaAssessmentStatus::Final
+    ? 'Periode '.data_get($finalSnapshot, 'period').' · Difinalisasi oleh '.data_get($finalSnapshot, 'finalizer.name')
+    : 'Periode '.$wla->period.' · Dibuat oleh '.$wla->creator->name)
 
 @section('page-title', $displayAssessmentCode)
 
@@ -17,24 +20,12 @@
         @if ($errors->has('wla_export'))
             <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ $errors->first('wla_export') }}</div>
         @endif
-        <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-            <div>
-                <a href="{{ route('wla') }}" class="text-sm font-semibold text-sky-700 hover:text-sky-900">&larr; WLA Assessments</a>
-                <div class="mt-3 flex flex-wrap items-center gap-3">
-                    <h2 class="font-display text-2xl font-bold text-slate-950">{{ $displayAssessmentCode }}</h2>
-                    <span @class([
-                        'rounded-full px-2.5 py-1 text-xs font-semibold',
-                        'bg-emerald-100 text-emerald-800' => $wla->status === \App\Enums\WlaAssessmentStatus::Final,
-                        'bg-slate-100 text-slate-700' => $wla->status === \App\Enums\WlaAssessmentStatus::Draft,
-                    ])>{{ ucfirst($wla->status->value) }}</span>
-                </div>
-                @if ($wla->status === \App\Enums\WlaAssessmentStatus::Final)
-                    <p class="mt-1 text-sm text-slate-500">Period {{ data_get($finalSnapshot, 'period') }} · Finalized by {{ data_get($finalSnapshot, 'finalizer.name') }}</p>
-                @else
-                    <p class="mt-1 text-sm text-slate-500">Period {{ $wla->period }} · Created by {{ $wla->creator->name }}</p>
-                @endif
-            </div>
-            <div class="flex items-center gap-3">
+        <x-ui.page-header :title="$displayAssessmentCode" eyebrow="Workload Analysis"
+            :description="$assessmentDescription" :back-href="route('wla')" back-label="WLA Assessments" class="mb-0">
+            <x-slot:actions>
+                <x-ui.status-badge :tone="$wla->status === \App\Enums\WlaAssessmentStatus::Final ? 'success' : 'neutral'">
+                    {{ ucfirst($wla->status->value) }}
+                </x-ui.status-badge>
                 @if ($wla->status === \App\Enums\WlaAssessmentStatus::Final)
                     @can('view', $wla)
                         <a href="{{ route('wla.print', $wla) }}" target="_blank" rel="noopener" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cetak</a>
@@ -54,8 +45,8 @@
                         <button @disabled($finalizationReasons !== []) class="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50">Finalisasi WLA</button>
                     </form>
                 @endcan
-            </div>
-        </div>
+            </x-slot:actions>
+        </x-ui.page-header>
 
         @if ($wla->status === \App\Enums\WlaAssessmentStatus::Final)
             @include('wla._final-snapshot', ['snapshot' => $finalSnapshot])
@@ -94,17 +85,17 @@
                         <h3 class="mt-1 font-display text-lg font-bold text-slate-950">Peserta dan Status Pengisian</h3>
                     </div>
                     @can('manageParticipants', [\App\Models\WlaParticipant::class, $wla])
-                        <form method="POST" action="{{ route('wla.participants.store', $wla) }}" class="flex flex-wrap items-end gap-2">
+                        <form method="POST" action="{{ route('wla.participants.store', $wla) }}" class="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-end">
                             @csrf
-                            <label class="text-xs font-medium text-slate-600">Tambahkan Staff
-                                <select name="employee_id" required class="mt-1 block min-w-64 rounded-lg border-slate-300 text-sm">
+                            <label class="min-w-0 text-xs font-medium text-slate-600">Tambahkan Staff
+                                <select name="employee_id" required class="mt-1 block w-full min-w-0 rounded-lg border-slate-300 text-sm sm:min-w-64">
                                     <option value="">Pilih Employee</option>
                                     @foreach ($participantOptions as $employee)
                                         <option value="{{ $employee->id }}">{{ $employee->user?->name ?? $employee->personal_number ?? $employee->sap }} · {{ $employee->sap }}</option>
                                     @endforeach
                                 </select>
                             </label>
-                            <button @disabled($participantOptions->isEmpty()) class="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Tambah Peserta</button>
+                            <button @disabled($participantOptions->isEmpty()) class="w-full rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto">Tambah Peserta</button>
                         </form>
                     @endcan
                 </div>

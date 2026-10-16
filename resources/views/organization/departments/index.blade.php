@@ -3,14 +3,13 @@
 @section('page-title', 'Department')
 
 @section('content')
-    <div class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-            <a href="{{ route('organization.index') }}" class="text-sm font-semibold text-sky-700 hover:text-sky-900">&larr; Master Organization</a>
-            <p class="text-sm text-slate-500">Master tingkat teratas struktur organisasi.</p>
-            <h2 class="mt-1 font-display text-2xl font-bold text-slate-950">Department</h2>
-        </div>
-        <a href="{{ route('organization.departments.create') }}" class="w-fit rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700">Tambah Department</a>
-    </div>
+    <x-ui.page-header title="Department" eyebrow="Master organisasi"
+        description="Kelola tingkat teratas struktur organisasi."
+        :back-href="route('organization.index')" back-label="Master Organization">
+        <x-slot:actions>
+            <a href="{{ route('organization.departments.create') }}" class="ui-button ui-button-primary">Tambah Department</a>
+        </x-slot:actions>
+    </x-ui.page-header>
 
     @if (session('status'))
         <div class="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ session('status') }}</div>
@@ -37,11 +36,11 @@
                         <tr>
                             <td class="px-4 py-3 font-semibold text-slate-800">{{ $department->name }}</td>
                             <td class="px-4 py-3 text-slate-600">{{ $department->units_count }}</td>
-                            <td class="px-4 py-3"><span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $department->active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600' }}">{{ $department->active ? 'Aktif' : 'Nonaktif' }}</span></td>
+                            <td class="px-4 py-3"><x-ui.status-badge :tone="$department->active ? 'success' : 'neutral'">{{ $department->active ? 'Aktif' : 'Nonaktif' }}</x-ui.status-badge></td>
                             <td class="px-4 py-3"><div class="flex justify-end gap-3"><a class="font-semibold text-sky-700 hover:text-sky-900" href="{{ route('organization.departments.edit', $department) }}">Ubah</a><form method="POST" action="{{ route('organization.departments.destroy', $department) }}" data-confirm-delete data-confirm-submit data-confirm-title="Hapus Department ini?" data-confirm-text="Department hanya dapat dihapus jika tidak memiliki Unit. Data yang dihapus tidak dapat dikembalikan.">@csrf @method('DELETE')<button class="font-semibold text-red-600 hover:text-red-800">Hapus</button></form></div></td>
                         </tr>
                     @empty
-                        <tr><td colspan="4" class="px-4 py-10 text-center text-slate-500">Belum ada Department.</td></tr>
+                        <tr><x-ui.empty-state colspan="4" title="Belum ada Department" description="Tambahkan Department untuk mulai menyusun struktur organisasi." /></tr>
                     @endforelse
                 </tbody>
             </table>

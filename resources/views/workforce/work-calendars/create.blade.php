@@ -4,8 +4,9 @@
 
 @section('content')
     <div class="mx-auto max-w-3xl">
-        <a href="{{ route('work-calendars.index') }}" class="text-sm font-semibold text-sky-700 hover:text-sky-900">&larr; Work Calendars</a>
-        <h2 class="mt-3 font-display text-2xl font-bold text-slate-950">Tambah Work Calendar</h2>
+        <x-ui.page-header title="Tambah Work Calendar" eyebrow="Parameter WLA"
+            description="Siapkan kalender kerja tahunan untuk perhitungan WLA."
+            :back-href="route('work-calendars.index')" back-label="Work Calendars" />
         @include('workforce.work-calendars._form', ['workCalendar' => null, 'action' => route('work-calendars.store'), 'method' => 'POST'])
     </div>
 @endsection

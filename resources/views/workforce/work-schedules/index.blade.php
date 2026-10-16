@@ -3,13 +3,12 @@
 @section('page-title', 'Work Schedules')
 
 @section('content')
-    <div class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-            <p class="text-sm text-slate-500">Master pola jam dan hari kerja.</p>
-            <h2 class="mt-1 font-display text-2xl font-bold text-slate-950">Work Schedules</h2>
-        </div>
-        <a href="{{ route('work-schedules.create') }}" class="w-fit rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700">Tambah Schedule</a>
-    </div>
+    <x-ui.page-header title="Work Schedules" eyebrow="Parameter WLA"
+        description="Kelola pola jam dan hari kerja yang digunakan dalam perhitungan.">
+        <x-slot:actions>
+            <a href="{{ route('work-schedules.create') }}" class="ui-button ui-button-primary">Tambah Schedule</a>
+        </x-slot:actions>
+    </x-ui.page-header>
 
     @if (session('status'))
         <div class="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ session('status') }}</div>
@@ -41,11 +40,11 @@
                             <td class="px-4 py-3 text-slate-600">{{ $workSchedule->working_hours_per_day }}</td>
                             <td class="px-4 py-3 text-slate-600">{{ $workSchedule->working_days_per_week }}</td>
                             <td class="px-4 py-3 font-medium text-slate-700">{{ $workSchedule->working_hours_per_week }}</td>
-                            <td class="px-4 py-3"><span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $workSchedule->active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600' }}">{{ $workSchedule->active ? 'Aktif' : 'Nonaktif' }}</span></td>
+                            <td class="px-4 py-3"><x-ui.status-badge :tone="$workSchedule->active ? 'success' : 'neutral'">{{ $workSchedule->active ? 'Aktif' : 'Nonaktif' }}</x-ui.status-badge></td>
                             <td class="px-4 py-3"><div class="flex justify-end gap-3"><a class="font-semibold text-sky-700 hover:text-sky-900" href="{{ route('work-schedules.edit', $workSchedule) }}">Ubah</a><form method="POST" action="{{ route('work-schedules.destroy', $workSchedule) }}" data-confirm-delete data-confirm-submit data-confirm-title="Hapus Work Schedule ini?" data-confirm-text="Work Schedule hanya dapat dihapus jika tidak sedang digunakan. Data yang dihapus tidak dapat dikembalikan.">@csrf @method('DELETE')<button class="font-semibold text-red-600 hover:text-red-800">Hapus</button></form></div></td>
                         </tr>
                     @empty
-                        <tr><td colspan="9" class="px-4 py-10 text-center text-slate-500">Belum ada Work Schedule.</td></tr>
+                        <tr><x-ui.empty-state colspan="9" title="Belum ada Work Schedule" description="Tambahkan jadwal kerja untuk digunakan pada assessment WLA." /></tr>
                     @endforelse
                 </tbody>
             </table>

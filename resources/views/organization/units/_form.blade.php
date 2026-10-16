@@ -1,10 +1,10 @@
 <form method="POST" action="{{ $action }}"
-    class="mt-6 space-y-5 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    class="ui-surface space-y-5 p-5 sm:p-6">
     @csrf
     @if ($method !== 'POST')
         @method($method)
     @endif
-    <div><label for="department_id" class="text-sm font-semibold text-slate-700">Department</label><select
+    <div><label for="department_id" class="text-sm font-semibold text-slate-700">Department <span class="text-red-500" aria-hidden="true">*</span></label><select
             id="department_id" name="department_id" required
             class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
             <option value="">Pilih Department</option>
@@ -18,14 +18,14 @@
             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
         @enderror
     </div>
-    <div><label for="code" class="text-sm font-semibold text-slate-700">Kode</label><input id="code"
+    <div><label for="code" class="text-sm font-semibold text-slate-700">Kode <span class="text-red-500" aria-hidden="true">*</span></label><input id="code"
             name="code" value="{{ old('code', $unit?->code) }}" required maxlength="50"
             class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
         @error('code')
             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
         @enderror
     </div>
-    <div><label for="name" class="text-sm font-semibold text-slate-700">Nama</label><input id="name"
+    <div><label for="name" class="text-sm font-semibold text-slate-700">Nama <span class="text-red-500" aria-hidden="true">*</span></label><input id="name"
             name="name" value="{{ old('name', $unit?->name) }}" required maxlength="255"
             class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
         @error('name')
@@ -40,9 +40,9 @@
             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
         @enderror
     </div>
-    <div class="flex justify-end gap-3 border-t border-slate-100 pt-4"><a
+    <div class="flex flex-col-reverse gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end"><a
             href="{{ route('organization.units.index') }}"
-            class="rounded-lg px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">Batal</a><button
-            class="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700">Simpan</button>
+            class="ui-button ui-button-secondary w-full sm:w-auto">Batal</a><button
+            class="ui-button ui-button-primary w-full sm:w-auto">Simpan</button>
     </div>
 </form>

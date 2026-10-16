@@ -4,13 +4,9 @@
 
 @section('content')
     <div class="mx-auto max-w-2xl">
-        <div class="flex flex-wrap items-center gap-3 text-sm font-semibold">
-            <a href="{{ route('organization.index') }}" class="text-sky-700 hover:text-sky-900">Master Organization</a>
-            <span class="text-slate-300">/</span>
-            <a href="{{ route('organization.units.index') }}" class="text-sky-700 hover:text-sky-900">Unit</a>
-        </div>
-        <h2 class="mt-3 font-display text-2xl font-bold text-slate-950">Tambah Unit</h2>
-        <p class="mt-1 text-sm text-slate-500">Pilih Department aktif sebagai induk Unit ini.</p>
+        <x-ui.page-header title="Tambah Unit" eyebrow="Master organisasi"
+            description="Pilih Department aktif sebagai induk Unit ini."
+            :back-href="route('organization.units.index')" back-label="Daftar Unit" />
         @if ($departments->isEmpty())
             <div class="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 Belum ada Department aktif. Aktifkan atau buat Department terlebih dahulu.

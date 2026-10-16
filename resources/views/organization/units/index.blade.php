@@ -3,18 +3,15 @@
 @section('page-title', 'Unit')
 
 @section('content')
-    <div class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-            <a href="{{ route('organization.index') }}" class="text-sm font-semibold text-sky-700 hover:text-sky-900">&larr; Master Organization</a>
-            <p class="mt-2 text-sm text-slate-500">Unit berada di bawah satu Department.</p>
-            <h2 class="mt-1 font-display text-2xl font-bold text-slate-950">Unit</h2>
-        </div>
-        <div class="flex flex-wrap gap-2">
-            <a href="{{ route('organization.departments.index') }}" class="w-fit rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Daftar Department</a>
-            <a href="{{ route('organization.positions.index') }}" class="w-fit rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Daftar Position</a>
-            <a href="{{ route('organization.units.create') }}" class="w-fit rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700">Tambah Unit</a>
-        </div>
-    </div>
+    <x-ui.page-header title="Unit" eyebrow="Master organisasi"
+        description="Kelola Unit yang berada di bawah satu Department."
+        :back-href="route('organization.index')" back-label="Master Organization">
+        <x-slot:actions>
+            <a href="{{ route('organization.departments.index') }}" class="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50 sm:w-auto">Daftar Department</a>
+            <a href="{{ route('organization.positions.index') }}" class="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50 sm:w-auto">Daftar Position</a>
+            <a href="{{ route('organization.units.create') }}" class="ui-button ui-button-primary">Tambah Unit</a>
+        </x-slot:actions>
+    </x-ui.page-header>
     @if (session('status'))<div class="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ session('status') }}</div>@endif
     @if ($errors->any())<div class="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ $errors->first() }}</div>@endif
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -25,7 +22,7 @@
             <button class="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200">Filter</button>
         </form>
         <div class="overflow-x-auto"><table class="w-full min-w-[640px] text-left text-sm"><thead class="bg-slate-50 text-xs uppercase text-slate-500"><tr><th class="px-4 py-3">Nama</th><th class="px-4 py-3">Department</th><th class="px-4 py-3">Position</th><th class="px-4 py-3">Status</th><th class="px-4 py-3 text-right">Aksi</th></tr></thead>
-            <tbody class="divide-y divide-slate-100">@forelse ($units as $unit)<tr><td class="px-4 py-3 font-semibold text-slate-800">{{ $unit->name }}</td><td class="px-4 py-3 text-slate-600">{{ $unit->department->name }}</td><td class="px-4 py-3 text-slate-600">{{ $unit->positions_count ?? $unit->positions()->count() }}</td><td class="px-4 py-3"><span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $unit->active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600' }}">{{ $unit->active ? 'Aktif' : 'Nonaktif' }}</span></td><td class="px-4 py-3"><div class="flex justify-end gap-3"><a class="font-semibold text-sky-700 hover:text-sky-900" href="{{ route('organization.units.edit', $unit) }}">Ubah</a><form method="POST" action="{{ route('organization.units.destroy', $unit) }}" data-confirm-delete data-confirm-submit data-confirm-title="Hapus Unit ini?" data-confirm-text="Unit hanya dapat dihapus jika tidak memiliki Position. Data yang dihapus tidak dapat dikembalikan.">@csrf @method('DELETE')<button class="font-semibold text-red-600 hover:text-red-800">Hapus</button></form></div></td></tr>@empty<tr><td colspan="5" class="px-4 py-10 text-center text-slate-500">Belum ada Unit pada filter ini.</td></tr>@endforelse</tbody>
+            <tbody class="divide-y divide-slate-100">@forelse ($units as $unit)<tr><td class="px-4 py-3 font-semibold text-slate-800">{{ $unit->name }}</td><td class="px-4 py-3 text-slate-600">{{ $unit->department->name }}</td><td class="px-4 py-3 text-slate-600">{{ $unit->positions_count ?? $unit->positions()->count() }}</td><td class="px-4 py-3"><x-ui.status-badge :tone="$unit->active ? 'success' : 'neutral'">{{ $unit->active ? 'Aktif' : 'Nonaktif' }}</x-ui.status-badge></td><td class="px-4 py-3"><div class="flex justify-end gap-3"><a class="font-semibold text-sky-700 hover:text-sky-900" href="{{ route('organization.units.edit', $unit) }}">Ubah</a><form method="POST" action="{{ route('organization.units.destroy', $unit) }}" data-confirm-delete data-confirm-submit data-confirm-title="Hapus Unit ini?" data-confirm-text="Unit hanya dapat dihapus jika tidak memiliki Position. Data yang dihapus tidak dapat dikembalikan.">@csrf @method('DELETE')<button class="font-semibold text-red-600 hover:text-red-800">Hapus</button></form></div></td></tr>@empty<tr><x-ui.empty-state colspan="5" title="Belum ada Unit" description="Sesuaikan filter atau tambahkan Unit baru." /></tr>@endforelse</tbody>
         </table></div>
         <div class="border-t border-slate-200 px-4 py-3">{{ $units->links() }}</div>
     </section>

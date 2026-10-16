@@ -103,6 +103,9 @@
 
         .actions a,
         .actions button {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
             border: 1px solid #cbd5e1;
             border-radius: 6px;
             padding: 9px 12px;
@@ -158,7 +161,7 @@
                 <p class="meta">Dicetak: {{ $printedAt->translatedFormat('d F Y, H:i') }}</p>
             </div>
             <div class="actions no-print">
-                <a href="{{ route('data-pegawai') }}">Kembali</a>
+                <a href="{{ route('data-pegawai') }}"><span aria-hidden="true">&larr;</span> Kembali</a>
                 <button type="button" onclick="window.print()">Cetak / Simpan PDF</button>
             </div>
         </header>

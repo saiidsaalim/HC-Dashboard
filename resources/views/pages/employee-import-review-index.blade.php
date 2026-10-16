@@ -4,13 +4,9 @@
 
 @section('content')
     <div class="space-y-6">
-        <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-            <div>
-                <a href="{{ route('data-pegawai') }}" class="text-sm font-semibold text-slate-500 hover:text-slate-900">Data Pegawai</a>
-                <h2 class="mt-2 font-display text-2xl font-bold text-slate-950">Batch import</h2>
-            </div>
-            <a href="{{ route('data-pegawai') }}" class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Kembali ke Data Pegawai</a>
-        </div>
+        <x-ui.page-header title="Batch Import" eyebrow="Data Pegawai"
+            description="Tinjau status dan hasil setiap proses import data pegawai."
+            :back-href="route('data-pegawai')" back-label="Kembali ke Data Pegawai" class="mb-0" />
 
         @if (session('status'))
             <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>

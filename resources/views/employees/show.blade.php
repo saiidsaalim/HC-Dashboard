@@ -3,16 +3,9 @@
 @section('page-title', 'Profil Pegawai')
 
 @section('content')
-    <div class="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-            <a href="{{ route('data-pegawai') }}"
-                class="mb-4 inline-block text-sm font-semibold text-slate-500 transition hover:text-slate-900">
-                Kembali ke Data Pegawai
-            </a>
-            <h2 class="mt-1 font-display text-3xl font-bold tracking-tight text-slate-950">SAP: {{ $employee->sap }}</h2>
-            <p class="mt-1 text-sm text-slate-500">Personal Number: {{ $employee->personal_number ?: '-' }}</p>
-        </div>
-    </div>
+    <x-ui.page-header title="SAP: {{ $employee->sap }}" eyebrow="Profil Pegawai"
+        description="Personal Number: {{ $employee->personal_number ?: '-' }}"
+        :back-href="route('data-pegawai')" back-label="Kembali ke Data Pegawai" />
 
     <div class="space-y-6">
         <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">

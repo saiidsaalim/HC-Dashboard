@@ -4,13 +4,9 @@
 
 @section('content')
     <div class="mx-auto max-w-3xl">
-        <div class="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
-            <div>
-                <p class="text-sm text-slate-500">Pilih empat User berbeda untuk workflow persetujuan berurutan.</p>
-                <h2 class="mt-1 font-display text-3xl font-bold tracking-tight text-slate-950">Pengaturan Persetujuan Promosi</h2>
-            </div>
-            <a href="{{ route('promosi') }}" class="text-sm font-semibold text-sky-700 hover:text-sky-900">Kembali ke Promosi</a>
-        </div>
+        <x-ui.page-header title="Pengaturan Persetujuan Promosi" eyebrow="Workflow approval"
+            description="Pilih empat User berbeda untuk workflow persetujuan berurutan."
+            :back-href="route('promosi')" back-label="Kembali ke Promosi" />
 
         @if (session('status'))
             <div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
@@ -28,7 +24,7 @@
         @endif
 
         <form method="POST" action="{{ route('promosi.approval-settings.update') }}"
-            class="space-y-5 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            class="ui-surface space-y-5 p-5 sm:p-6">
             @csrf
             @method('PUT')
             @foreach ($approvalSteps as $step)
@@ -47,7 +43,7 @@
             @endforeach
             <p class="text-xs text-slate-500">Perubahan berlaku langsung untuk tahap aktif dan tahap berikutnya yang belum diputuskan. Riwayat keputusan lama tidak berubah.</p>
             <div class="flex justify-end">
-                <button type="submit" class="rounded-xl bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700">
+                <button type="submit" class="ui-button ui-button-primary">
                     Simpan Pengaturan
                 </button>
             </div>

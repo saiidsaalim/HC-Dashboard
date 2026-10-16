@@ -3,13 +3,12 @@
 @section('page-title', 'Work Calendars')
 
 @section('content')
-    <div class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-            <p class="text-sm text-slate-500">Master parameter hari dalam kalender kerja tahunan.</p>
-            <h2 class="mt-1 font-display text-2xl font-bold text-slate-950">Work Calendars</h2>
-        </div>
-        <a href="{{ route('work-calendars.create') }}" class="w-fit rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700">Tambah Calendar</a>
-    </div>
+    <x-ui.page-header title="Work Calendars" eyebrow="Parameter WLA"
+        description="Kelola parameter hari dalam kalender kerja tahunan.">
+        <x-slot:actions>
+            <a href="{{ route('work-calendars.create') }}" class="ui-button ui-button-primary">Tambah Calendar</a>
+        </x-slot:actions>
+    </x-ui.page-header>
 
     @if (session('status'))
         <div class="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ session('status') }}</div>
@@ -40,11 +39,11 @@
                             <td class="px-4 py-3 text-slate-600">{{ $workCalendar->annual_leave }}</td>
                             <td class="px-4 py-3 text-slate-600">{{ $workCalendar->national_holiday }}</td>
                             <td class="px-4 py-3 text-slate-600">{{ $workCalendar->common_leave }}</td>
-                            <td class="px-4 py-3"><span class="rounded-full px-2.5 py-1 text-xs font-semibold {{ $workCalendar->active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600' }}">{{ $workCalendar->active ? 'Aktif' : 'Nonaktif' }}</span></td>
+                            <td class="px-4 py-3"><x-ui.status-badge :tone="$workCalendar->active ? 'success' : 'neutral'">{{ $workCalendar->active ? 'Aktif' : 'Nonaktif' }}</x-ui.status-badge></td>
                             <td class="px-4 py-3"><div class="flex justify-end gap-3"><a class="font-semibold text-sky-700 hover:text-sky-900" href="{{ route('work-calendars.edit', $workCalendar) }}">Ubah</a><form method="POST" action="{{ route('work-calendars.destroy', $workCalendar) }}" data-confirm-delete data-confirm-submit data-confirm-title="Hapus Work Calendar ini?" data-confirm-text="Work Calendar hanya dapat dihapus jika tidak sedang digunakan. Data yang dihapus tidak dapat dikembalikan.">@csrf @method('DELETE')<button class="font-semibold text-red-600 hover:text-red-800">Hapus</button></form></div></td>
                         </tr>
                     @empty
-                        <tr><td colspan="8" class="px-4 py-10 text-center text-slate-500">Belum ada Work Calendar.</td></tr>
+                        <tr><x-ui.empty-state colspan="8" title="Belum ada Work Calendar" description="Tambahkan kalender untuk menyiapkan parameter perhitungan WLA." /></tr>
                     @endforelse
                 </tbody>
             </table>

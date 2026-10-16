@@ -3,20 +3,17 @@
 @section('page-title', 'WLA Assessment')
 
 @section('content')
-    <div class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-            <p class="text-sm text-slate-500">Draft and immutable Final workload assessments.</p>
-            <h2 class="mt-1 font-display text-2xl font-bold text-slate-950">WLA Assessments</h2>
-        </div>
-        <div class="flex flex-wrap gap-2">
+    <x-ui.page-header title="WLA Assessments" eyebrow="Workload Analysis"
+        description="Kelola assessment beban kerja dalam status Draft dan Final.">
+        <x-slot:actions>
             @can('viewAny', \App\Models\WlaAssessment::class)
                 <a href="{{ route('wla.headcount-analysis') }}" class="w-fit rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Analisis Headcount</a>
             @endcan
             @can('create', \App\Models\WlaAssessment::class)
-                <a href="{{ route('wla.create') }}" class="w-fit rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700">New Assessment</a>
+                <a href="{{ route('wla.create') }}" class="ui-button ui-button-primary">Assessment Baru</a>
             @endcan
-        </div>
-    </div>
+        </x-slot:actions>
+    </x-ui.page-header>
 
     @if (session('status'))
         <div class="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ session('status') }}</div>
@@ -43,11 +40,11 @@
                             <td class="px-4 py-3 text-slate-600">{{ $isFinal ? data_get($snapshot, 'efficiency_factor', '—') : $wla->efficiency_factor }}</td>
                             <td class="px-4 py-3 text-slate-600">{{ $isFinal ? data_get($snapshot, 'fte', '—') : $wla->fte }}</td>
                             <td class="px-4 py-3 text-slate-600">{{ $isFinal ? data_get($snapshot, 'recommended_employees', '—') : $wla->recommended_employees }}</td>
-                            <td class="px-4 py-3"><span @class(['rounded-full px-2.5 py-1 text-xs font-semibold', 'bg-emerald-100 text-emerald-800' => $isFinal, 'bg-slate-100 text-slate-700' => ! $isFinal])>{{ ucfirst($wla->status->value) }}</span></td>
+                            <td class="px-4 py-3"><x-ui.status-badge :tone="$isFinal ? 'success' : 'neutral'">{{ ucfirst($wla->status->value) }}</x-ui.status-badge></td>
                             <td class="px-4 py-3"><div class="flex justify-end gap-3"><a class="font-semibold text-sky-700 hover:text-sky-900" href="{{ route('wla.show', $wla) }}">Open</a>@can('update', $wla)<a class="font-semibold text-slate-600 hover:text-slate-900" href="{{ route('wla.edit', $wla) }}">Edit</a>@endcan</div></td>
                         </tr>
                     @empty
-                        <tr><td colspan="12" class="px-4 py-12 text-center text-slate-500">No assessments yet.</td></tr>
+                        <tr><x-ui.empty-state colspan="12" title="Belum ada assessment" description="Buat assessment baru untuk memulai analisis beban kerja." /></tr>
                     @endforelse
                 </tbody>
             </table>

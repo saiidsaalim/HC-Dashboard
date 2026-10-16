@@ -4,7 +4,7 @@
 
 @section('content')
     <div x-data="{
-        open: false,
+        open: @js($errors->any() && old('_form') === 'create'),
         organizationUnits: @js($organizationUnits->map(fn ($unit) => ['id' => $unit->id, 'department_id' => $unit->department_id, 'name' => $unit->name])->values()),
         organizationPositions: @js($organizationPositions->map(fn ($position) => ['id' => $position->id, 'unit_id' => $position->unit_id, 'department_id' => $position->unit->department_id, 'name' => $position->name])->values()),
         async chooseExport(pdfUrl, excelUrl) {
@@ -25,12 +25,9 @@
             }
         },
     }">
-        <div class="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-            <div>
-                <p class="text-sm text-slate-500">Kelola data utama dan informasi pegawai.</p>
-                <h2 class="mt-1 font-display text-3xl font-bold tracking-tight text-slate-950">Data Pegawai</h2>
-            </div>
-            <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <x-ui.page-header title="Data Pegawai" eyebrow="Employee master"
+            description="Kelola data utama dan informasi pegawai.">
+            <x-slot:actions>
                 <button type="button"
                     data-pdf-url="{{ route('data-pegawai.print', ['autoprint' => 1]) }}"
                     data-excel-url="{{ route('data-pegawai.export') }}"
@@ -60,13 +57,14 @@
                             Import SAP
                         </button>
                     </form>
-                    <button type="button" @click="open = true"
+                    <button type="button"
+                        @click="open = true; $nextTick(() => { document.getElementById('employee-form-body').scrollTop = 0; document.getElementById('sap')?.focus() })"
                         class="rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
                         Tambah Pegawai
                     </button>
                 @endif
-            </div>
-        </div>
+            </x-slot:actions>
+        </x-ui.page-header>
 
         @if (session('status'))
             <div class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
@@ -78,7 +76,7 @@
             </div>
         @endif
 
-        @if ($errors->any())
+        @if ($errors->any() && old('_form') !== 'create')
             <div class="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 <p class="font-semibold">Data pegawai tidak dapat diproses.</p>
                 <ul class="mt-1 list-disc pl-5">
@@ -90,26 +88,72 @@
         @endif
 
         @if ($canManageEmployees)
-            <div x-cloak x-show="open" x-transition.opacity @keydown.escape.window="open = false"
-                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 p-4 sm:p-8"
+            <div x-cloak x-show="open" x-transition.opacity x-effect="document.body.classList.toggle('overflow-hidden', open)"
+                @keydown.escape.window="open = false"
+                class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-2 backdrop-blur-sm sm:p-6"
                 @click.self="open = false">
-                <section class="my-4 w-full max-w-6xl rounded-2xl bg-white p-6 shadow-2xl sm:my-8 sm:p-8" role="dialog"
+                <section class="flex h-[calc(100dvh-1rem)] w-full flex-col overflow-hidden bg-white shadow-2xl sm:h-[calc(100dvh-3rem)] sm:max-w-6xl sm:rounded-2xl sm:border sm:border-slate-200" role="dialog"
                     aria-modal="true" aria-labelledby="employee-modal-title">
-                <div class="flex items-start justify-between gap-4">
-                    <div>
-                        <h3 id="employee-modal-title" class="font-display text-xl font-bold text-slate-950">Tambah Data Pegawai</h3>
-                        <p class="mt-1 text-sm text-slate-500">Isi informasi pegawai sesuai data SAP dan struktur organisasi.</p>
+                    <div class="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 bg-white px-4 py-4 sm:px-6 sm:py-5">
+                        <div class="min-w-0">
+                            <p class="text-xs font-bold uppercase tracking-[0.18em] text-sky-700">Employee master</p>
+                            <h3 id="employee-modal-title" class="mt-1 font-display text-xl font-bold text-slate-950 sm:text-2xl">Tambah Data Pegawai</h3>
+                            <p class="mt-1 text-sm leading-6 text-slate-500">Isi identitas utama terlebih dahulu, lalu lengkapi data organisasi dan personal yang tersedia.</p>
+                        </div>
+                        <button type="button" @click="open = false" aria-label="Tutup formulir tambah pegawai"
+                            class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400">
+                            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <path d="M5 5l10 10M15 5 5 15" stroke-linecap="round" />
+                            </svg>
+                        </button>
                     </div>
-                    <button type="button" @click="open = false" aria-label="Tutup"
-                        class="rounded-lg px-3 py-2 text-xl leading-none text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">&times;</button>
-                </div>
 
-                <form method="POST" action="{{ route('data-pegawai.store') }}" x-data="{ departmentId: @js(old('department_id', '')), unitId: @js(old('unit_id', '')), positionId: @js(old('position_id', '')) }" class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <nav aria-label="Bagian formulir pegawai"
+                        class="shrink-0 border-b border-slate-200 bg-white px-4 py-2.5 sm:px-6">
+                        <div class="flex gap-2 overflow-x-auto pb-0.5">
+                            <button type="button" @click="document.getElementById('employee-section-identity').scrollIntoView({ behavior: 'smooth', block: 'start' })"
+                                class="whitespace-nowrap rounded-lg bg-slate-950 px-3 py-2 text-xs font-bold text-white">01 Identitas</button>
+                            <button type="button" @click="document.getElementById('employee-section-organization').scrollIntoView({ behavior: 'smooth', block: 'start' })"
+                                class="whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-sky-300 hover:text-sky-700">02 Organisasi</button>
+                            <button type="button" @click="document.getElementById('employee-section-sap').scrollIntoView({ behavior: 'smooth', block: 'start' })"
+                                class="whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-sky-300 hover:text-sky-700">03 Data SAP</button>
+                            <button type="button" @click="document.getElementById('employee-section-personal').scrollIntoView({ behavior: 'smooth', block: 'start' })"
+                                class="whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-sky-300 hover:text-sky-700">04 Personal</button>
+                        </div>
+                    </nav>
+
+                <form method="POST" action="{{ route('data-pegawai.store') }}" x-data="{ departmentId: @js(old('department_id', '')), unitId: @js(old('unit_id', '')), positionId: @js(old('position_id', '')) }" class="flex min-h-0 flex-1 flex-col">
                     @csrf
+                    <input type="hidden" name="_form" value="create">
+                    <div id="employee-form-body" class="min-h-0 flex-1 overflow-y-auto bg-slate-100/70 px-4 py-5 sm:px-6 lg:px-8">
+                        <div class="mx-auto max-w-5xl space-y-5">
+                            @if ($errors->any() && old('_form') === 'create')
+                                <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
+                                    <p class="font-bold">Periksa kembali data berikut:</p>
+                                    <ul class="mt-2 list-disc space-y-1 pl-5">
+                                        @foreach ($errors->all() as $error)
+                                            <li>{{ $error }}</li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            @endif
+
+                            <fieldset id="employee-section-identity" class="scroll-mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+                                <legend class="sr-only">Identitas kepegawaian</legend>
+                                <div class="flex items-start gap-3 border-b border-slate-200 pb-4">
+                                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-xs font-bold text-white">01</span>
+                                    <div>
+                                        <h4 class="font-display font-bold text-slate-950">Identitas kepegawaian</h4>
+                                        <p class="mt-0.5 text-xs leading-5 text-slate-500">SAP wajib diisi. Nomor lainnya dapat dilengkapi sesuai data sumber.</p>
+                                    </div>
+                                </div>
+                                <div class="mt-5 grid gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
                     <div>
-                        <label for="sap" class="text-sm font-semibold text-slate-700">SAP</label>
+                        <label for="sap" class="text-sm font-semibold text-slate-700">SAP <span class="text-red-600">*</span></label>
                         <input id="sap" name="sap" value="{{ old('sap') }}" required
-                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
+                            @error('sap') aria-invalid="true" aria-describedby="sap-error" @enderror
+                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500 @error('sap') border-red-400 @enderror">
+                        @error('sap')<p id="sap-error" class="mt-1.5 text-sm font-medium text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div>
                         <label for="id_number" class="text-sm font-semibold text-slate-700">ID Number</label>
@@ -131,36 +175,70 @@
                         <input id="position_id_source" name="position_id_source" value="{{ old('position_id_source') }}"
                             class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
                     </div>
+                                </div>
+                            </fieldset>
+
+                            <fieldset id="employee-section-organization" class="scroll-mt-4 rounded-2xl border border-sky-200 bg-white p-4 shadow-sm sm:p-6">
+                                <legend class="sr-only">Penempatan organisasi</legend>
+                                <div class="flex items-start gap-3 border-b border-sky-100 pb-4">
+                                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-700 text-xs font-bold text-white">02</span>
+                                    <div>
+                                        <h4 class="font-display font-bold text-slate-950">Penempatan organisasi</h4>
+                                        <p class="mt-0.5 text-xs leading-5 text-slate-500">Pilih berurutan dari Department, Unit, lalu Position.</p>
+                                    </div>
+                                </div>
+                                <div class="mt-5 grid gap-x-5 gap-y-4 sm:grid-cols-3">
                     <div>
                         <label for="create-department-id" class="text-sm font-semibold text-slate-700">Department</label>
                         <select id="create-department-id" name="department_id" x-model="departmentId" @change="unitId = ''; positionId = ''"
-                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
+                            @error('department_id') aria-invalid="true" aria-describedby="department-id-error" @enderror
+                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500 @error('department_id') border-red-400 @enderror">
                             <option value="">Pilih Department</option>
                             @foreach ($organizationDepartments as $departmentOption)
                                 <option value="{{ $departmentOption->id }}">{{ $departmentOption->name }}</option>
                             @endforeach
                         </select>
+                        @error('department_id')<p id="department-id-error" class="mt-1.5 text-sm font-medium text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div>
                         <label for="create-unit-id" class="text-sm font-semibold text-slate-700">Unit</label>
                         <select id="create-unit-id" name="unit_id" x-model="unitId" @change="positionId = ''"
-                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
-                            <option value="">Pilih Unit</option>
-                            <template x-for="unit in organizationUnits.filter(item => !departmentId || String(item.department_id) === String(departmentId))" :key="unit.id">
+                            :disabled="!departmentId"
+                            @error('unit_id') aria-invalid="true" aria-describedby="unit-id-error" @enderror
+                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 @error('unit_id') border-red-400 @enderror">
+                            <option value="" x-text="departmentId ? 'Pilih Unit' : 'Pilih Department terlebih dahulu'"></option>
+                            <template x-for="unit in organizationUnits.filter(item => String(item.department_id) === String(departmentId))" :key="unit.id">
                                 <option :value="String(unit.id)" x-text="unit.name"></option>
                             </template>
                         </select>
+                        @error('unit_id')<p id="unit-id-error" class="mt-1.5 text-sm font-medium text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div>
                         <label for="create-position-id" class="text-sm font-semibold text-slate-700">Position</label>
-                        <select id="create-position-id" name="position_id" x-model="positionId"
-                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
-                            <option value="">Pilih Position</option>
-                            <template x-for="position in organizationPositions.filter(item => (!departmentId || String(item.department_id) === String(departmentId)) && (!unitId || String(item.unit_id) === String(unitId))" :key="position.id">
+                        <select id="create-position-id" name="position_id" x-model="positionId" :disabled="!unitId"
+                            @error('position_id') aria-invalid="true" aria-describedby="position-id-error" @enderror
+                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 @error('position_id') border-red-400 @enderror">
+                            <option value="" x-text="unitId ? 'Pilih Position' : 'Pilih Unit terlebih dahulu'"></option>
+                            <template x-for="position in organizationPositions.filter(item => String(item.unit_id) === String(unitId))" :key="position.id">
                                 <option :value="String(position.id)" x-text="position.name"></option>
                             </template>
                         </select>
+                        @error('position_id')<p id="position-id-error" class="mt-1.5 text-sm font-medium text-red-600">{{ $message }}</p>@enderror
                     </div>
+                                </div>
+                            </fieldset>
+
+                            <fieldset id="employee-section-sap" class="scroll-mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+                                <legend class="sr-only">Data tambahan SAP</legend>
+                                <div class="flex items-start gap-3 border-b border-slate-200 pb-4">
+                                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-600 text-xs font-bold text-white">03</span>
+                                    <div class="min-w-0 flex-1">
+                                        <h4 class="font-display font-bold text-slate-950">Data tambahan SAP</h4>
+                                        <p class="mt-0.5 text-xs leading-5 text-slate-500">Gunakan bagian ini untuk menyimpan nilai organisasi dan ketenagakerjaan dari sumber lama.</p>
+                                    </div>
+                                    <span class="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">Opsional</span>
+                                </div>
+                                <div class="mt-5 grid gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
                     <div>
                         <label for="organizational_unit" class="text-sm font-semibold text-slate-700">Organizational Unit</label>
                         <input id="organizational_unit" name="organizational_unit" value="{{ old('organizational_unit') }}"
@@ -226,8 +304,21 @@
                         <input id="personnel_area" name="personnel_area" value="{{ old('personnel_area') }}"
                             class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
                     </div>
+                                </div>
+                            </fieldset>
+
+                            <fieldset id="employee-section-personal" class="scroll-mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+                                <legend class="sr-only">Data personal</legend>
+                                <div class="flex items-start gap-3 border-b border-slate-200 pb-4">
+                                    <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-600 text-xs font-bold text-white">04</span>
+                                    <div>
+                                        <h4 class="font-display font-bold text-slate-950">Data personal</h4>
+                                        <p class="mt-0.5 text-xs leading-5 text-slate-500">Lengkapi informasi personal dan kontak yang tersedia.</p>
+                                    </div>
+                                </div>
+                                <div class="mt-5 grid gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
                     <div>
-                        <label for="birth_date" class="text-sm font-semibold text-slate-700">Birth Date</label>
+                        <label for="birth_date" class="text-sm font-semibold text-slate-700">Tanggal Lahir</label>
                         <input id="birth_date" name="birth_date" type="date" value="{{ old('birth_date') }}"
                             class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
                     </div>
@@ -242,7 +333,7 @@
                             class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
                     </div>
                     <div>
-                        <label for="religious" class="text-sm font-semibold text-slate-700">Religious</label>
+                        <label for="religious" class="text-sm font-semibold text-slate-700">Agama</label>
                         <input id="religious" name="religious" value="{{ old('religious') }}"
                             class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
                     </div>
@@ -257,7 +348,7 @@
                             class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
                     </div>
                     <div>
-                        <label for="hiring" class="text-sm font-semibold text-slate-700">Hiring</label>
+                        <label for="hiring" class="text-sm font-semibold text-slate-700">Tanggal Hiring</label>
                         <input id="hiring" name="hiring" type="date" value="{{ old('hiring') }}"
                             class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
                     </div>
@@ -269,15 +360,23 @@
                     <div>
                         <label for="email" class="text-sm font-semibold text-slate-700">Email</label>
                         <input id="email" name="email" type="email" value="{{ old('email') }}"
-                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
+                            @error('email') aria-invalid="true" aria-describedby="email-error" @enderror
+                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500 @error('email') border-red-400 @enderror">
+                        @error('email')<p id="email-error" class="mt-1.5 text-sm font-medium text-red-600">{{ $message }}</p>@enderror
                     </div>
-                    <div class="sm:col-span-2 xl:col-span-4">
+                    <div class="sm:col-span-2 lg:col-span-3">
                         <label for="alamat" class="text-sm font-semibold text-slate-700">Alamat</label>
                         <textarea id="alamat" name="alamat" rows="3"
                             class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">{{ old('alamat') }}</textarea>
                     </div>
-                    <div class="flex justify-end sm:col-span-2 xl:col-span-4">
-                        <button type="submit" class="w-full rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 sm:w-auto">
+                                </div>
+                            </fieldset>
+                        </div>
+                    </div>
+                    <div class="flex shrink-0 flex-col-reverse gap-3 border-t border-slate-200 bg-white px-4 py-4 sm:flex-row sm:justify-end sm:px-6">
+                        <button type="button" @click="open = false"
+                            class="ui-button ui-button-secondary w-full sm:w-auto">Batal</button>
+                        <button type="submit" class="ui-button ui-button-primary w-full sm:w-auto">
                             Simpan Data Pegawai
                         </button>
                     </div>

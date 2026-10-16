@@ -1,4 +1,4 @@
-<x-guest-layout>
+<x-guest-layout title="Masuk">
     <div class="mb-8">
         <p class="text-sm font-bold uppercase tracking-[0.25em] text-amber-300">Human Capital Management</p>
         <h1 class="mt-3 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">Selamat datang kembali</h1>
@@ -13,21 +13,21 @@
 
         <!-- Email Address -->
         <div>
-            <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email" class="mt-2 block h-[52px] w-full rounded-2xl border border-white/25 bg-white/10 px-4 text-white shadow-none focus:border-amber-300 focus:ring-amber-300" type="email" name="email" :value="old('email')" required autofocus autocomplete="username" />
-            <x-input-error :messages="$errors->get('email')" class="mt-2" />
+            <x-input-label for="email" :value="__('Email')" surface="dark" />
+            <x-text-input id="email" class="mt-2 block h-[52px] w-full rounded-2xl px-4" type="email" name="email" :value="old('email')" surface="dark" required autofocus autocomplete="username" />
+            <x-input-error :messages="$errors->get('email')" class="mt-2" surface="dark" />
         </div>
 
         <!-- Password -->
         <div class="mt-5">
-            <x-input-label for="password" :value="__('Password')" />
+            <x-input-label for="password" :value="__('Password')" surface="dark" />
 
-            <x-text-input id="password" class="mt-2 block h-[52px] w-full rounded-2xl border border-white/25 bg-white/10 px-4 text-white shadow-none focus:border-amber-300 focus:ring-amber-300"
+            <x-text-input id="password" class="mt-2 block h-[52px] w-full rounded-2xl px-4" surface="dark"
                             type="password"
                             name="password"
                             required autocomplete="current-password" />
 
-            <x-input-error :messages="$errors->get('password')" class="mt-2" />
+            <x-input-error :messages="$errors->get('password')" class="mt-2" surface="dark" />
         </div>
 
         <!-- Remember Me -->

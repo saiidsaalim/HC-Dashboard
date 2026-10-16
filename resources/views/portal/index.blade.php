@@ -52,16 +52,16 @@
         </a>
 
         <header class="sticky top-0 z-40 border-b border-white/10 bg-slate-950 text-white">
-            <div class="mx-auto flex h-[100px] w-full max-w-[1440px] flex-nowrap items-center justify-between gap-3 px-5 sm:gap-5 sm:px-8 xl:px-0">
+            <div class="mx-auto flex h-20 w-full max-w-[1440px] flex-nowrap items-center justify-between gap-3 px-4 sm:h-[100px] sm:gap-5 sm:px-8 xl:px-0">
                 <a href="{{ route('portal') }}" aria-label="SIG - Beranda portal"
                     class="relative flex shrink-0 items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400">
                     <img src="{{ asset('images/logo-sig-header.png') }}" alt="SIG" width="120" height="70"
-                        class="h-[70px] w-[120px] object-cover">
+                        class="h-14 w-24 object-cover sm:h-[70px] sm:w-[120px]">
                 </a>
 
                 <div class="flex min-w-0 shrink-0 flex-nowrap items-center gap-3 sm:gap-5">
                     <img src="{{ asset('images/logo-tonasa.png') }}" alt="Logo Semen Tonasa" width="68"
-                        height="68" class="h-[68px] w-[68px] rounded-full object-contain">
+                        height="68" class="h-10 w-10 rounded-full object-contain sm:h-[68px] sm:w-[68px]">
                     @auth
                         <span class="hidden max-w-40 truncate text-sm font-semibold text-white sm:block">
                             {{ auth()->user()->name }}
@@ -73,13 +73,13 @@
                         <form method="POST" action="{{ route('logout') }}" class="shrink-0">
                             @csrf
                             <button type="submit"
-                                class="inline-flex h-11 items-center justify-center whitespace-nowrap rounded-xl bg-white px-5 text-[15px] font-semibold text-[#00314b] transition hover:bg-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950">
+                                class="inline-flex h-10 items-center justify-center whitespace-nowrap rounded-xl bg-white px-3 text-xs font-semibold text-[#00314b] transition hover:bg-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 sm:h-11 sm:px-5 sm:text-[15px]">
                                 Keluar
                             </button>
                         </form>
                     @else
                         <a href="{{ route('login') }}" @click.prevent="openPortalLogin()"
-                            class="inline-flex h-11 items-center justify-center whitespace-nowrap rounded-xl bg-white px-5 text-[15px] font-semibold text-[#00314b] transition hover:bg-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950">
+                            class="inline-flex h-10 items-center justify-center whitespace-nowrap rounded-xl bg-white px-3 text-xs font-semibold text-[#00314b] transition hover:bg-amber-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 sm:h-11 sm:px-5 sm:text-[15px]">
                             Masuk ke Portal
                         </a>
                     @endauth

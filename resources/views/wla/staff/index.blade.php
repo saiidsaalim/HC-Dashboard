@@ -4,10 +4,8 @@
 
 @section('content')
     <div class="mx-auto max-w-6xl space-y-6">
-        <div>
-            <p class="text-sm text-slate-500">Daftar tugas pengisian aktivitas beban kerja Anda.</p>
-            <h2 class="mt-1 font-display text-2xl font-bold text-slate-950">WLA Saya</h2>
-        </div>
+        <x-ui.page-header title="WLA Saya" eyebrow="Workload Analysis"
+            description="Daftar tugas pengisian aktivitas beban kerja Anda." class="mb-0" />
 
         @if ($employee === null)
             <div class="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
@@ -43,7 +41,7 @@
                                             <span class="text-xs text-slate-500">Pemberi tugas tidak tercatat (data lama)</span>
                                         @endif
                                     </td>
-                                    <td class="px-4 py-3"><span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">{{ $participant->status->label() }}</span></td>
+                                    <td class="px-4 py-3"><x-ui.status-badge>{{ $participant->status->label() }}</x-ui.status-badge></td>
                                     <td class="px-4 py-3">
                                         <div class="h-2 w-28 overflow-hidden rounded-full bg-slate-200"><div class="h-full bg-emerald-500" style="width: {{ $progress }}%"></div></div>
                                         <span class="mt-1 block text-xs text-slate-500">{{ $progress }}%</span>
@@ -51,7 +49,7 @@
                                     <td class="px-4 py-3 text-right"><a href="{{ route('wla.staff.show', $participant) }}" class="font-semibold text-sky-700 hover:text-sky-900">Buka</a></td>
                                 </tr>
                             @empty
-                                <tr><td colspan="7" class="px-4 py-10 text-center text-slate-500">Belum ada tugas pengisian WLA untuk Anda.</td></tr>
+                                <tr><x-ui.empty-state colspan="7" title="Belum ada tugas WLA" description="Tugas pengisian yang diberikan kepada Anda akan tampil di sini." /></tr>
                             @endforelse
                         </tbody>
                     </table>

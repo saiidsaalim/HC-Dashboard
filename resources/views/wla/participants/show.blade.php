@@ -13,7 +13,14 @@
 
         <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
             <div>
-                <a href="{{ route('wla.show', $wla) }}" class="text-sm font-semibold text-sky-700 hover:text-sky-900">&larr; {{ $wla->assessment_code }}</a>
+                <a href="{{ route('wla.show', $wla) }}" class="ui-button ui-button-secondary w-fit"
+                    aria-label="Kembali ke {{ $wla->assessment_code }}">
+                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor"
+                        stroke-width="1.8" aria-hidden="true">
+                        <path d="M16 10H4m5-5-5 5 5 5" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                    {{ $wla->assessment_code }}
+                </a>
                 <h2 class="mt-3 font-display text-2xl font-bold text-slate-950">{{ $participant->employee->user?->name ?? $participant->employee->personal_number ?? $participant->employee->sap }}</h2>
                 <p class="mt-1 text-sm text-slate-500">{{ $wla->department->name }} · {{ $wla->unit->name }} · {{ $wla->position->name }}</p>
             </div>

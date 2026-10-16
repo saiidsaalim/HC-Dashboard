@@ -71,6 +71,52 @@ document.addEventListener('submit', (event) => {
     void submitAfterConfirmation.call(form, event);
 });
 
+document.addEventListener('submit', (event) => {
+    const form = event.target;
+
+    if (!(form instanceof HTMLFormElement) || form.matches('[data-confirm-submit]')) {
+        return;
+    }
+
+    queueMicrotask(() => {
+        if (event.defaultPrevented || form.dataset.submitting === 'true') {
+            return;
+        }
+
+        form.dataset.submitting = 'true';
+        form.classList.add('is-submitting');
+        form.setAttribute('aria-busy', 'true');
+        form.querySelectorAll('[type="submit"]').forEach((button) => {
+            button.disabled = true;
+        });
+    });
+});
+
+window.addEventListener('pageshow', () => {
+    document.querySelectorAll('form[data-submitting="true"]').forEach((form) => {
+        delete form.dataset.submitting;
+        form.classList.remove('is-submitting');
+        form.removeAttribute('aria-busy');
+        form.querySelectorAll('[type="submit"]').forEach((button) => {
+            button.disabled = false;
+        });
+    });
+});
+
+document.querySelectorAll('dialog').forEach((dialog, index) => {
+    dialog.setAttribute('aria-modal', 'true');
+    dialog.setAttribute('role', 'dialog');
+
+    if (!dialog.hasAttribute('aria-label') && !dialog.hasAttribute('aria-labelledby')) {
+        const heading = dialog.querySelector('h1, h2, h3');
+
+        if (heading instanceof HTMLElement) {
+            heading.id ||= `dialog-title-${index + 1}`;
+            dialog.setAttribute('aria-labelledby', heading.id);
+        }
+    }
+});
+
 document.querySelectorAll('[data-employee-account-form]').forEach((form) => {
     const employeeSelect = form.querySelector('[data-employee-account-select]');
     const nameInput = form.elements.namedItem('name');

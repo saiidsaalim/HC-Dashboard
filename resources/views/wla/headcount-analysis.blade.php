@@ -3,19 +3,13 @@
 @section('page-title', 'Analisis Headcount WLA')
 
 @section('content')
-    <div class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-            <a href="{{ route('wla') }}" class="text-sm font-semibold text-sky-700 hover:text-sky-900">&larr; WLA Assessments</a>
-            <p class="mt-2 text-sm text-slate-500">Perbandingan rekomendasi WLA Final dengan jumlah pegawai aktual pada Position yang sama.</p>
-            <h2 class="mt-1 font-display text-2xl font-bold text-slate-950">Analisis Headcount dan Gap</h2>
-        </div>
-    </div>
+    <x-ui.page-header title="Analisis Headcount dan Gap" eyebrow="Workload Analysis"
+        description="Perbandingan rekomendasi WLA Final dengan jumlah pegawai aktual pada Position yang sama."
+        :back-href="route('wla')" back-label="WLA Assessments" />
 
     @if ($periods->isEmpty())
-        <section class="rounded-xl border border-slate-200 bg-white px-6 py-14 text-center shadow-sm">
-            <h3 class="font-display text-lg font-bold text-slate-900">Belum ada WLA Final</h3>
-            <p class="mt-2 text-sm text-slate-500">Analisis tersedia setelah minimal satu WLA difinalisasi.</p>
-        </section>
+        <x-ui.empty-state title="Belum ada WLA Final"
+            description="Analisis tersedia setelah minimal satu WLA difinalisasi." />
     @else
         <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
             <form method="GET"
