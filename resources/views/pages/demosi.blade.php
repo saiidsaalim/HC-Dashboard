@@ -3,13 +3,18 @@
 @section('page-title', 'Demosi')
 
 @section('content')
-    @php($canApproveDemotions = in_array(auth()->user()->roleEnum(), [\App\Enums\UserRole::ADMIN, \App\Enums\UserRole::MANAGER], true))
-    @php($canManageDemotionRecords = auth()->user()->roleEnum()->canManageAllRoles())
+    @php($canCreateDemotions = auth()->user()->hasPermission('demotions.create'))
+    @php($canImportDemotions = auth()->user()->hasPermission('demotions.import'))
+    @php($canUpdateDemotions = auth()->user()->hasPermission('demotions.update'))
+    @php($canDeleteDemotions = auth()->user()->hasPermission('demotions.delete'))
+    @php($canApproveDemotions = auth()->user()->hasPermission('demotions.approve'))
+    @php($canPrintDemotions = auth()->user()->hasPermission('demotions.print'))
     <div x-data="{ open: @js(old('_form') === 'manual') }">
         <x-ui.page-header title="Daftar Demosi" eyebrow="Talent movement"
             description="Kelola proses penurunan jabatan dan evaluasi kinerja pegawai.">
             <x-slot:actions>
-                <form method="POST" action="{{ route('demosi.import') }}" enctype="multipart/form-data"
+                @if ($canImportDemotions)
+                    <form method="POST" action="{{ route('demosi.import') }}" enctype="multipart/form-data"
                     class="flex flex-col gap-2 sm:flex-row sm:items-center">
                     @csrf
                     <input type="file" name="file" accept=".xlsx,.csv,.txt" required
@@ -18,11 +23,14 @@
                         class="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700">
                         Import Demosi
                     </button>
-                </form>
-                <button type="button" @click="open = true"
+                    </form>
+                @endif
+                @if ($canCreateDemotions)
+                    <button type="button" @click="open = true"
                     class="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700">
                     Buat Demosi
-                </button>
+                    </button>
+                @endif
             </x-slot:actions>
         </x-ui.page-header>
 
@@ -43,6 +51,7 @@
             </div>
         @endif
 
+        @if ($canCreateDemotions)
         <div x-cloak x-show="open" x-transition.opacity @keydown.escape.window="open = false"
             class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 p-4 sm:p-8"
             @click.self="open = false">
@@ -103,6 +112,7 @@
                 </form>
             </section>
         </div>
+        @endif
     </div>
 
     <div class="grid gap-5 md:grid-cols-3">
@@ -136,7 +146,7 @@
                             class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-center text-sm font-semibold text-slate-600 transition hover:bg-slate-50 sm:w-auto">Reset</a>
                     @endif
                 </form>
-                @if ($canManageDemotionRecords && $demotions->contains(fn($demotion): bool => $demotion->verification_status !== 'Final'))
+                @if ($canDeleteDemotions && $demotions->contains(fn($demotion): bool => $demotion->verification_status !== 'Final'))
                     <div class="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
                         <label class="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-600">
                             <input id="select-all-demotions" type="checkbox"
@@ -161,7 +171,7 @@
                 <table class="w-full text-left text-sm whitespace-nowrap">
                     <thead class="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wider text-slate-400">
                         <tr>
-                            @if ($canManageDemotionRecords)
+                            @if ($canDeleteDemotions)
                                 <th class="w-12 px-4 py-3 text-center">Pilih</th>
                             @endif
                             <th class="px-4 py-3">SAP</th>
@@ -180,7 +190,7 @@
                             @php($approvedCount = $demotion->approvals->where('status', 'Approved')->unique('manager_id')->count())
                             @php($hasApproved = $demotion->approvals->contains(fn($approval): bool => $approval->manager_id === auth()->id() && $approval->status === 'Approved'))
                             <tr>
-                                @if ($canManageDemotionRecords)
+                                @if ($canDeleteDemotions)
                                     <td class="px-4 py-3 text-center">
                                         @if ($demotion->verification_status !== 'Final')
                                             <input type="checkbox" name="demotion_ids[]" value="{{ $demotion->id }}"
@@ -202,7 +212,7 @@
                                         @if ($demotion->verification_status === 'Final')
                                             <span
                                                 class="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 sm:text-xs">Final</span>
-                                            @if ($canManageDemotionRecords)
+                                            @if ($canPrintDemotions)
                                                 <a href="{{ route('demosi.print', $demotion) }}"
                                                     class="w-full max-w-[100px] rounded-md bg-sky-600 px-4 py-1.5 text-center text-sm font-medium text-white transition-colors hover:bg-sky-700">Print</a>
                                             @endif
@@ -232,7 +242,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ $canManageDemotionRecords ? 10 : 9 }}"
+                                <td colspan="{{ $canDeleteDemotions ? 10 : 9 }}"
                                     class="px-4 py-10 text-center text-sm text-slate-500">
                                     Belum ada data demosi. Tambahkan data manual atau impor file.
                                 </td>
@@ -289,7 +299,7 @@
                         </div>
                     @endforeach
                 </div>
-                @if ($canManageDemotionRecords && $demotion->verification_status !== 'Final')
+                @if ($canUpdateDemotions && $demotion->verification_status !== 'Final')
                     <details class="mt-8 rounded-xl border border-slate-200 bg-slate-50 p-4">
                         <summary class="cursor-pointer text-sm font-semibold text-slate-700">Edit Data</summary>
                         <form method="POST" action="{{ route('demosi.update', $demotion) }}"

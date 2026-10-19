@@ -12,7 +12,9 @@ use App\Policies\WlaAssessmentPolicy;
 use App\Policies\WlaParticipantPolicy;
 use App\Policies\WorkCalendarPolicy;
 use App\Policies\WorkSchedulePolicy;
+use App\Services\Authorization\PermissionRegistry;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
+use Illuminate\Support\Facades\Gate;
 
 class AuthServiceProvider extends ServiceProvider
 {
@@ -32,5 +34,9 @@ class AuthServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->registerPolicies();
+
+        foreach (array_keys(PermissionRegistry::permissions()) as $permission) {
+            Gate::define($permission, fn ($user): bool => $user->hasPermission($permission));
+        }
     }
 }

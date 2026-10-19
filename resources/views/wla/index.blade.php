@@ -22,7 +22,7 @@
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="overflow-x-auto">
             <table class="w-full min-w-[1280px] text-left text-sm">
-                <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                <thead class="text-xs uppercase">
                     <tr><th class="px-4 py-3">Assessment</th><th class="px-4 py-3">Period</th><th class="px-4 py-3">Department</th><th class="px-4 py-3">Unit</th><th class="px-4 py-3">Position</th><th class="px-4 py-3">Schedule</th><th class="px-4 py-3">Calendar</th><th class="px-4 py-3">Efficiency</th><th class="px-4 py-3">FTE</th><th class="px-4 py-3">Rekomendasi</th><th class="px-4 py-3">Status</th><th class="px-4 py-3 text-right">Action</th></tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">

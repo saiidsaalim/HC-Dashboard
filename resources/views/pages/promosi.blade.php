@@ -4,7 +4,10 @@
 
 @section('content')
     @php
-        $canManage = auth()->user()->can('create', \App\Models\EmployeePromotion::class);
+        $canCreatePromotions = auth()->user()->hasPermission('promotions.create');
+        $canDeletePromotions = auth()->user()->hasPermission('promotions.delete');
+        $canImportPromotions = auth()->user()->hasPermission('promotions.import');
+        $canManagePromotionApprovals = auth()->user()->hasPermission('promotions.manage-approval-settings');
         $statusStyles = [
             \App\Enums\PromotionStatus::Draft->value => 'bg-slate-100 text-slate-700',
             \App\Enums\PromotionStatus::LegacyPending->value => 'bg-slate-100 text-slate-700',
@@ -16,13 +19,16 @@
 
     <x-ui.page-header title="Daftar Promosi" eyebrow="Talent movement"
         description="Workflow promosi berurutan dari Draft hingga empat tahap persetujuan.">
-        @if ($canManage)
+        @if ($canCreatePromotions || $canImportPromotions || $canManagePromotionApprovals)
             <x-slot:actions>
-                <a href="{{ route('promosi.approval-settings.edit') }}"
-                    class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
-                    Pengaturan Persetujuan
-                </a>
-                <form method="POST" action="{{ route('promosi.import') }}" enctype="multipart/form-data"
+                @if ($canManagePromotionApprovals)
+                    <a href="{{ route('promosi.approval-settings.edit') }}"
+                        class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+                        Pengaturan Persetujuan
+                    </a>
+                @endif
+                @if ($canImportPromotions)
+                    <form method="POST" action="{{ route('promosi.import') }}" enctype="multipart/form-data"
                     class="flex flex-col gap-2 sm:flex-row sm:items-center">
                     @csrf
                     <input type="file" name="file" accept=".xlsx,.csv,.txt" required
@@ -30,11 +36,14 @@
                     <button type="submit" class="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700">
                         Import Promosi
                     </button>
-                </form>
-                <button type="button" onclick="document.getElementById('create-promotion').showModal()"
+                    </form>
+                @endif
+                @if ($canCreatePromotions)
+                    <button type="button" onclick="document.getElementById('create-promotion').showModal()"
                     class="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700">
                     Buat Promosi
-                </button>
+                    </button>
+                @endif
             </x-slot:actions>
         @endif
     </x-ui.page-header>
@@ -55,7 +64,7 @@
         </div>
     @endif
 
-    @if ($canManage && !$approvalConfigurationComplete)
+    @if ($canCreatePromotions && !$approvalConfigurationComplete)
         <div class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
             Konfigurasi empat approver Promosi belum lengkap. Ajukan Promosi dinonaktifkan sampai pengaturan diselesaikan.
         </div>
@@ -106,7 +115,7 @@
                 <table class="w-full text-left text-sm whitespace-nowrap">
                     <thead class="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wider text-slate-400">
                         <tr>
-                            @if ($canManage)<th class="w-12 px-4 py-3 text-center">Pilih</th>@endif
+                            @if ($canDeletePromotions)<th class="w-12 px-4 py-3 text-center">Pilih</th>@endif
                             <th class="px-4 py-3">SAP</th>
                             <th class="min-w-[160px] px-4 py-3">Pegawai</th>
                             <th class="min-w-[150px] px-4 py-3">Posisi Saat Ini</th>
@@ -131,13 +140,13 @@
                                 $isActiveApprover = $status === \App\Enums\PromotionStatus::WaitingApproval
                                     && $activeApprover?->id === auth()->id()
                                     && $approvalConfigurationComplete
-                                    && in_array(auth()->user()->roleEnum(), [\App\Enums\UserRole::ADMIN, \App\Enums\UserRole::MANAGER], true);
+                                    && auth()->user()->hasPermission('promotions.approve');
                                 $latestReturn = $promotion->approvals
                                     ->where('status', \App\Enums\PromotionApprovalStatus::Returned)
                                     ->sortByDesc('id')->first();
                             @endphp
                             <tr class="align-top">
-                                @if ($canManage)
+                                @if ($canDeletePromotions)
                                     <td class="px-4 py-4 text-center">
                                         @can('delete', $promotion)
                                             <input type="checkbox" name="promotion_ids[]" value="{{ $promotion->id }}"
@@ -193,14 +202,14 @@
                                 </td>
                             </tr>
                         @empty
-                            <tr><td colspan="{{ $canManage ? 7 : 6 }}" class="px-4 py-10 text-center text-slate-500">Belum ada data Promosi.</td></tr>
+                            <tr><td colspan="{{ $canDeletePromotions ? 7 : 6 }}" class="px-4 py-10 text-center text-slate-500">Belum ada data Promosi.</td></tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
         </form>
 
-        @if ($canManage && $promotions->contains(fn ($promotion) => auth()->user()->can('delete', $promotion)))
+        @if ($canDeletePromotions && $promotions->contains(fn ($promotion) => auth()->user()->can('delete', $promotion)))
             <div class="border-t border-slate-100 p-4">
                 <button type="submit" form="bulk-delete-promotions" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">Hapus terpilih</button>
             </div>
@@ -208,7 +217,7 @@
         <div class="border-t border-slate-100 p-4">{{ $promotions->links() }}</div>
     </div>
 
-    @if ($canManage)
+    @if ($canCreatePromotions)
         <dialog id="create-promotion" @if (old('_form') === 'create') open @endif
             class="w-[calc(100%-2rem)] max-w-5xl rounded-2xl p-0 shadow-2xl backdrop:bg-slate-950/60">
             <section class="max-h-[90vh] overflow-y-auto bg-white p-6 sm:p-8">
@@ -229,7 +238,7 @@
             $isActiveApprover = $status === \App\Enums\PromotionStatus::WaitingApproval
                 && $activeApprover?->id === auth()->id()
                 && $approvalConfigurationComplete
-                && in_array(auth()->user()->roleEnum(), [\App\Enums\UserRole::ADMIN, \App\Enums\UserRole::MANAGER], true);
+                && auth()->user()->hasPermission('promotions.approve');
         @endphp
 
         @if ($isActiveApprover)

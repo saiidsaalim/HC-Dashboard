@@ -48,17 +48,38 @@
                 @enderror
             </div>
 
-            <div>
+            <div x-data="{ passwordVisible: false }">
                 <label for="portal-password" class="block text-sm font-semibold text-slate-200">Password</label>
-                <input
-                    id="portal-password"
-                    name="password"
-                    type="password"
-                    autocomplete="current-password"
-                    required
-                    class="mt-2 block h-11 w-full rounded-xl border border-white/25 bg-white/10 px-4 text-white shadow-none placeholder:text-slate-400 focus:border-amber-300 focus:outline-none focus:ring-amber-300"
-                    @if ($errors->has('password')) aria-invalid="true" aria-describedby="portal-password-error" @endif
-                >
+                <div class="relative mt-2">
+                    <input
+                        id="portal-password"
+                        name="password"
+                        type="password"
+                        x-bind:type="passwordVisible ? 'text' : 'password'"
+                        autocomplete="current-password"
+                        required
+                        class="block h-11 w-full rounded-xl border border-white/25 bg-white/10 py-2 pl-4 pr-12 text-white shadow-none placeholder:text-slate-400 focus:border-amber-300 focus:outline-none focus:ring-amber-300"
+                        @if ($errors->has('password')) aria-invalid="true" aria-describedby="portal-password-error" @endif
+                    >
+                    <button
+                        type="button"
+                        data-password-toggle
+                        class="absolute inset-y-0 right-0 grid w-12 place-items-center rounded-r-xl text-slate-300 transition hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-amber-300"
+                        x-on:click="passwordVisible = ! passwordVisible"
+                        x-bind:aria-label="passwordVisible ? 'Sembunyikan password' : 'Tampilkan password'"
+                        x-bind:aria-pressed="passwordVisible.toString()"
+                        aria-controls="portal-password"
+                        aria-label="Tampilkan password"
+                    >
+                        <svg x-show="! passwordVisible" class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M2.25 12s3.75-6.75 9.75-6.75S21.75 12 21.75 12 18 18.75 12 18.75 2.25 12 2.25 12Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" />
+                            <circle cx="12" cy="12" r="2.75" stroke="currentColor" stroke-width="1.75" />
+                        </svg>
+                        <svg x-cloak x-show="passwordVisible" class="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M3 3l18 18M10.6 5.4A10.6 10.6 0 0 1 12 5.25c6 0 9.75 6.75 9.75 6.75a17.5 17.5 0 0 1-2.35 3.15M6.2 6.2C3.75 8.15 2.25 12 2.25 12S6 18.75 12 18.75a9.8 9.8 0 0 0 3.15-.52M9.95 9.95A2.75 2.75 0 0 0 13.9 13.9" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.75" />
+                        </svg>
+                    </button>
+                </div>
                 @error('password')
                     <p class="mt-2 text-sm text-rose-300" id="portal-password-error">{{ $message }}</p>
                 @enderror

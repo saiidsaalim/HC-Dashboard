@@ -189,4 +189,107 @@ document.querySelectorAll('[data-employee-account-form]').forEach((form) => {
     synchronizeEmployeeIdentity();
 });
 
+document.querySelectorAll('[data-role-permission-form]').forEach((form) => {
+    const dialog = form.closest('[data-role-permission-dialog]');
+    const permissionItems = [...form.querySelectorAll('[data-role-permission]')];
+    const selectAllInputs = [...form.querySelectorAll('[data-role-select-all]')];
+    if (!(dialog instanceof HTMLDialogElement)) {
+        return;
+    }
+
+    const selectionSnapshot = () => permissionItems
+        .filter((item) => !item.disabled && item.checked)
+        .map((item) => `${item.dataset.role}:${item.value}`)
+        .sort()
+        .join('|');
+    const initialSelection = selectionSnapshot();
+
+    const restoreInitialSelection = () => {
+        const initiallySelected = new Set(initialSelection === '' ? [] : initialSelection.split('|'));
+
+        permissionItems.filter((item) => !item.disabled).forEach((item) => {
+            item.checked = initiallySelected.has(`${item.dataset.role}:${item.value}`);
+        });
+
+        synchronizeRoleSelection();
+    };
+
+    const synchronizeRoleSelection = () => {
+        selectAllInputs.forEach((selectAll) => {
+            if (selectAll.disabled) {
+                return;
+            }
+
+            const roleItems = permissionItems.filter((item) => item.dataset.role === selectAll.dataset.role);
+            const selectedCount = roleItems.filter((item) => item.checked).length;
+
+            selectAll.checked = roleItems.length > 0 && selectedCount === roleItems.length;
+            selectAll.indeterminate = selectedCount > 0 && selectedCount < roleItems.length;
+        });
+    };
+
+    const requestClose = async () => {
+        if (selectionSnapshot() === initialSelection) {
+            dialog.close();
+            return;
+        }
+
+        const result = await Swal.fire({
+            icon: 'warning',
+            title: 'Batalkan perubahan hak akses?',
+            text: 'Perubahan yang belum disimpan akan hilang.',
+            showCancelButton: true,
+            confirmButtonText: 'Ya, batalkan',
+            cancelButtonText: 'Kembali mengatur',
+            confirmButtonColor: '#dc2626',
+            cancelButtonColor: '#64748b',
+            reverseButtons: true,
+        });
+
+        if (result.isConfirmed) {
+            restoreInitialSelection();
+            dialog.close();
+        }
+    };
+
+    dialog.addEventListener('cancel', (event) => {
+        event.preventDefault();
+        void requestClose();
+    });
+
+    dialog.querySelectorAll('[data-role-permission-close]').forEach((button) => {
+        button.addEventListener('click', () => void requestClose());
+    });
+
+    form.addEventListener('change', (event) => {
+        const target = event.target;
+
+        if (!(target instanceof HTMLInputElement)) {
+            return;
+        }
+
+        if (target.matches('[data-role-select-all]')) {
+            permissionItems
+                .filter((item) => item.dataset.role === target.dataset.role && !item.disabled)
+                .forEach((item) => {
+                    item.checked = target.checked;
+                });
+        }
+
+        synchronizeRoleSelection();
+    });
+
+    form.addEventListener('submit', () => {
+        form.querySelector('[data-submit-label]')?.classList.add('hidden');
+        form.querySelector('[data-submit-loading]')?.classList.remove('hidden');
+    });
+
+    synchronizeRoleSelection();
+
+    if (dialog.hasAttribute('open')) {
+        dialog.close();
+        dialog.showModal();
+    }
+});
+
 Alpine.start();

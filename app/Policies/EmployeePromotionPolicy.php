@@ -4,7 +4,6 @@ namespace App\Policies;
 
 use App\Enums\PromotionApprovalStatus;
 use App\Enums\PromotionStatus;
-use App\Enums\UserRole;
 use App\Models\EmployeePromotion;
 use App\Models\PromotionApprovalConfig;
 use App\Models\User;
@@ -13,7 +12,7 @@ class EmployeePromotionPolicy
 {
     public function viewAny(User $user): bool
     {
-        return in_array($user->roleEnum(), [UserRole::SUPER_ADMIN, UserRole::ADMIN, UserRole::MANAGER], true);
+        return $user->hasPermission('promotions.view');
     }
 
     public function view(User $user, EmployeePromotion $employeePromotion): bool
@@ -23,32 +22,32 @@ class EmployeePromotionPolicy
 
     public function create(User $user): bool
     {
-        return $user->roleEnum() === UserRole::SUPER_ADMIN;
+        return $user->hasPermission('promotions.create');
     }
 
     public function update(User $user, EmployeePromotion $employeePromotion): bool
     {
-        return $this->create($user) && $employeePromotion->isEditable();
+        return $user->hasPermission('promotions.update') && $employeePromotion->isEditable();
     }
 
     public function delete(User $user, EmployeePromotion $employeePromotion): bool
     {
-        return $this->update($user, $employeePromotion);
+        return $user->hasPermission('promotions.delete') && $employeePromotion->isEditable();
     }
 
     public function import(User $user): bool
     {
-        return $this->create($user);
+        return $user->hasPermission('promotions.import');
     }
 
     public function submit(User $user, EmployeePromotion $employeePromotion): bool
     {
-        return $this->create($user) && $employeePromotion->statusEnum()->canBeSubmitted();
+        return $user->hasPermission('promotions.submit') && $employeePromotion->statusEnum()->canBeSubmitted();
     }
 
     public function approve(User $user, EmployeePromotion $employeePromotion): bool
     {
-        if (! in_array($user->roleEnum(), [UserRole::ADMIN, UserRole::MANAGER], true)) {
+        if (! $user->hasPermission('promotions.approve')) {
             return false;
         }
 
@@ -61,7 +60,7 @@ class EmployeePromotionPolicy
 
     public function sendBack(User $user, EmployeePromotion $employeePromotion): bool
     {
-        if (! in_array($user->roleEnum(), [UserRole::ADMIN, UserRole::MANAGER], true)) {
+        if (! $user->hasPermission('promotions.approve')) {
             return false;
         }
 
@@ -74,12 +73,12 @@ class EmployeePromotionPolicy
 
     public function print(User $user, EmployeePromotion $employeePromotion): bool
     {
-        return $this->create($user) && $employeePromotion->statusEnum() === PromotionStatus::Final;
+        return $user->hasPermission('promotions.print') && $employeePromotion->statusEnum() === PromotionStatus::Final;
     }
 
     public function manageApprovalSettings(User $user): bool
     {
-        return $this->create($user);
+        return $user->hasPermission('promotions.manage-approval-settings');
     }
 
     private function isCurrentApprover(User $user, EmployeePromotion $employeePromotion): bool

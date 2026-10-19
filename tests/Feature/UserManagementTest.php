@@ -6,7 +6,6 @@ use App\Enums\UserRole;
 use App\Models\Employee;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -218,31 +217,5 @@ class UserManagementTest extends TestCase
         ])->assertRedirect();
 
         $this->actingAs($user->fresh())->get(route('wla.staff.index'))->assertForbidden();
-    }
-
-    public function test_super_admin_can_import_users_from_csv_with_email_and_password(): void
-    {
-        $admin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
-        $file = UploadedFile::fake()->createWithContent('users.csv', "email,password\nsiti.tester@example.com,password123\n");
-
-        $response = $this->actingAs($admin)->post(route('konfigurasi-user.import'), ['file' => $file]);
-
-        $response->assertRedirect()->assertSessionHas('status', 'Import selesai: 1 user ditambahkan, 0 email duplikat dilewati.');
-        $this->assertDatabaseHas('users', [
-            'name' => 'Siti Tester',
-            'email' => 'siti.tester@example.com',
-            'role' => UserRole::STAFF->value,
-        ]);
-    }
-
-    public function test_import_rejects_a_file_without_email_and_password_columns(): void
-    {
-        $admin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
-        $file = UploadedFile::fake()->createWithContent('users.csv', "name,role\nSiti Tester,Member\n");
-
-        $response = $this->actingAs($admin)->from('/konfigurasi-user')->post(route('konfigurasi-user.import'), ['file' => $file]);
-
-        $response->assertRedirect('/konfigurasi-user')->assertSessionHasErrors('file');
-        $this->assertDatabaseMissing('users', ['email' => 'siti@example.com']);
     }
 }

@@ -393,14 +393,14 @@ html {
 	}
 
 	[data-app-content] thead {
-		background: #f8fafc;
+		background: #020617;
 	}
 
 	[data-app-content] th {
 		font-size: 0.6875rem;
 		font-weight: 700;
 		letter-spacing: 0.065em;
-		color: #64748b;
+		color: #cbd5e1;
 		text-transform: uppercase;
 	}
 

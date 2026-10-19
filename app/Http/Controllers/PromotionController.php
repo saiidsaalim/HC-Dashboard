@@ -146,7 +146,7 @@ class PromotionController extends Controller
 
     public function destroyMany(Request $request): RedirectResponse
     {
-        Gate::authorize('create', EmployeePromotion::class);
+        Gate::authorize('promotions.delete');
 
         $validated = $request->validate([
             'promotion_ids' => ['required', 'array', 'min:1'],

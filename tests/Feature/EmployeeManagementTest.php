@@ -160,12 +160,15 @@ class EmployeeManagementTest extends TestCase
         preg_match('/<table\\b.*?<\\/table>/s', $listResponse->getContent(), $tableMatch);
         $this->assertNotEmpty($tableMatch);
         preg_match_all('/<th\\b/', $tableMatch[0], $headers);
-        $this->assertCount(5, $headers[0]);
+        $this->assertCount(6, $headers[0]);
         $this->assertStringContainsString('Personal Number</th>', $tableMatch[0]);
         $this->assertStringContainsString('Department</th>', $tableMatch[0]);
+        $this->assertStringContainsString('Position</th>', $tableMatch[0]);
+        $this->assertStringContainsString('Level</th>', $tableMatch[0]);
         $this->assertStringNotContainsString('TXT_DEPT</th>', $tableMatch[0]);
         $this->assertStringContainsString('PN-DETAIL', $tableMatch[0]);
         $this->assertStringContainsString('Department Detail', $tableMatch[0]);
+        $this->assertStringContainsString('Subgroup Detail', $tableMatch[0]);
         $this->assertStringNotContainsString('Nama</th>', $tableMatch[0]);
 
         $profileResponse = $this->actingAs($user)->get(route('employees.show', $employee->id))
@@ -198,6 +201,27 @@ class EmployeeManagementTest extends TestCase
         preg_match('/<h3[^>]*>Kontak dan Alamat<\/h3>.*?<dl[^>]*>(.*?)<\/dl>/s', $profileResponse->getContent(), $contactSection);
         $this->assertNotEmpty($contactSection);
         $this->assertStringNotContainsString('Hiring', $contactSection[1]);
+    }
+
+    public function test_employee_list_displays_a_dash_when_employee_subgroup_is_empty(): void
+    {
+        $user = User::factory()->create();
+        Employee::create($this->employeeAttributes('SAP-NO-LEVEL', [
+            'employee_subgroup' => null,
+            'position' => 'Position without Level',
+        ]));
+
+        $response = $this->actingAs($user)->get(route('data-pegawai', [
+            'search' => 'SAP-NO-LEVEL',
+        ]))->assertOk();
+
+        preg_match('/<tr[^>]*>.*?SAP-NO-LEVEL.*?<\/tr>/s', $response->getContent(), $rowMatch);
+
+        $this->assertNotEmpty($rowMatch);
+        $this->assertMatchesRegularExpression(
+            '/Position without Level<\/td>\s*<td[^>]*>-<\/td>/',
+            $rowMatch[0],
+        );
     }
 
     public function test_authenticated_user_can_print_all_employees_across_pages(): void
@@ -785,7 +809,7 @@ class EmployeeManagementTest extends TestCase
         $unit = $department->units()->create(['code' => 'UNT-PAGE', 'name' => 'Pagination Unit', 'active' => true]);
         $position = $unit->positions()->create(['code' => 'POS-PAGE', 'name' => 'Pagination Position', 'active' => true]);
 
-        for ($index = 1; $index <= 11; $index++) {
+        for ($index = 1; $index <= 21; $index++) {
             Employee::create($this->employeeAttributes("SAPPAGE{$index}", [
                 'department_id' => $department->id,
                 'unit_id' => $unit->id,
@@ -793,19 +817,40 @@ class EmployeeManagementTest extends TestCase
             ]));
         }
 
-        $this->actingAs($user)->get(route('data-pegawai', [
+        $filters = [
             'search' => 'SAPPAGE',
             'department_id' => $department->id,
             'unit_id' => $unit->id,
             'position_id' => $position->id,
             'sort_by' => 'organic_oldest',
-        ]))->assertOk()
+        ];
+
+        $this->actingAs($user)->get(route('data-pegawai', $filters))
+            ->assertOk()
+            ->assertViewHas('employees', fn ($employees): bool => $employees->perPage() === 20
+                && $employees->currentPage() === 1
+                && $employees->count() === 20
+                && $employees->total() === 21
+                && $employees->lastPage() === 2)
             ->assertSee('search=SAPPAGE', false)
             ->assertSee('department_id='.$department->id, false)
             ->assertSee('unit_id='.$unit->id, false)
             ->assertSee('position_id='.$position->id, false)
             ->assertSee('sort_by=organic_oldest', false)
             ->assertSee('page=2', false);
+
+        $this->actingAs($user)->get(route('data-pegawai', [...$filters, 'page' => 2]))
+            ->assertOk()
+            ->assertViewHas('employees', fn ($employees): bool => $employees->perPage() === 20
+                && $employees->currentPage() === 2
+                && $employees->count() === 1
+                && $employees->total() === 21
+                && $employees->lastPage() === 2)
+            ->assertSee('search=SAPPAGE', false)
+            ->assertSee('department_id='.$department->id, false)
+            ->assertSee('unit_id='.$unit->id, false)
+            ->assertSee('position_id='.$position->id, false)
+            ->assertSee('sort_by=organic_oldest', false);
     }
 
     public function test_employee_master_filters_reject_invalid_and_inconsistent_organization_ids(): void

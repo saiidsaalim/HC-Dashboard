@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\UserRole;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -10,7 +9,7 @@ class UpdateEmployeeRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->roleEnum() === UserRole::SUPER_ADMIN;
+        return $this->user()?->hasPermission('employees.update') ?? false;
     }
 
     /** @return array<string, array<int, mixed>> */

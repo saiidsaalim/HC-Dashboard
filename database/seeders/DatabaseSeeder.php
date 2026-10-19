@@ -15,41 +15,43 @@ class DatabaseSeeder extends Seeder
      * Seed the application's database.
      */
     public function run(): void
-{
-    User::query()->updateOrCreate(
-        ['email' => 'admin@sig.com'],
-        [
-            'name' => 'Admin',
-            'role' => 'Manager',
-            'password' => Hash::make('password123'),
-        ],
-    );
+    {
+        $this->call(PermissionSeeder::class);
 
-    User::query()->updateOrCreate(
-        ['email' => 'manager1@hcm.com'],
-        [
-            'name' => 'manager1',
-            'role' => 'Manager',
-            'password' => Hash::make('password123'),
-        ],
-    );
+        User::query()->updateOrCreate(
+            ['email' => 'admin@sig.com'],
+            [
+                'name' => 'Admin',
+                'role' => 'Manager',
+                'password' => Hash::make('password123'),
+            ],
+        );
 
-    User::query()->updateOrCreate(
-        ['email' => 'superadmin@hcm.com'],
-        [
-            'name' => 'Super Admin',
-            'role' => 'Super Admin',
-            'password' => Hash::make('password123'),
-        ],
-    );
+        User::query()->updateOrCreate(
+            ['email' => 'manager1@hcm.com'],
+            [
+                'name' => 'manager1',
+                'role' => 'Manager',
+                'password' => Hash::make('password123'),
+            ],
+        );
 
-    User::query()->updateOrCreate(
-        ['email' => 'manager2@hcm.com'],
-        [
-            'name' => 'manager2',
-            'role' => 'Manager',
-            'password' => Hash::make('password123'),
-        ],
-    );
-}
+        User::query()->updateOrCreate(
+            ['email' => 'superadmin@hcm.com'],
+            [
+                'name' => 'Super Admin',
+                'role' => 'Super Admin',
+                'password' => Hash::make('password123'),
+            ],
+        );
+
+        User::query()->updateOrCreate(
+            ['email' => 'manager2@hcm.com'],
+            [
+                'name' => 'manager2',
+                'role' => 'Manager',
+                'password' => Hash::make('password123'),
+            ],
+        );
+    }
 }
