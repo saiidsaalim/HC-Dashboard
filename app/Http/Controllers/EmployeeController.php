@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\UserRole;
 use App\Exports\EmployeeSpreadsheet;
 use App\Http\Requests\StoreEmployeeRequest;
 use App\Http\Requests\UpdateEmployeeRequest;
@@ -97,7 +96,7 @@ class EmployeeController extends Controller
             $employeeQuery->latest();
         }
 
-        $employees = $employeeQuery->paginate(10)->withQueryString();
+        $employees = $employeeQuery->paginate(20)->withQueryString();
         $departmentIds = $employees->pluck('department_id')->filter()->merge($departmentId !== null ? [$departmentId] : [])->unique()->all();
         $unitIds = $employees->pluck('unit_id')->filter()->merge($unitId !== null ? [$unitId] : [])->unique()->all();
         $positionIds = $employees->pluck('position_id')->filter()->merge($positionId !== null ? [$positionId] : [])->unique()->all();
@@ -123,7 +122,6 @@ class EmployeeController extends Controller
             'organizationPositions' => $organizationPositions,
             'filterUnits' => $filterUnits,
             'filterPositions' => $filterPositions,
-            'canManageEmployees' => $request->user()?->roleEnum() === UserRole::SUPER_ADMIN,
         ]);
     }
 
@@ -146,7 +144,7 @@ class EmployeeController extends Controller
 
     public function organizationSyncPreview(Request $request, EmployeeOrganizationSyncService $service): View
     {
-        $this->authorizeImportReview($request);
+        abort_unless($request->user()?->hasPermission('employees.sync-organization'), 403);
 
         return view('pages.employee-organization-sync', [
             'result' => $service->audit(),
@@ -155,7 +153,7 @@ class EmployeeController extends Controller
 
     public function organizationSyncApply(Request $request, EmployeeOrganizationSyncService $service): RedirectResponse
     {
-        $this->authorizeImportReview($request);
+        abort_unless($request->user()?->hasPermission('employees.sync-organization'), 403);
 
         try {
             $result = $service->apply();
@@ -183,7 +181,7 @@ class EmployeeController extends Controller
     public function upload(Request $request, EmployeeImport $employeeImport): RedirectResponse
     {
         $actor = $request->user();
-        abort_unless($actor instanceof User && $actor->roleEnum() === UserRole::SUPER_ADMIN, 403);
+        abort_unless($actor instanceof User && $actor->hasPermission('employees.import'), 403);
 
         $validated = $request->validate([
             'file' => ['required', 'file', 'mimes:xlsx,csv,txt', 'max:5120'],
@@ -362,7 +360,7 @@ class EmployeeController extends Controller
      */
     public function destroy(Request $request, Employee $employee): RedirectResponse
     {
-        abort_unless($request->user()?->roleEnum() === UserRole::SUPER_ADMIN, 403);
+        abort_unless($request->user()?->hasPermission('employees.delete'), 403);
 
         $employee->delete();
 
@@ -371,7 +369,7 @@ class EmployeeController extends Controller
 
     public function destroyMany(Request $request): RedirectResponse
     {
-        abort_unless($request->user()?->roleEnum() === UserRole::SUPER_ADMIN, 403);
+        abort_unless($request->user()?->hasPermission('employees.delete'), 403);
 
         $validated = $request->validate([
             'employee_ids' => ['required', 'array', 'min:1'],
@@ -385,7 +383,7 @@ class EmployeeController extends Controller
 
     public function destroyAll(Request $request): RedirectResponse
     {
-        abort_unless($request->user()?->roleEnum() === UserRole::SUPER_ADMIN, 403);
+        abort_unless($request->user()?->hasPermission('employees.delete'), 403);
 
         $deleted = Employee::query()->count();
         Employee::query()->delete();
@@ -396,7 +394,7 @@ class EmployeeController extends Controller
     private function authorizeImportReview(Request $request): User
     {
         $actor = $request->user();
-        abort_unless($actor instanceof User && $actor->roleEnum() === UserRole::SUPER_ADMIN, 403);
+        abort_unless($actor instanceof User && $actor->hasPermission('employees.import'), 403);
 
         return $actor;
     }

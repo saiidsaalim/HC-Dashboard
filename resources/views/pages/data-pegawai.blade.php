@@ -3,15 +3,33 @@
 @section('page-title', 'Data Pegawai')
 
 @section('content')
+    @php($canCreateEmployees = auth()->user()->hasPermission('employees.create'))
+    @php($canUpdateEmployees = auth()->user()->hasPermission('employees.update'))
+    @php($canDeleteEmployees = auth()->user()->hasPermission('employees.delete'))
+    @php($canImportEmployees = auth()->user()->hasPermission('employees.import'))
+    @php($canSyncEmployeeOrganization = auth()->user()->hasPermission('employees.sync-organization'))
+    @php($canExportEmployees = auth()->user()->hasPermission('employees.export'))
+    @php($canPrintEmployees = auth()->user()->hasPermission('employees.print'))
     <div x-data="{
         open: @js($errors->any() && old('_form') === 'create'),
         organizationUnits: @js($organizationUnits->map(fn ($unit) => ['id' => $unit->id, 'department_id' => $unit->department_id, 'name' => $unit->name])->values()),
         organizationPositions: @js($organizationPositions->map(fn ($position) => ['id' => $position->id, 'unit_id' => $position->unit_id, 'department_id' => $position->unit->department_id, 'name' => $position->name])->values()),
-        async chooseExport(pdfUrl, excelUrl) {
+        async chooseExport(pdfUrl, excelUrl, canPrint, canExport) {
+            if (canPrint && !canExport) {
+                window.location.href = pdfUrl;
+                return;
+            }
+
+            if (canExport && !canPrint) {
+                window.location.href = excelUrl;
+                return;
+            }
+
             const result = await Swal.fire({
                 title: 'Pilih format laporan',
                 text: 'Seluruh data detail pegawai akan disertakan.',
-                showDenyButton: true,
+                showDenyButton: canExport,
+                showConfirmButton: canPrint,
                 showCancelButton: true,
                 confirmButtonText: 'PDF',
                 denyButtonText: 'Excel',
@@ -28,21 +46,25 @@
         <x-ui.page-header title="Data Pegawai" eyebrow="Employee master"
             description="Kelola data utama dan informasi pegawai.">
             <x-slot:actions>
-                <button type="button"
+                @if ($canPrintEmployees || $canExportEmployees)
+                    <button type="button"
                     data-pdf-url="{{ route('data-pegawai.print', ['autoprint' => 1]) }}"
                     data-excel-url="{{ route('data-pegawai.export') }}"
-                    @click="chooseExport($el.dataset.pdfUrl, $el.dataset.excelUrl)"
+                    @click="chooseExport($el.dataset.pdfUrl, $el.dataset.excelUrl, @js($canPrintEmployees), @js($canExportEmployees))"
                     class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z" />
                     </svg>
                     Ekspor Semua Data
-                </button>
-                @if ($canManageEmployees)
+                    </button>
+                @endif
+                @if ($canSyncEmployeeOrganization)
                     <a href="{{ route('data-pegawai.organization-sync.preview') }}"
                         class="inline-flex items-center justify-center rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100">
                         Sinkronkan Organisasi
                     </a>
+                @endif
+                @if ($canImportEmployees)
                     <a href="{{ route('data-pegawai.import.review.index') }}"
                         class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
                         Riwayat import
@@ -57,6 +79,8 @@
                             Import SAP
                         </button>
                     </form>
+                @endif
+                @if ($canCreateEmployees)
                     <button type="button"
                         @click="open = true; $nextTick(() => { document.getElementById('employee-form-body').scrollTop = 0; document.getElementById('sap')?.focus() })"
                         class="rounded-xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800">
@@ -69,7 +93,7 @@
         @if (session('status'))
             <div class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
                 {{ session('status') }}
-                        @if (session('import_batch_id') && $canManageEmployees)
+                        @if (session('import_batch_id') && $canImportEmployees)
                             <a href="{{ route('data-pegawai.import.review.show', session('import_batch_id')) }}"
                                 class="ml-2 font-semibold underline underline-offset-2">Buka review batch</a>
                         @endif
@@ -87,7 +111,7 @@
             </div>
         @endif
 
-        @if ($canManageEmployees)
+        @if ($canCreateEmployees)
             <div x-cloak x-show="open" x-transition.opacity x-effect="document.body.classList.toggle('overflow-hidden', open)"
                 @keydown.escape.window="open = false"
                 class="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/60 p-2 backdrop-blur-sm sm:p-6"
@@ -450,7 +474,7 @@
                             @endif
                         </div>
                     </form>
-                    @if ($canManageEmployees)
+                    @if ($canDeleteEmployees)
                         <div class="flex flex-wrap items-center justify-end gap-3">
                             <label class="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-600">
                                 <input id="select-all-employees" type="checkbox"
@@ -487,6 +511,7 @@
                             <th class="min-w-[150px] px-4 py-3">Personal Number</th>
                             <th class="min-w-[150px] px-4 py-3">Department</th>
                             <th class="min-w-[150px] px-4 py-3">Position</th>
+                            <th class="min-w-[120px] px-4 py-3">Level</th>
                             <th class="px-4 py-3 text-center">Action</th>
                         </tr>
                     </thead>
@@ -497,9 +522,10 @@
                                 <td class="px-4 py-3 font-medium text-slate-700">{{ $employee->personal_number ?: '-' }}</td>
                                 <td class="px-4 py-3 text-slate-600">{{ $employee->txt_dept ?: '-' }}</td>
                                 <td class="px-4 py-3 text-slate-600">{{ $employee->position ?: '-' }}</td>
+                                <td class="px-4 py-3 text-slate-600">{{ $employee->employee_subgroup ?: '-' }}</td>
                                 <td class="px-4 py-3 text-center">
                                     <div class="flex items-center justify-center gap-2">
-                                        @if ($canManageEmployees)
+                                        @if ($canDeleteEmployees)
                                             <input type="checkbox" form="bulk-delete-employees" name="employee_ids[]" value="{{ $employee->id }}"
                                                 aria-label="Pilih {{ $employee->sap }}"
                                                 class="employee-checkbox rounded border-slate-300 text-slate-950 focus:ring-amber-400"
@@ -513,11 +539,13 @@
                                             </svg>
                                             Detail
                                         </a>
-                                        @if ($canManageEmployees)
+                                        @if ($canUpdateEmployees)
                                             <button type="button" onclick="document.getElementById('edit-employee-{{ $employee->id }}').showModal()"
                                                 class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700 transition hover:bg-amber-100">
                                                 Edit
                                             </button>
+                                        @endif
+                                        @if ($canDeleteEmployees)
                                             <form method="POST" action="{{ route('data-pegawai.destroy', $employee) }}" class="inline-block"
                                                 data-confirm-submit data-confirm-title="Hapus pegawai ini?" data-confirm-text="Data yang dihapus tidak dapat dikembalikan."
                                                 data-confirm-button-text="Ya, hapus" data-confirm-button-color="#dc2626">
@@ -533,7 +561,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="px-4 py-10 text-center text-sm text-slate-500">
+                                <td colspan="6" class="px-4 py-10 text-center text-sm text-slate-500">
                                     Belum ada data pegawai.
                                 </td>
                             </tr>
@@ -548,7 +576,7 @@
             @endif
         </div>
 
-        @if ($canManageEmployees)
+        @if ($canUpdateEmployees)
             @foreach ($employees as $employee)
             <dialog id="edit-employee-{{ $employee->id }}" class="w-[calc(100%-2rem)] max-w-6xl rounded-2xl p-0 shadow-2xl backdrop:bg-slate-950/60">
                 <section class="max-h-[90vh] overflow-y-auto bg-white p-6 sm:p-8">

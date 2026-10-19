@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\UserRole;
 use App\Http\Requests\StorePersonnelActionRequest;
 use App\Http\Requests\UpdatePersonnelActionRequest;
 use App\Imports\DemotionImport;
@@ -80,7 +79,7 @@ class DemotionController extends Controller
 
     public function destroyMany(Request $request, PersonnelActionGuard $personnelActionGuard): RedirectResponse
     {
-        abort_unless($request->user()?->roleEnum() === UserRole::SUPER_ADMIN, 403);
+        abort_unless($request->user()?->hasPermission('demotions.delete'), 403);
 
         $validated = $request->validate([
             'demotion_ids' => ['required', 'array', 'min:1'],
@@ -97,7 +96,7 @@ class DemotionController extends Controller
     public function approve(Request $request, EmployeeDemotion $employeeDemotion, ApprovalService $approvalService): RedirectResponse
     {
         $manager = $request->user();
-        abort_unless($manager instanceof User && in_array($manager->roleEnum(), [UserRole::ADMIN, UserRole::MANAGER], true), 403);
+        abort_unless($manager instanceof User && $manager->hasPermission('demotions.approve'), 403);
 
         $alreadyApproved = $approvalService->approve($employeeDemotion, $manager);
 
@@ -111,7 +110,7 @@ class DemotionController extends Controller
 
     public function print(Request $request, EmployeeDemotion $employeeDemotion): BinaryFileResponse
     {
-        abort_unless($request->user()?->roleEnum() === UserRole::SUPER_ADMIN, 403);
+        abort_unless($request->user()?->hasPermission('demotions.print'), 403);
         abort_unless($employeeDemotion->verification_status === 'Final', 404, 'Data demosi belum final sehingga belum dapat dicetak.');
 
         $templatePath = storage_path('template/demosi-template.docx');

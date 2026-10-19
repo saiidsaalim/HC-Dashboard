@@ -27,13 +27,15 @@
                     {{ ucfirst($wla->status->value) }}
                 </x-ui.status-badge>
                 @if ($wla->status === \App\Enums\WlaAssessmentStatus::Final)
-                    @can('view', $wla)
+                    @can('wla.export')
                         <a href="{{ route('wla.print', $wla) }}" target="_blank" rel="noopener" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cetak</a>
                         <a href="{{ route('wla.export-excel', $wla) }}" class="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600">Export Excel</a>
                     @endcan
                 @endif
                 @can('update', $wla)
                     <a href="{{ route('wla.edit', $wla) }}" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Edit Draft</a>
+                @endcan
+                @can('delete', $wla)
                     <form method="POST" action="{{ route('wla.destroy', $wla) }}" data-confirm-submit data-confirm-title="Hapus Draft WLA ini?" data-confirm-text="Seluruh aktivitas dalam Draft ini akan ikut dihapus dan tidak dapat dikembalikan." data-confirm-button-text="Ya, hapus Draft" data-cancel-button-text="Batal" data-confirm-button-color="#dc2626" data-cancel-button-color="#64748b">
                         @csrf @method('DELETE')
                         <button class="rounded-lg border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50">Delete Draft</button>

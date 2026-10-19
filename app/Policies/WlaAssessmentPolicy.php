@@ -13,7 +13,7 @@ class WlaAssessmentPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->roleEnum()->canManageRbac();
+        return $user->hasPermission('wla.view');
     }
 
     /**
@@ -21,7 +21,7 @@ class WlaAssessmentPolicy
      */
     public function view(User $user, WlaAssessment $wlaAssessment): bool
     {
-        return $user->roleEnum()->canManageRbac();
+        return $user->hasPermission('wla.view');
     }
 
     /**
@@ -29,7 +29,7 @@ class WlaAssessmentPolicy
      */
     public function create(User $user): bool
     {
-        return $user->roleEnum()->canManageRbac();
+        return $user->hasPermission('wla.create');
     }
 
     /**
@@ -37,7 +37,7 @@ class WlaAssessmentPolicy
      */
     public function update(User $user, WlaAssessment $wlaAssessment): bool
     {
-        return $user->roleEnum()->canManageRbac()
+        return $user->hasPermission('wla.update')
             && $wlaAssessment->status === WlaAssessmentStatus::Draft;
     }
 
@@ -46,13 +46,13 @@ class WlaAssessmentPolicy
      */
     public function delete(User $user, WlaAssessment $wlaAssessment): bool
     {
-        return $user->roleEnum()->canManageRbac()
+        return $user->hasPermission('wla.delete')
             && $wlaAssessment->status === WlaAssessmentStatus::Draft;
     }
 
     public function finalize(User $user, WlaAssessment $wlaAssessment): bool
     {
-        return $user->roleEnum()->canManageRbac()
+        return $user->hasPermission('wla.finalize')
             && $wlaAssessment->status === WlaAssessmentStatus::Draft;
     }
 

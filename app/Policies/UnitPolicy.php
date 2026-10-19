@@ -12,7 +12,7 @@ class UnitPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->roleEnum()->canManageAllRoles();
+        return $user->hasPermission('organization.view');
     }
 
     /**
@@ -20,7 +20,7 @@ class UnitPolicy
      */
     public function view(User $user, Unit $unit): bool
     {
-        return $user->roleEnum()->canManageAllRoles();
+        return $user->hasPermission('organization.view');
     }
 
     /**
@@ -28,7 +28,7 @@ class UnitPolicy
      */
     public function create(User $user): bool
     {
-        return $user->roleEnum()->canManageAllRoles();
+        return $user->hasPermission('organization.create');
     }
 
     /**
@@ -36,7 +36,7 @@ class UnitPolicy
      */
     public function update(User $user, Unit $unit): bool
     {
-        return $user->roleEnum()->canManageAllRoles();
+        return $user->hasPermission('organization.update');
     }
 
     /**
@@ -44,7 +44,7 @@ class UnitPolicy
      */
     public function delete(User $user, Unit $unit): bool
     {
-        return $user->roleEnum()->canManageAllRoles();
+        return $user->hasPermission('organization.delete');
     }
 
     /**

@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Enums\UserRole;
 use App\Http\Requests\StorePersonnelActionRequest;
 use App\Http\Requests\UpdatePersonnelActionRequest;
 use App\Imports\MutationImport;
@@ -77,7 +76,7 @@ class MutationController extends Controller
 
     public function destroyMany(Request $request, PersonnelActionGuard $personnelActionGuard): RedirectResponse
     {
-        abort_unless($request->user()?->roleEnum() === UserRole::SUPER_ADMIN, 403);
+        abort_unless($request->user()?->hasPermission('mutations.delete'), 403);
 
         $validated = $request->validate([
             'mutation_ids' => ['required', 'array', 'min:1'],
@@ -94,7 +93,7 @@ class MutationController extends Controller
     public function approve(Request $request, EmployeeMutation $employeeMutation, ApprovalService $approvalService): RedirectResponse
     {
         $manager = $request->user();
-        abort_unless($manager instanceof User && in_array($manager->roleEnum(), [UserRole::ADMIN, UserRole::MANAGER], true), 403);
+        abort_unless($manager instanceof User && $manager->hasPermission('mutations.approve'), 403);
 
         $alreadyApproved = $approvalService->approve($employeeMutation, $manager);
 
@@ -108,7 +107,7 @@ class MutationController extends Controller
 
     public function print(Request $request, EmployeeMutation $employeeMutation): BinaryFileResponse
     {
-        abort_unless($request->user()?->roleEnum() === UserRole::SUPER_ADMIN, 403);
+        abort_unless($request->user()?->hasPermission('mutations.print'), 403);
         abort_unless($employeeMutation->verification_status === 'Final', 404, 'Data mutasi belum final sehingga belum dapat dicetak.');
 
         $templatePath = storage_path('template/mutasi-template.docx');

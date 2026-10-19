@@ -171,7 +171,7 @@ class WlaAssessmentController extends Controller
 
     public function print(WlaAssessment $wla): View
     {
-        Gate::authorize('view', $wla);
+        Gate::authorize('wla.export');
 
         return view('wla.print', [
             'snapshot' => $this->wlaFinalSnapshotService->validatedSnapshot($wla),
@@ -180,7 +180,7 @@ class WlaAssessmentController extends Controller
 
     public function exportExcel(WlaAssessment $wla): BinaryFileResponse
     {
-        Gate::authorize('view', $wla);
+        Gate::authorize('wla.export');
 
         return $this->wlaFinalSpreadsheet->download($wla);
     }

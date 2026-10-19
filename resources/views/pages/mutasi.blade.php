@@ -3,13 +3,18 @@
 @section('page-title', 'Mutasi')
 
 @section('content')
-    @php($canApproveMutations = in_array(auth()->user()->roleEnum(), [\App\Enums\UserRole::ADMIN, \App\Enums\UserRole::MANAGER], true))
-    @php($canManageMutationRecords = auth()->user()->roleEnum()->canManageAllRoles())
+    @php($canCreateMutations = auth()->user()->hasPermission('mutations.create'))
+    @php($canImportMutations = auth()->user()->hasPermission('mutations.import'))
+    @php($canUpdateMutations = auth()->user()->hasPermission('mutations.update'))
+    @php($canDeleteMutations = auth()->user()->hasPermission('mutations.delete'))
+    @php($canApproveMutations = auth()->user()->hasPermission('mutations.approve'))
+    @php($canPrintMutations = auth()->user()->hasPermission('mutations.print'))
     <div x-data="{ open: @js(old('_form') === 'manual') }">
         <x-ui.page-header title="Daftar Mutasi" eyebrow="Talent movement"
             description="Unggah dan pantau perpindahan pegawai.">
             <x-slot:actions>
-                <form method="POST" action="{{ route('mutasi.import') }}" enctype="multipart/form-data"
+                @if ($canImportMutations)
+                    <form method="POST" action="{{ route('mutasi.import') }}" enctype="multipart/form-data"
                     class="flex flex-col gap-2 sm:flex-row sm:items-center">
                     @csrf
                     <input type="file" name="file" accept=".xlsx,.csv,.txt" required
@@ -18,11 +23,14 @@
                         class="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700">
                         Import Mutasi
                     </button>
-                </form>
-                <button type="button" @click="open = true"
+                    </form>
+                @endif
+                @if ($canCreateMutations)
+                    <button type="button" @click="open = true"
                     class="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700">
                     Buat Mutasi
-                </button>
+                    </button>
+                @endif
             </x-slot:actions>
         </x-ui.page-header>
 
@@ -43,6 +51,7 @@
             </div>
         @endif
 
+        @if ($canCreateMutations)
         <div x-cloak x-show="open" x-transition.opacity @keydown.escape.window="open = false"
             class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 p-4 sm:p-8"
             @click.self="open = false">
@@ -147,6 +156,7 @@
                 </form>
             </section>
         </div>
+        @endif
     </div>
 
     <div class="grid gap-5 md:grid-cols-3">
@@ -184,7 +194,7 @@
                     @endif
                 </form>
                 <div class="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
-                    @if ($canManageMutationRecords && $mutations->contains(fn($mutation): bool => $mutation->verification_status !== 'Final'))
+                    @if ($canDeleteMutations && $mutations->contains(fn($mutation): bool => $mutation->verification_status !== 'Final'))
                         <label class="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-600">
                             <input id="select-all-mutations" type="checkbox"
                                 onchange="document.querySelectorAll('.mutation-checkbox').forEach((checkbox) => checkbox.checked = this.checked)"
@@ -209,7 +219,7 @@
                 <table class="w-full text-left text-sm whitespace-nowrap">
                     <thead class="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wider text-slate-400">
                         <tr>
-                            @if ($canManageMutationRecords)
+                            @if ($canDeleteMutations)
                                 <th class="w-12 px-4 py-3 text-center align-middle">Pilih</th>
                             @endif
                             <th class="w-20 px-4 py-3 text-left align-middle">SAP</th>
@@ -228,7 +238,7 @@
                             <tr>
                                 @php($approvedCount = $mutation->approvals->where('status', 'Approved')->unique('manager_id')->count())
                                 @php($hasApproved = $mutation->approvals->contains(fn($approval): bool => $approval->manager_id === auth()->id() && $approval->status === 'Approved'))
-                                @if ($canManageMutationRecords)
+                                @if ($canDeleteMutations)
                                     <td data-label="Pilih" class="px-4 py-3 text-center align-middle">
                                         @if ($mutation->verification_status !== 'Final')
                                             <input type="checkbox" name="mutation_ids[]" value="{{ $mutation->id }}"
@@ -261,7 +271,7 @@
                                                 class="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 sm:text-xs">
                                                 Final
                                             </span>
-                                            @if ($canManageMutationRecords)
+                                            @if ($canPrintMutations)
                                                 <a href="{{ route('mutasi.print', $mutation) }}"
                                                     class="w-full max-w-[100px] rounded-md bg-sky-600 px-4 py-1.5 text-center text-sm font-medium text-white transition-colors hover:bg-sky-700">
                                                     Print
@@ -297,7 +307,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ $canManageMutationRecords ? 10 : 9 }}"
+                                <td colspan="{{ $canDeleteMutations ? 10 : 9 }}"
                                     class="px-4 py-10 text-center align-middle text-sm text-slate-500">
                                     Belum ada data mutasi. Silakan upload file Excel atau CSV.
                                 </td>
@@ -354,7 +364,7 @@
                         </div>
                     @endforeach
                 </div>
-                @if ($canManageMutationRecords && $mutation->verification_status !== 'Final')
+                @if ($canUpdateMutations && $mutation->verification_status !== 'Final')
                     <details class="mt-8 rounded-xl border border-slate-200 bg-slate-50 p-4">
                         <summary class="cursor-pointer text-sm font-semibold text-slate-700">Edit Data</summary>
                         <form method="POST" action="{{ route('mutasi.update', $mutation) }}"

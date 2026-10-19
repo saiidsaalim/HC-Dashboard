@@ -51,10 +51,11 @@
             <nav aria-label="Navigasi utama" tabindex="0"
                 class="min-h-0 flex-1 space-y-0 overflow-y-auto overscroll-contain scrollbar-hidden focus:outline-none">
                 @unless (auth()->user()->must_change_password)
-                    @php($navigation = [['route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'home'], ['route' => 'data-pegawai', 'label' => 'Data Pegawai', 'icon' => 'users'], ['route' => 'wla', 'label' => 'WLA', 'icon' => 'chart'], ['route' => 'fit-proper', 'label' => 'Fit & Proper', 'icon' => 'clipboard'], ['route' => 'mutasi', 'label' => 'Mutasi', 'icon' => 'arrows'], ['route' => 'promosi', 'label' => 'Promosi', 'icon' => 'chart'], ['route' => 'demosi', 'label' => 'Demosi', 'icon' => 'demosi'], ['route' => 'formasi', 'label' => 'Formasi', 'icon' => 'formasi'], ['route' => 'definitif', 'label' => 'Definitif', 'icon' => 'clipboard'], ['route' => 'laporan', 'label' => 'Laporan', 'icon' => 'document']])
+                    @php($navigation = [['route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'home', 'permission' => 'dashboard.view'], ['route' => 'data-pegawai', 'label' => 'Data Pegawai', 'icon' => 'users', 'permission' => 'employees.view'], ['route' => 'wla', 'label' => 'WLA', 'icon' => 'chart', 'permission' => 'wla.view'], ['route' => 'fit-proper', 'label' => 'Fit & Proper', 'icon' => 'clipboard', 'permission' => 'fit-proper.view'], ['route' => 'mutasi', 'label' => 'Mutasi', 'icon' => 'arrows', 'permission' => 'mutations.view'], ['route' => 'promosi', 'label' => 'Promosi', 'icon' => 'chart', 'permission' => 'promotions.view'], ['route' => 'demosi', 'label' => 'Demosi', 'icon' => 'demosi', 'permission' => 'demotions.view'], ['route' => 'formasi', 'label' => 'Formasi', 'icon' => 'formasi', 'permission' => 'formation.view'], ['route' => 'definitif', 'label' => 'Definitif', 'icon' => 'clipboard', 'permission' => 'definitive.view'], ['route' => 'laporan', 'label' => 'Laporan', 'icon' => 'document', 'permission' => 'reports.view']])
                     @foreach ($navigation as $item)
-                        @if ($item['route'] !== 'wla' || auth()->user()->canManageRbac() || auth()->user()->roleEnum() === \App\Enums\UserRole::STAFF)
-                            @php($navigationRoute = $item['route'] === 'wla' && auth()->user()->roleEnum() === \App\Enums\UserRole::STAFF ? 'wla.staff.index' : $item['route'])
+                        @php($canViewStaffWla = $item['route'] === 'wla' && auth()->user()->hasPermission('wla.staff.view'))
+                        @if (auth()->user()->hasPermission($item['permission']) || $canViewStaffWla)
+                            @php($navigationRoute = $item['route'] === 'wla' && !auth()->user()->hasPermission('wla.view') ? 'wla.staff.index' : $item['route'])
                             @php($navigationLabel = $navigationRoute === 'wla.staff.index' ? 'WLA Saya' : $item['label'])
                             <a href="{{ route($navigationRoute) }}" title="{{ $navigationLabel }}"
                                 @if ($item['route'] === 'wla' ? request()->routeIs('wla*') : request()->routeIs($item['route'])) aria-current="page" @endif
@@ -66,7 +67,7 @@
                             </a>
                         @endif
                     @endforeach
-                    @if (auth()->user()->roleEnum()->canManageAllRoles())
+                    @if (auth()->user()->hasPermission('organization.view'))
                     <a href="{{ route('organization.index') }}" title="Master Organization"
                         @if (request()->routeIs('organization.*')) aria-current="page" @endif
                         :class="{ 'justify-center': !sidebarExpanded && !sidebarOpen }"
@@ -75,6 +76,8 @@
                         <span x-show="sidebarExpanded || sidebarOpen" x-transition.opacity
                             class="whitespace-nowrap">Master Organization</span>
                     </a>
+                    @endif
+                    @if (auth()->user()->hasPermission('work-schedules.view'))
                     <a href="{{ route('work-schedules.index') }}" title="Work Schedules"
                         @if (request()->routeIs('work-schedules.*')) aria-current="page" @endif
                         :class="{ 'justify-center': !sidebarExpanded && !sidebarOpen }"
@@ -83,6 +86,8 @@
                         <span x-show="sidebarExpanded || sidebarOpen" x-transition.opacity
                             class="whitespace-nowrap">Work Schedules</span>
                     </a>
+                    @endif
+                    @if (auth()->user()->hasPermission('work-calendars.view'))
                     <a href="{{ route('work-calendars.index') }}" title="Work Calendars"
                         @if (request()->routeIs('work-calendars.*')) aria-current="page" @endif
                         :class="{ 'justify-center': !sidebarExpanded && !sidebarOpen }"
@@ -93,14 +98,16 @@
                     </a>
                     @endif
                 @endunless
-                <a href="{{ route('konfigurasi-user') }}" title="Konfigurasi User"
+                @if (auth()->user()->hasPermission('users.view'))
+                    <a href="{{ route('konfigurasi-user') }}" title="Konfigurasi User"
                     @if (request()->routeIs('konfigurasi-user*')) aria-current="page" @endif
                     :class="{ 'justify-center': !sidebarExpanded && !sidebarOpen }"
                     class="app-nav-link flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium leading-5 {{ request()->routeIs('konfigurasi-user*') ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/10' : 'text-slate-400 hover:bg-slate-900 hover:text-white' }}">
                     <x-dashboard-icon name="users" class="h-[22px] w-[22px]" />
                     <span x-show="sidebarExpanded || sidebarOpen" x-transition.opacity
                         class="whitespace-nowrap">Konfigurasi User</span>
-                </a>
+                    </a>
+                @endif
             </nav>
         </aside>
         <div x-cloak x-show="sidebarOpen" x-transition:enter="transition-opacity duration-200"

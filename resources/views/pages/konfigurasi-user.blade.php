@@ -9,7 +9,16 @@
     <x-ui.page-header title="Role Based Access Control" eyebrow="User management"
         description="Kelola role dan hak akses pengguna berdasarkan prinsip least privilege.">
         <x-slot:actions>
-            <x-ui.status-badge tone="info">Role Anda: {{ $currentRole->value }}</x-ui.status-badge>
+            <div class="flex flex-wrap items-center gap-3">
+                <x-ui.status-badge tone="info">Role Anda: {{ $currentRole->value }}</x-ui.status-badge>
+                @if ($canManageAccess)
+                    <button type="button" onclick="document.getElementById('role-permission-modal').showModal()"
+                        class="inline-flex items-center gap-2 rounded-xl bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-800">
+                        <x-dashboard-icon name="users" class="h-4 w-4" />
+                        Atur Hak Akses
+                    </button>
+                @endif
+            </div>
         </x-slot:actions>
     </x-ui.page-header>
 
@@ -28,7 +37,7 @@
         </div>
     @endif
 
-    @if ($canManageAllRoles)
+    @if ($canApproveCandidates)
         <section class="mb-8 rounded-2xl border border-sky-200 bg-white shadow-sm">
             <div class="flex flex-col gap-4 border-b border-slate-200 p-6 lg:flex-row lg:items-start lg:justify-between">
                 <div>
@@ -136,7 +145,7 @@
     @endif
 
     @if ($canManageUsers)
-        <section class="mb-8 grid gap-5 xl:grid-cols-2">
+        <section class="mb-8">
         <div class="flex flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div class="mb-5">
                 <h3 class="font-display text-xl font-bold text-slate-950">Tambah Pengguna</h3>
@@ -189,88 +198,13 @@
                         Pengguna</button></div>
             </form>
         </div>
-        <div class="flex flex-col rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div class="mb-5">
-                <h3 class="font-display text-xl font-bold text-slate-950">Import dari Excel</h3>
-                <p class="mt-1 text-sm text-slate-500">Upload `.xlsx` atau `.csv` dengan header wajib:
-                    <strong>email</strong> dan <strong>password</strong>. Nama dibuat dari email dan role otomatis Staff.
-                </p>
-            </div>
-            <form method="POST" action="{{ route('konfigurasi-user.import') }}" enctype="multipart/form-data"
-                class="flex flex-1 flex-col space-y-4">@csrf<label for="file"
-                    class="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center transition hover:border-amber-400 hover:bg-amber-50"><span
-                        class="font-semibold text-slate-700">Pilih file Excel</span><span
-                        class="mt-1 text-xs text-slate-400">Maksimal 5 MB, password minimal 8 karakter.</span><input
-                        id="file" name="file" type="file" accept=".xlsx,.csv,.txt" required
-                        class="mt-4 block w-full text-sm text-slate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-amber-400 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-950"></label><button
-                    type="submit"
-                    class="mt-auto self-start rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700">Import
-                    Pengguna</button></form>
-        </div>
-        </section>
-
-        <section class="mb-8">
-        <div class="mb-4">
-            <h3 class="font-display text-xl font-bold text-slate-950">Matriks Hak Akses</h3>
-            <p class="mt-1 text-sm text-slate-500">Ringkasan kewenangan setiap kelompok role.</p>
-        </div>
-        <div class="grid gap-4 lg:grid-cols-3">
-            <article class="rounded-2xl border border-amber-200 bg-amber-50 p-5">
-                <div class="flex items-center justify-between">
-                    <h4 class="font-display font-bold text-amber-950">Super Admin</h4><span
-                        class="rounded-full bg-amber-400 px-2.5 py-1 text-[11px] font-bold text-slate-950">FULL
-                        ACCESS</span>
-                </div>
-                <p class="mt-3 text-sm leading-6 text-amber-900">
-                    {{ collect($roles)->first(fn($role) => $role === \App\Enums\UserRole::SUPER_ADMIN)->description() }}
-                </p>
-            </article>
-            <article class="rounded-2xl border border-sky-200 bg-sky-50 p-5">
-                <div class="flex items-center justify-between">
-                    <h4 class="font-display font-bold text-sky-950">Admin / Manager</h4><span
-                        class="rounded-full bg-sky-400 px-2.5 py-1 text-[11px] font-bold text-slate-950">OPERASIONAL</span>
-                </div>
-                <p class="mt-3 text-sm leading-6 text-sky-900">Dapat membaca, membuat, dan memperbarui data operasional
-                    serta laporan. Hanya mengelola akun Staff dan Member.</p>
-            </article>
-            <article class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-                <div class="flex items-center justify-between">
-                    <h4 class="font-display font-bold text-slate-950">Staff / Member</h4><span
-                        class="rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-700">TERBATAS</span>
-                </div>
-                <p class="mt-3 text-sm leading-6 text-slate-600">Hanya membaca dan membuat data milik sendiri serta tugas
-                    yang ditugaskan kepadanya.</p>
-            </article>
-        </div>
-        <div class="mt-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <table class="w-full min-w-[760px] text-left text-sm">
-                <thead class="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wider text-slate-400">
-                    <tr>
-                        <th class="px-5 py-3">Area</th>
-                        <th class="px-5 py-3">Super Admin</th>
-                        <th class="px-5 py-3">Admin / Manager</th>
-                        <th class="px-5 py-3">Staff / Member</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    @foreach ($permissions as $permission)
-                        <tr>
-                            <td class="px-5 py-4 font-semibold text-slate-700">{{ $permission['label'] }}</td>
-                            <td class="px-5 py-4 text-amber-700">{{ $permission['super_admin'] }}</td>
-                            <td class="px-5 py-4 text-sky-700">{{ $permission['admin_manager'] }}</td>
-                            <td class="px-5 py-4 text-slate-500">{{ $permission['staff_member'] }}</td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
         </section>
     @endif
 
     <section>
         <div class="mb-4">
             <h3 class="font-display text-xl font-bold text-slate-950">Pengguna dan Role</h3>
-            <p class="mt-1 text-sm text-slate-500">Perubahan role akan langsung memengaruhi akses pengguna.</p>
+            <p class="mt-1 text-sm text-slate-500">Setiap pengguna memperoleh hak akses dari role yang ditetapkan.</p>
         </div>
         <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
             <table class="w-full min-w-[900px] text-left text-sm">
@@ -287,8 +221,10 @@
                 <tbody class="divide-y divide-slate-100">
                     @foreach ($users as $user)
                         @php($userRole = $user->roleEnum())
-                        @php($canEditUser = $canManageAllRoles)
-                        @php($canDeleteUser = $canManageAllRoles && !$user->is(auth()->user()))
+                        @php($isProtectedSuperAdmin = $userRole === \App\Enums\UserRole::SUPER_ADMIN && $currentRole !== \App\Enums\UserRole::SUPER_ADMIN)
+                        @php($canEditUser = $canUpdateUsers && !$isProtectedSuperAdmin)
+                        @php($canDeleteUser = $canDeleteUsers && !$user->is(auth()->user()) && !$isProtectedSuperAdmin)
+                        @php($canChangeUserRole = $canManageAllRoles && !$isProtectedSuperAdmin)
                         <tr>
                             <td class="px-5 py-4 font-semibold text-slate-700">{{ $user->name }} @if ($user->is(auth()->user()))
                                     <span class="ml-1 text-xs font-normal text-slate-400">(Anda)</span>
@@ -302,7 +238,7 @@
                                 {{ $user->employee?->personal_number ?? $user->employee?->sap ?? 'Belum terhubung' }}
                             </td>
                             <td class="px-5 py-4">
-                                @if ($canEditUser)
+                                @if ($canChangeUserRole)
                                     <form method="POST" action="{{ route('konfigurasi-user.role', $user) }}"
                                         class="flex items-center gap-2">@csrf @method('PATCH')<select name="role"
                                             class="rounded-lg border-slate-300 bg-white py-2 pl-3 pr-8 text-sm text-slate-700 shadow-sm focus:border-amber-400 focus:ring-amber-400">
@@ -345,7 +281,7 @@
         </div>
     </section>
 
-    @if ($canManageAllRoles)
+    @if ($canUpdateUsers)
         @foreach ($users as $user)
             <dialog id="user-edit-{{ $user->id }}" @if (old('_form') === 'edit-user-'.$user->id) open @endif
                 class="w-[calc(100%-2rem)] max-w-xl rounded-2xl p-0 shadow-2xl backdrop:bg-slate-950/60">
@@ -410,5 +346,95 @@
                 </section>
             </dialog>
         @endforeach
+    @endif
+
+    @if ($canManageAccess)
+        <dialog id="role-permission-modal" data-role-permission-dialog @if (old('_form') === 'role-access') open @endif
+            class="w-[calc(100%-1rem)] max-w-7xl rounded-2xl p-0 shadow-2xl backdrop:bg-slate-950/60 sm:w-[calc(100%-2rem)]">
+            <section class="flex max-h-[92dvh] flex-col overflow-hidden bg-white">
+                <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-5 sm:px-7">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-sky-700">Kontrol Hak Akses</p>
+                        <h3 class="mt-1 font-display text-2xl font-bold text-slate-950">Pengaturan Hak Akses Role</h3>
+                        <p class="mt-1 text-sm text-slate-500">Tentukan halaman dan tindakan yang dapat diakses oleh setiap role.</p>
+                    </div>
+                    <button type="button" data-role-permission-close aria-label="Tutup"
+                        class="rounded-lg px-3 py-2 text-xl leading-none text-slate-400 transition hover:bg-slate-100 hover:text-slate-700">&times;</button>
+                </div>
+
+                <form method="POST" action="{{ route('konfigurasi-user.access.update') }}"
+                    class="flex min-h-0 flex-1 flex-col" data-role-permission-form>
+                    @csrf
+                    @method('PUT')
+                    <input type="hidden" name="_form" value="role-access">
+
+                    <div class="min-h-0 flex-1 overflow-auto">
+                        <table class="w-full min-w-[1050px] border-separate border-spacing-0 text-left text-sm">
+                            <thead class="sticky top-0 z-30 bg-slate-950 text-xs uppercase tracking-wider text-slate-200">
+                                <tr>
+                                    <th class="sticky left-0 z-40 min-w-72 border-b border-slate-700 bg-slate-950 px-5 py-4">Hak Akses</th>
+                                    @foreach ($roles as $role)
+                                        @php($selectedRolePermissions = collect(old('permissions.'.$role->name, $rolePermissionKeys->get($role->name, collect())->all())))
+                                        <th class="min-w-36 border-b border-slate-700 px-4 py-4 text-center">
+                                            <span class="block whitespace-nowrap">{{ $role->value }}</span>
+                                            <label class="mt-2 inline-flex items-center gap-2 text-[11px] font-medium normal-case tracking-normal text-slate-300">
+                                                <input type="checkbox" data-role-select-all data-role="{{ $role->name }}"
+                                                    @checked($role === \App\Enums\UserRole::SUPER_ADMIN || $selectedRolePermissions->count() === $permissionGroups->flatten()->count())
+                                                    @disabled($role === \App\Enums\UserRole::SUPER_ADMIN)
+                                                    class="rounded border-slate-500 text-amber-400 focus:ring-amber-400 disabled:opacity-80">
+                                                Pilih Semua
+                                            </label>
+                                        </th>
+                                    @endforeach
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($permissionGroups as $groupPermissions)
+                                    <tr>
+                                        <th colspan="{{ count($roles) + 1 }}"
+                                            class="border-b border-sky-100 bg-sky-50 px-5 py-3 text-xs font-bold uppercase tracking-[0.14em] text-sky-800">
+                                            {{ $groupPermissions->first()->group_label }}
+                                        </th>
+                                    </tr>
+                                    @foreach ($groupPermissions as $permission)
+                                        <tr class="group">
+                                            <th class="sticky left-0 z-10 border-b border-slate-100 bg-white px-5 py-3 font-medium text-slate-700 group-hover:bg-slate-50">
+                                                {{ $permission->label }}
+                                                <span class="mt-0.5 block font-mono text-[10px] font-normal text-slate-400">{{ $permission->key }}</span>
+                                            </th>
+                                            @foreach ($roles as $role)
+                                                @php($selectedRolePermissions = collect(old('permissions.'.$role->name, $rolePermissionKeys->get($role->name, collect())->all())))
+                                                <td class="border-b border-slate-100 px-4 py-3 text-center group-hover:bg-slate-50">
+                                                    <input type="checkbox"
+                                                        name="permissions[{{ $role->name }}][]" value="{{ $permission->key }}"
+                                                        data-role-permission data-role="{{ $role->name }}"
+                                                        @checked($role === \App\Enums\UserRole::SUPER_ADMIN || $selectedRolePermissions->contains($permission->key))
+                                                        @disabled($role === \App\Enums\UserRole::SUPER_ADMIN)
+                                                        aria-label="{{ $permission->label }} untuk {{ $role->value }}"
+                                                        class="rounded border-slate-300 text-sky-600 focus:ring-sky-500 disabled:opacity-80">
+                                                </td>
+                                            @endforeach
+                                        </tr>
+                                    @endforeach
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="flex flex-col-reverse gap-3 border-t border-slate-200 bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+                        <p class="text-xs text-slate-500">Super Admin selalu memiliki seluruh hak akses dan tidak dapat dinonaktifkan.</p>
+                        <div class="flex flex-col-reverse gap-3 sm:flex-row">
+                            <button type="button" data-role-permission-close
+                                class="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50">Batal</button>
+                            <button type="submit"
+                                class="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-wait disabled:opacity-70">
+                                <span data-submit-label>Simpan Hak Akses</span>
+                                <span data-submit-loading class="hidden">Menyimpan...</span>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </section>
+        </dialog>
     @endif
 @endsection
