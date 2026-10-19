@@ -1,0 +1,7 @@
+<p class="my-3 text-sm text-slate-600">Panduan mentah: &lt; 2,70 Tidak Disarankan; 2,70–3,00 Disarankan Dengan Pertimbangan; &gt; 3,00 Disarankan. Panduan ini terpisah dari kelulusan total.</p>
+@foreach($recap['rows'] as $r)<details class="my-3 rounded-lg border border-slate-200 p-3"><summary class="cursor-pointer font-semibold">{{ $r['name'] }} · {{ $r['submitted_count'] }}/{{ count($r['details']) }} penguji dikirim</summary>
+<div class="mt-3 overflow-x-auto"><table class="w-full text-left text-xs"><thead><tr><th class="p-2">Penguji</th>@foreach(\App\Services\FitProperCalculationService::INDICATORS as $label)<th class="p-2">{{ $label }}</th>@endforeach<th class="p-2">Kompetensi inti</th><th class="p-2">Kelayakan</th><th class="p-2">Rata-rata</th><th class="p-2">Panduan / catatan</th></tr></thead><tbody>
+@foreach($r['details'] as $d)<tr class="border-t"><td class="p-2">{{ $d['examiner_name'] }}<p>{{ $d['submitted'] ? 'Dikirim' : 'Draft' }}</p></td>@foreach(array_keys(\App\Services\FitProperCalculationService::INDICATORS) as $key)<td class="p-2">{{ $d['indicators'][$key] ?? '—' }}</td>@endforeach
+@foreach(['core','eligibility','average'] as $key)<td class="p-2">{{ isset($d['calculation'][$key]) ? number_format($d['calculation'][$key],3) : '—' }}</td>@endforeach
+<td class="p-2"><p>{{ $d['calculation']['guidance'] ?? 'Belum lengkap' }}</p><p class="whitespace-pre-line">{{ $d['recommendation'] }}</p><p class="whitespace-pre-line">{{ $d['notes'] }}</p></td></tr>@endforeach
+</tbody></table></div></details>@endforeach

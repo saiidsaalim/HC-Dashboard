@@ -1,0 +1,2 @@
+<!doctype html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta name="robots" content="noindex,nofollow"><title>HCM | Penilaian Fit & Proper</title>@vite(['resources/css/app.css','resources/js/app.js'])</head><body class="app-shell font-sans text-slate-900"><main class="mx-auto max-w-7xl p-4 sm:p-8">@yield('content')</main></body></html>
