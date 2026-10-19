@@ -34,6 +34,10 @@ class PortalTest extends TestCase
             ->assertDontSee('Performance & Talent Management')
             ->assertSee('data-login-dialog', false)
             ->assertSee('Selamat datang kembali')
+            ->assertSee('data-password-toggle', false)
+            ->assertSee('aria-controls="portal-password"', false)
+            ->assertSee('Tampilkan password')
+            ->assertSee('Sembunyikan password')
             ->assertSee('name="_token"', false);
     }
 
