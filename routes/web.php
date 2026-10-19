@@ -30,7 +30,6 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
-    Route::view('/fit-proper', 'pages.fit-proper')->name('fit-proper');
     Route::get('/mutasi', [MutationController::class, 'index'])->name('mutasi');
     Route::post('/mutasi', [MutationController::class, 'store'])->name('mutasi.store');
     Route::post('/mutasi/import', [MutationController::class, 'upload'])->name('mutasi.import');
@@ -134,6 +133,7 @@ Route::middleware('auth')->group(function () {
 });
 
 require __DIR__.'/auth.php';
+require __DIR__.'/fit-proper.php';
 
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
