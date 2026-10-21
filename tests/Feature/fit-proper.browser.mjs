@@ -97,6 +97,31 @@ test('Isolated private Chrome: asynchronous forms, PICs and public examiner link
         await cdp.navigate(admin,base+'/fit-proper/'+ids.activity+'#pic');
         await cdp.until(admin,()=>!!window.Alpine && !!document.querySelector('[data-fp-root]'));
         await cdp.run(admin,async()=>{await document.fonts.ready;await Promise.all(document.getAnimations().filter(animation=>animation.effect?.getTiming().iterations!==Infinity).map(animation=>animation.finished.catch(()=>{})));});
+        for (const width of [1440, 1280, 768, 390]) {
+            await cdp.send('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false }, admin);
+            const layout = await cdp.run(admin, async () => {
+                await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                const root = document.querySelector('.fp-detail');
+                const histories = [...root.querySelectorAll('.fp-history')];
+                const first = histories[0];
+                const closed = histories.every(item => !item.open);
+                first.querySelector('summary').click();
+                const opened = first.open && first.querySelector('.fp-history-content').getBoundingClientRect().height > 0;
+                first.querySelector('summary').click();
+                return {
+                    overflow: document.documentElement.scrollWidth > innerWidth + 1,
+                    closed, opened, reclosed: !first.open,
+                    metrics: root.querySelectorAll('.fp-detail-metrics > div').length,
+                    labels: /Data Simulasi|seluruh identitas dan hasil adalah fiktif|penguji tautan \/ demo/i.test(root.innerText),
+                };
+            });
+            assert.equal(layout.overflow, false, `Page overflow at ${width}px`);
+            assert.equal(layout.closed && layout.opened && layout.reclosed, true, `History accordion at ${width}px`);
+            assert.equal(layout.metrics, 4);
+            assert.equal(layout.labels, false);
+        }
+        await cdp.send('Emulation.clearDeviceMetricsOverride', {}, admin);
+        await cdp.run(admin, () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         await cdp.run(admin,()=>{window.fpSentinel=42;});
         for(const id of [ids.first,ids.second]){
             await cdp.run(admin,id=>{const f=document.querySelector('form[action$="/pics"]');f.querySelector('input[value="'+id+'"]').checked=true;f.scrollIntoView({block:'center',behavior:'instant'});return f.getBoundingClientRect().top;},id);

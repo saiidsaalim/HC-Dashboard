@@ -1,0 +1,137 @@
+.fp-detail {
+    min-width: 0;
+}
+
+.fp-detail section,
+.fp-detail .fp-detail-assignments > *,
+.fp-detail form,
+.fp-detail fieldset,
+.fp-detail label {
+    min-width: 0;
+}
+
+.fp-detail section[id] {
+    scroll-margin-top: 6rem;
+}
+
+.fp-detail-nav {
+    padding: 0.5rem;
+    border: 1px solid var(--hc-border);
+    border-radius: 0.75rem;
+    background: var(--hc-surface);
+}
+
+.fp-detail-nav a:hover,
+.fp-detail-nav a:focus-visible {
+    background: var(--hc-canvas);
+}
+
+.fp-detail-metrics > div {
+    padding: 1rem;
+    border: 1px solid var(--hc-border);
+    border-radius: 0.75rem;
+    background: var(--hc-canvas);
+}
+
+.fp-detail-metrics dt {
+    font-size: 0.75rem;
+    color: var(--hc-secondary);
+}
+
+.fp-detail-metrics dd {
+    margin-top: 0.375rem;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--hc-primary);
+}
+
+.fp-detail #peserta table {
+    min-width: 48rem;
+}
+
+.fp-detail #peserta td {
+    vertical-align: top;
+}
+
+.fp-detail [data-fp-pic-id],
+.fp-detail [data-fp-user-option],
+.fp-detail [data-fp-examiner-id] {
+    overflow-wrap: anywhere;
+}
+
+.fp-detail [data-fp-pic-id] {
+    flex-wrap: wrap;
+}
+
+.fp-detail #ringkasan form > .grid {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.fp-detail .fp-history summary {
+    list-style: none;
+}
+
+.fp-detail .fp-history summary::-webkit-details-marker {
+    display: none;
+}
+
+.fp-detail .fp-history summary:focus-visible {
+    outline: 2px solid var(--hc-secondary);
+    outline-offset: 2px;
+    border-radius: 0.75rem;
+}
+
+.fp-detail .fp-history-chevron {
+    width: 0.5rem;
+    height: 0.5rem;
+    margin-right: 0.25rem;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg);
+    transition: transform 160ms ease;
+}
+
+.fp-detail .fp-history[open] .fp-history-chevron {
+    transform: rotate(225deg);
+}
+
+.fp-detail .fp-history[open] .fp-history-content {
+    animation: fp-history-reveal 160ms ease-out;
+}
+
+@keyframes fp-history-reveal {
+    from { opacity: 0; transform: translateY(-0.25rem); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (min-width: 1024px) {
+    .fp-detail #ringkasan form > .grid,
+    .fp-detail .fp-detail-examiner-form {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .fp-detail .fp-detail-examiner-form > button {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 639px) {
+    .fp-detail section {
+        padding: 1rem;
+    }
+
+    .fp-detail #peserta > .flex {
+        flex-wrap: wrap;
+    }
+
+    .fp-detail #ringkasan > .flex > *,
+    .fp-detail #ringkasan > .flex button {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fp-detail .fp-history-chevron { transition: none; }
+    .fp-detail .fp-history[open] .fp-history-content { animation: none; }
+}
