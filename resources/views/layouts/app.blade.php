@@ -12,6 +12,12 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 
+@php
+    $activeWorkspace = collect(config('portal.units'))
+        ->flatMap(fn (array $unit) => $unit['workspaces'])
+        ->firstWhere('slug', session('active_workspace'));
+@endphp
+
 <body data-app-shell x-data="{ sidebarOpen: false, sidebarExpanded: false, isScrolled: false }"
     @scroll.window="isScrolled = (window.pageYOffset > 200)" @keydown.escape.window="sidebarOpen = false"
     :class="{ 'overflow-hidden': sidebarOpen }"
@@ -35,9 +41,13 @@
                     <div
                         class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-500 font-display text-xs font-bold text-white">
                         HC</div>
-                    <div x-show="sidebarExpanded || sidebarOpen" x-transition.opacity class="min-w-0">
+                    <div x-show="sidebarExpanded || sidebarOpen"
+                        x-transition:enter="transition-opacity delay-200 duration-100"
+                        x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+                        x-transition:leave="transition-opacity duration-75"
+                        x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="min-w-0">
                         <p class="truncate font-semibold text-white">HC Dashboard</p>
-                        <p class="truncate text-xs text-slate-400">Human Capital</p>
+                        <p class="truncate text-xs text-slate-400">{{ $activeWorkspace['name'] ?? 'Human Capital' }}</p>
                     </div>
                 </a>
                 <button type="button" @click="sidebarOpen = false" aria-label="Tutup menu"
@@ -49,64 +59,40 @@
             </div>
             <div class="my-2 border-t border-slate-700"></div>
             <nav aria-label="Navigasi utama" tabindex="0"
-                class="min-h-0 flex-1 space-y-0 overflow-y-auto overscroll-contain scrollbar-hidden focus:outline-none">
+                class="min-h-0 flex-1 space-y-0 overflow-x-hidden overflow-y-auto overscroll-contain scrollbar-hidden focus:outline-none">
+                <x-sidebar-nav-link :href="route('portal')" label="Kembali ke Portal" icon="arrows" outlined
+                    class="mb-2" />
+                @php
+                    $workspaceNavigation = config('portal.workspace_navigation.'.session('active_workspace'));
+                @endphp
                 @unless (auth()->user()->must_change_password)
-                    @php($navigation = [['route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'home', 'permission' => 'dashboard.view'], ['route' => 'data-pegawai', 'label' => 'Data Pegawai', 'icon' => 'users', 'permission' => 'employees.view'], ['route' => 'wla', 'label' => 'WLA', 'icon' => 'chart', 'permission' => 'wla.view'], ['route' => 'fit-proper', 'label' => 'Fit & Proper', 'icon' => 'clipboard', 'permission' => 'fit-proper.view'], ['route' => 'mutasi', 'label' => 'Mutasi', 'icon' => 'arrows', 'permission' => 'mutations.view'], ['route' => 'promosi', 'label' => 'Promosi', 'icon' => 'chart', 'permission' => 'promotions.view'], ['route' => 'demosi', 'label' => 'Demosi', 'icon' => 'demosi', 'permission' => 'demotions.view'], ['route' => 'formasi', 'label' => 'Formasi', 'icon' => 'formasi', 'permission' => 'formation.view'], ['route' => 'definitif', 'label' => 'Definitif', 'icon' => 'clipboard', 'permission' => 'definitive.view'], ['route' => 'laporan', 'label' => 'Laporan', 'icon' => 'document', 'permission' => 'reports.view']])
+                    @php($navigation = $workspaceNavigation ?? [['route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'home', 'permission' => 'dashboard.view'], ['route' => 'data-pegawai', 'label' => 'Data Pegawai', 'icon' => 'users', 'permission' => 'employees.view'], ['route' => 'wla', 'label' => 'WLA', 'icon' => 'chart', 'permission' => 'wla.view'], ['route' => 'fit-proper', 'label' => 'Fit & Proper', 'icon' => 'clipboard', 'permission' => 'fit-proper.view'], ['route' => 'mutasi', 'label' => 'Mutasi', 'icon' => 'arrows', 'permission' => 'mutations.view'], ['route' => 'promosi', 'label' => 'Promosi', 'icon' => 'chart', 'permission' => 'promotions.view'], ['route' => 'demosi', 'label' => 'Demosi', 'icon' => 'demosi', 'permission' => 'demotions.view'], ['route' => 'formasi', 'label' => 'Formasi', 'icon' => 'formasi', 'permission' => 'formation.view'], ['route' => 'definitif', 'label' => 'Definitif', 'icon' => 'clipboard', 'permission' => 'definitive.view'], ['route' => 'laporan', 'label' => 'Laporan', 'icon' => 'document', 'permission' => 'reports.view']])
                     @foreach ($navigation as $item)
                         @php($canViewStaffWla = $item['route'] === 'wla' && auth()->user()->hasPermission('wla.staff.view'))
                         @if (auth()->user()->hasPermission($item['permission']) || $canViewStaffWla)
                             @php($navigationRoute = $item['route'] === 'wla' && !auth()->user()->hasPermission('wla.view') ? 'wla.staff.index' : $item['route'])
                             @php($navigationLabel = $navigationRoute === 'wla.staff.index' ? 'WLA Saya' : $item['label'])
-                            <a href="{{ route($navigationRoute) }}" title="{{ $navigationLabel }}"
-                                @if ($item['route'] === 'wla' ? request()->routeIs('wla*') : request()->routeIs($item['route'])) aria-current="page" @endif
-                                :class="{ 'justify-center': !sidebarExpanded && !sidebarOpen }"
-                                class="app-nav-link flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium leading-5 {{ ($item['route'] === 'wla' ? request()->routeIs('wla*') : request()->routeIs($item['route'])) ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/10' : 'text-slate-400 hover:bg-slate-900 hover:text-white' }}">
-                                <x-dashboard-icon :name="$item['icon']" class="h-[22px] w-[22px]" />
-                                <span x-show="sidebarExpanded || sidebarOpen" x-transition.opacity
-                                    class="whitespace-nowrap">{{ $navigationLabel }}</span>
-                            </a>
+                            @php($isNavigationActive = request()->routeIs($item['active'] ?? ($item['route'] === 'wla' ? 'wla*' : $item['route'])))
+                            <x-sidebar-nav-link :href="route($navigationRoute)" :label="$navigationLabel"
+                                :icon="$item['icon']" :active="$isNavigationActive" />
                         @endif
                     @endforeach
                     @if (auth()->user()->hasPermission('organization.view'))
-                    <a href="{{ route('organization.index') }}" title="Master Organization"
-                        @if (request()->routeIs('organization.*')) aria-current="page" @endif
-                        :class="{ 'justify-center': !sidebarExpanded && !sidebarOpen }"
-                        class="app-nav-link flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium leading-5 {{ request()->routeIs('organization.*') ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/10' : 'text-slate-400 hover:bg-slate-900 hover:text-white' }}">
-                        <x-dashboard-icon name="users" class="h-[22px] w-[22px]" />
-                        <span x-show="sidebarExpanded || sidebarOpen" x-transition.opacity
-                            class="whitespace-nowrap">Master Organization</span>
-                    </a>
+                        <x-sidebar-nav-link :href="route('organization.index')" label="Master Organization" icon="users"
+                            :active="request()->routeIs('organization.*')" />
                     @endif
                     @if (auth()->user()->hasPermission('work-schedules.view'))
-                    <a href="{{ route('work-schedules.index') }}" title="Work Schedules"
-                        @if (request()->routeIs('work-schedules.*')) aria-current="page" @endif
-                        :class="{ 'justify-center': !sidebarExpanded && !sidebarOpen }"
-                        class="app-nav-link flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium leading-5 {{ request()->routeIs('work-schedules.*') ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/10' : 'text-slate-400 hover:bg-slate-900 hover:text-white' }}">
-                        <x-dashboard-icon name="clipboard" class="h-[22px] w-[22px]" />
-                        <span x-show="sidebarExpanded || sidebarOpen" x-transition.opacity
-                            class="whitespace-nowrap">Work Schedules</span>
-                    </a>
+                        <x-sidebar-nav-link :href="route('work-schedules.index')" label="Work Schedules" icon="clipboard"
+                            :active="request()->routeIs('work-schedules.*')" />
                     @endif
                     @if (auth()->user()->hasPermission('work-calendars.view'))
-                    <a href="{{ route('work-calendars.index') }}" title="Work Calendars"
-                        @if (request()->routeIs('work-calendars.*')) aria-current="page" @endif
-                        :class="{ 'justify-center': !sidebarExpanded && !sidebarOpen }"
-                        class="app-nav-link flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium leading-5 {{ request()->routeIs('work-calendars.*') ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/10' : 'text-slate-400 hover:bg-slate-900 hover:text-white' }}">
-                        <x-dashboard-icon name="document" class="h-[22px] w-[22px]" />
-                        <span x-show="sidebarExpanded || sidebarOpen" x-transition.opacity
-                            class="whitespace-nowrap">Work Calendars</span>
-                    </a>
+                        <x-sidebar-nav-link :href="route('work-calendars.index')" label="Work Calendars" icon="document"
+                            :active="request()->routeIs('work-calendars.*')" />
                     @endif
                 @endunless
-                @if (auth()->user()->hasPermission('users.view'))
-                    <a href="{{ route('konfigurasi-user') }}" title="Konfigurasi User"
-                    @if (request()->routeIs('konfigurasi-user*')) aria-current="page" @endif
-                    :class="{ 'justify-center': !sidebarExpanded && !sidebarOpen }"
-                    class="app-nav-link flex items-center gap-3 rounded-xl px-3 py-3 text-[15px] font-medium leading-5 {{ request()->routeIs('konfigurasi-user*') ? 'bg-amber-400 text-slate-950 shadow-lg shadow-amber-400/10' : 'text-slate-400 hover:bg-slate-900 hover:text-white' }}">
-                    <x-dashboard-icon name="users" class="h-[22px] w-[22px]" />
-                    <span x-show="sidebarExpanded || sidebarOpen" x-transition.opacity
-                        class="whitespace-nowrap">Konfigurasi User</span>
-                    </a>
+                @if ($workspaceNavigation === null && auth()->user()->hasPermission('users.view'))
+                    <x-sidebar-nav-link :href="route('konfigurasi-user')" label="Konfigurasi User" icon="users"
+                        :active="request()->routeIs('konfigurasi-user*')" />
                 @endif
             </nav>
         </aside>

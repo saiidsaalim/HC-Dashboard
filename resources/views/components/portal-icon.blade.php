@@ -54,6 +54,10 @@
             <circle cx="12" cy="12" r="2" />
             <path d="m13.5 10.5 6-6m-3 0h3v3" />
             @break
+        @case('learning')
+            <path d="m3 9 9-4 9 4-9 4-9-4Z" />
+            <path d="M6 11v5c3.5 3 8.5 3 12 0v-5M21 10v6" />
+            @break
         @case('search')
             <circle cx="10.8" cy="10.8" r="6.8" />
             <path d="m16 16 4.5 4.5" />

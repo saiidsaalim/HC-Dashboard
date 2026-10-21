@@ -94,12 +94,8 @@ html {
 		transition:
 			background-color var(--hc-duration-base) ease,
 			color var(--hc-duration-base) ease,
-			transform var(--hc-duration-fast) ease,
+			border-color var(--hc-duration-base) ease,
 			box-shadow var(--hc-duration-base) ease;
-	}
-
-	.app-nav-link:hover {
-		transform: translateX(2px);
 	}
 
 	.app-nav-link[aria-current='page']::after {

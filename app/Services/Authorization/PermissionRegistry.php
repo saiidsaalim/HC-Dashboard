@@ -25,6 +25,9 @@ class PermissionRegistry
             'dashboard' => ['label' => 'Dashboard', 'permissions' => [
                 'dashboard.view' => ['label' => 'Lihat dashboard', 'roles' => $all],
                 'workspace.view' => ['label' => 'Buka workspace portal', 'roles' => $all],
+                'workspace.hc-od-career-management.view' => ['label' => 'Buka workspace HC OD & Career Management', 'roles' => $all],
+                'workspace.performance-talent-management.view' => ['label' => 'Buka workspace Performance & Talent Management', 'roles' => $all],
+                'workspace.learning-development.view' => ['label' => 'Buka workspace Learning & Development', 'roles' => $all],
             ]],
             'employees' => ['label' => 'Data Pegawai', 'permissions' => [
                 'employees.view' => ['label' => 'Lihat data pegawai', 'roles' => $all],

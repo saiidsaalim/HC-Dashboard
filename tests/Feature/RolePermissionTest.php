@@ -39,9 +39,12 @@ class RolePermissionTest extends TestCase
             ->assertSeeText('Pengaturan Hak Akses Role')
             ->assertSeeText('Tentukan halaman dan tindakan yang dapat diakses oleh setiap role.')
             ->assertSee('id="role-permission-modal"', escape: false)
+            ->assertSee('data-role-permission-table', escape: false)
             ->assertSee('Atur Hak Akses', escape: false);
 
         $this->assertSame(1, substr_count($response->getContent(), 'Atur Hak Akses'));
+        $this->assertStringContainsString('table-fixed', $response->getContent());
+        $this->assertStringNotContainsString('min-w-[1050px]', $response->getContent());
         $this->assertStringNotContainsString('user-permissions-', $response->getContent());
     }
 
