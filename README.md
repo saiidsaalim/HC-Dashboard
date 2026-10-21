@@ -21,6 +21,28 @@ Laravel is a web application framework with expressive, elegant syntax. We belie
 
 Laravel is accessible, powerful, and provides tools required for large, robust applications.
 
+## Sinkronisasi Hak Akses
+
+Definisi permission dan baseline hak akses role disimpan di `PermissionRegistry`. Setelah menarik pembaruan biasa, jalankan:
+
+```bash
+git pull origin main
+composer install
+php artisan migrate
+php artisan permissions:sync
+php artisan optimize:clear
+```
+
+Untuk pertama kali menyamakan database lokal dengan baseline tim, tinjau perubahan lalu terapkan secara eksplisit:
+
+```bash
+php artisan permissions:sync --dry-run
+php artisan permissions:sync --apply-defaults
+php artisan optimize:clear
+```
+
+Setelah sinkronisasi, logout lalu login kembali. Jangan menggunakan `migrate:fresh` atau `db:wipe` untuk menyinkronkan hak akses karena kedua command tersebut menghapus data lokal.
+
 ## Learning Laravel
 
 Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.

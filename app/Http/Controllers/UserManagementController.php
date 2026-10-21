@@ -10,6 +10,7 @@ use App\Models\Permission;
 use App\Models\Position;
 use App\Models\Unit;
 use App\Models\User;
+use App\Services\Authorization\RolePermissionCache;
 use App\Services\Users\StaffUserProvisioningService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,7 +22,10 @@ use Illuminate\View\View;
 
 class UserManagementController extends Controller
 {
-    public function __construct(private StaffUserProvisioningService $staffUserProvisioningService) {}
+    public function __construct(
+        private StaffUserProvisioningService $staffUserProvisioningService,
+        private RolePermissionCache $rolePermissionCache,
+    ) {}
 
     public function index(Request $request): View
     {
@@ -301,6 +305,8 @@ class UserManagementController extends Controller
                 );
             }
         });
+
+        $this->rolePermissionCache->clear();
 
         return back()->with('status', 'Hak akses role berhasil diperbarui.');
     }

@@ -9,6 +9,7 @@ use App\Models\EmployeePromotion;
 use App\Models\Permission;
 use App\Models\User;
 use App\Services\Authorization\PermissionRegistry;
+use App\Services\Authorization\RolePermissionCache;
 use Database\Seeders\PermissionSeeder;
 use DOMDocument;
 use DOMXPath;
@@ -346,6 +347,7 @@ class RolePermissionTest extends TestCase
             ->all();
 
         DB::table('permission_role')->insert($rows);
+        app(RolePermissionCache::class)->clear();
     }
 
     private function user(UserRole $role): User

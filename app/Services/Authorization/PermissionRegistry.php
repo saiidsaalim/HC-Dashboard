@@ -26,8 +26,8 @@ class PermissionRegistry
                 'dashboard.view' => ['label' => 'Lihat dashboard', 'roles' => $all],
                 'workspace.view' => ['label' => 'Buka workspace portal', 'roles' => $all],
                 'workspace.hc-od-career-management.view' => ['label' => 'Buka workspace HC OD & Career Management', 'roles' => $all],
-                'workspace.performance-talent-management.view' => ['label' => 'Buka workspace Performance & Talent Management', 'roles' => $all],
-                'workspace.learning-development.view' => ['label' => 'Buka workspace Learning & Development', 'roles' => $all],
+                'workspace.performance-talent-management.view' => ['label' => 'Buka workspace Performance & Talent Management', 'roles' => $management],
+                'workspace.learning-development.view' => ['label' => 'Buka workspace Learning & Development', 'roles' => $management],
             ]],
             'employees' => ['label' => 'Data Pegawai', 'permissions' => [
                 'employees.view' => ['label' => 'Lihat data pegawai', 'roles' => $all],
@@ -116,7 +116,7 @@ class PermissionRegistry
         ];
     }
 
-    /** @return array<string, array{key: string, label: string, group: string, group_label: string, roles: array<int, UserRole>, sort_order: int}> */
+    /** @return array<string, array{key: string, label: string, group: string, group_label: string, default_roles: array<int, UserRole>, sort_order: int}> */
     public static function permissions(): array
     {
         static $permissions;
@@ -135,7 +135,7 @@ class PermissionRegistry
                     'label' => $permission['label'],
                     'group' => $groupKey,
                     'group_label' => $group['label'],
-                    'roles' => $permission['roles'],
+                    'default_roles' => $permission['roles'],
                     'sort_order' => $sortOrder++,
                 ];
             }
@@ -153,6 +153,6 @@ class PermissionRegistry
     {
         $permission = self::permissions()[$key] ?? null;
 
-        return $permission !== null && in_array($role, $permission['roles'], true);
+        return $permission !== null && in_array($role, $permission['default_roles'], true);
     }
 }

@@ -166,7 +166,7 @@ class PortalTest extends TestCase
 
     public function test_authenticated_user_can_open_learning_and_development_workspace(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['role' => UserRole::MANAGER->value]);
 
         $this->actingAs($user)
             ->get(route('portal.workspace', 'learning-development'))

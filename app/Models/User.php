@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\UserRole;
 use App\Services\Authorization\PermissionRegistry;
+use App\Services\Authorization\RolePermissionCache;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -13,8 +14,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 #[Fillable(['employee_id', 'name', 'email', 'role', 'password', 'must_change_password'])]
 #[Hidden(['password', 'remember_token'])]
@@ -22,8 +21,6 @@ class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
-
-    private ?bool $storedRolePermissionsExist = null;
 
     public function roleEnum(): UserRole
     {
@@ -49,16 +46,13 @@ class User extends Authenticatable
             return false;
         }
 
-        $this->storedRolePermissionsExist ??= Schema::hasTable('permission_role')
-            && DB::table('permission_role')->exists();
+        $rolePermissionCache = app(RolePermissionCache::class);
 
-        if (! $this->storedRolePermissionsExist) {
+        if (! $rolePermissionCache->hasStoredConfiguration()) {
             return PermissionRegistry::roleHasPermission($this->roleEnum(), $key);
         }
 
-        $this->loadMissing('rolePermissions');
-
-        return $this->rolePermissions->contains('key', $key);
+        return $rolePermissionCache->allows($this->roleEnum(), $key);
     }
 
     /** @param array<int, string> $keys */
