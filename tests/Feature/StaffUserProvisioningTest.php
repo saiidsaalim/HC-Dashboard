@@ -219,7 +219,7 @@ class StaffUserProvisioningTest extends TestCase
         $staff = $employee->fresh()->user;
 
         $this->actingAs($staff)->get(route('password.first.edit'))->assertOk();
-        $this->post(route('logout'))->assertRedirect('/');
+        $this->post(route('logout'))->assertRedirectToRoute('login');
         $this->assertGuest();
 
         $this->post(route('login'), [

@@ -21,11 +21,15 @@ use App\Http\Controllers\Workforce\WlaHeadcountAnalysisController;
 use App\Http\Controllers\Workforce\WlaParticipantController;
 use App\Http\Controllers\Workforce\WorkCalendarController;
 use App\Http\Controllers\Workforce\WorkScheduleController;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', PortalController::class)->name('portal');
+Route::get('/', function (): RedirectResponse {
+    return to_route(auth()->check() ? 'portal' : 'login');
+})->name('home');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/portal', PortalController::class)->name('portal');
     Route::get('/workspace/{slug}', PortalWorkspaceController::class)->middleware('can:workspace.view')->name('portal.workspace');
 
     Route::get('/dashboard', DashboardController::class)->middleware('can:dashboard.view')->name('dashboard');

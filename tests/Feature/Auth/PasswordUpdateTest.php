@@ -98,7 +98,7 @@ class PasswordUpdateTest extends TestCase
         }
 
         $this->get(route('password.first.edit'))->assertOk();
-        $this->post(route('logout'))->assertRedirect('/');
+        $this->post(route('logout'))->assertRedirectToRoute('login');
         $this->assertGuest();
     }
 

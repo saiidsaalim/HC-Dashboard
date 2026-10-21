@@ -10,10 +10,10 @@ class ExampleTest extends TestCase
     /**
      * A basic test example.
      */
-    public function test_the_root_portal_is_public(): void
+    public function test_the_root_redirects_guests_to_login(): void
     {
         $response = $this->get('/');
 
-        $response->assertOk();
+        $response->assertRedirectToRoute('login');
     }
 }

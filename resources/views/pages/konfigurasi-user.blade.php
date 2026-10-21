@@ -368,21 +368,27 @@
                     @method('PUT')
                     <input type="hidden" name="_form" value="role-access">
 
-                    <div class="min-h-0 flex-1 overflow-auto">
-                        <table class="w-full min-w-[1050px] border-separate border-spacing-0 text-left text-sm">
+                    <div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+                        <table data-role-permission-table class="w-full table-fixed border-separate border-spacing-0 text-left text-sm">
+                            <colgroup>
+                                <col class="w-[34%]">
+                                @foreach ($roles as $role)
+                                    <col>
+                                @endforeach
+                            </colgroup>
                             <thead class="sticky top-0 z-30 bg-slate-950 text-xs uppercase tracking-wider text-slate-200">
                                 <tr>
-                                    <th class="sticky left-0 z-40 min-w-72 border-b border-slate-700 bg-slate-950 px-5 py-4">Hak Akses</th>
+                                    <th class="sticky left-0 z-40 border-b border-slate-700 bg-slate-950 px-3 py-4 sm:px-5">Hak Akses</th>
                                     @foreach ($roles as $role)
                                         @php($selectedRolePermissions = collect(old('permissions.'.$role->name, $rolePermissionKeys->get($role->name, collect())->all())))
-                                        <th class="min-w-36 border-b border-slate-700 px-4 py-4 text-center">
-                                            <span class="block whitespace-nowrap">{{ $role->value }}</span>
-                                            <label class="mt-2 inline-flex items-center gap-2 text-[11px] font-medium normal-case tracking-normal text-slate-300">
+                                        <th class="border-b border-slate-700 px-1 py-4 text-center sm:px-2">
+                                            <span class="block break-words text-[9px] leading-tight tracking-normal sm:text-[11px] sm:tracking-wide lg:text-xs">{{ $role->value }}</span>
+                                            <label class="mt-2 inline-flex items-center justify-center gap-1 text-[11px] font-medium normal-case tracking-normal text-slate-300 sm:gap-2">
                                                 <input type="checkbox" data-role-select-all data-role="{{ $role->name }}"
                                                     @checked($role === \App\Enums\UserRole::SUPER_ADMIN || $selectedRolePermissions->count() === $permissionGroups->flatten()->count())
                                                     @disabled($role === \App\Enums\UserRole::SUPER_ADMIN)
                                                     class="rounded border-slate-500 text-amber-400 focus:ring-amber-400 disabled:opacity-80">
-                                                Pilih Semua
+                                                <span class="hidden lg:inline">Pilih Semua</span>
                                             </label>
                                         </th>
                                     @endforeach
@@ -398,13 +404,13 @@
                                     </tr>
                                     @foreach ($groupPermissions as $permission)
                                         <tr class="group">
-                                            <th class="sticky left-0 z-10 border-b border-slate-100 bg-white px-5 py-3 font-medium text-slate-700 group-hover:bg-slate-50">
+                                            <th class="sticky left-0 z-10 break-words border-b border-slate-100 bg-white px-3 py-3 font-medium text-slate-700 group-hover:bg-slate-50 sm:px-5">
                                                 {{ $permission->label }}
-                                                <span class="mt-0.5 block font-mono text-[10px] font-normal text-slate-400">{{ $permission->key }}</span>
+                                                <span class="mt-0.5 block break-all font-mono text-[10px] font-normal text-slate-400">{{ $permission->key }}</span>
                                             </th>
                                             @foreach ($roles as $role)
                                                 @php($selectedRolePermissions = collect(old('permissions.'.$role->name, $rolePermissionKeys->get($role->name, collect())->all())))
-                                                <td class="border-b border-slate-100 px-4 py-3 text-center group-hover:bg-slate-50">
+                                                <td class="border-b border-slate-100 px-1 py-3 text-center group-hover:bg-slate-50 sm:px-2">
                                                     <input type="checkbox"
                                                         name="permissions[{{ $role->name }}][]" value="{{ $permission->key }}"
                                                         data-role-permission data-role="{{ $role->name }}"
