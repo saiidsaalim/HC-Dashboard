@@ -3,6 +3,7 @@
 namespace Tests\Feature\PerformanceTalent;
 
 use App\Enums\UserRole;
+use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\PerformanceTalent\CriticalPositionController;
 use App\Http\Controllers\PerformanceTalent\PerformanceTalentController;
 use App\Models\Employee;
@@ -49,6 +50,10 @@ class PerformanceTalentWorkspaceTest extends TestCase
             'title' => 'Report',
             'description' => 'Laporan Performance & Talent Management akan tersedia pada tahap pengembangan berikutnya.',
         ],
+        'performance-talent.data-pegawai.index' => [
+            'title' => 'Data Pegawai',
+            'description' => 'Kelola data utama dan informasi pegawai.',
+        ],
     ];
 
     protected function setUp(): void
@@ -77,6 +82,16 @@ class PerformanceTalentWorkspaceTest extends TestCase
                 $response
                     ->assertSee('Daftar Critical Position')
                     ->assertSee('Pantau posisi kritis, tingkat prioritas, dan status keterisian dalam satu tampilan.');
+
+                continue;
+            }
+
+            if ($routeName === 'performance-talent.data-pegawai.index') {
+                $response
+                    ->assertViewIs('performance-talent.show')
+                    ->assertViewHas('featureView', 'performance-talent.features.data-pegawai')
+                    ->assertSee('Daftar pegawai')
+                    ->assertDontSee('Fitur sedang dalam tahap pengembangan');
 
                 continue;
             }
@@ -184,6 +199,25 @@ class PerformanceTalentWorkspaceTest extends TestCase
                 ->assertSee('title="'.$page['title'].'"', escape: false)
                 ->assertSee('href="'.route($routeName).'"', escape: false);
         }
+
+        $response
+            ->assertDontSee('title="Master Organization"', escape: false)
+            ->assertDontSee('title="Work Schedules"', escape: false)
+            ->assertDontSee('title="Work Calendars"', escape: false);
+
+        $html = $response->getContent();
+        $menuPositions = array_map(
+            static fn (array $page): int|false => strpos($html, 'title="'.$page['title'].'"'),
+            self::PAGES,
+        );
+
+        foreach (array_values($menuPositions) as $index => $position) {
+            $this->assertNotFalse($position);
+
+            if ($index > 0) {
+                $this->assertGreaterThan(array_values($menuPositions)[$index - 1], $position);
+            }
+        }
     }
 
     public function test_workspace_menu_is_hidden_from_a_user_without_access(): void
@@ -237,9 +271,11 @@ class PerformanceTalentWorkspaceTest extends TestCase
                 ->filter(fn (RouteDefinition $route): bool => $route->getName() === $routeName);
             $route = $namedRoutes->sole();
 
-            $expectedController = $routeName === 'performance-talent.critical-positions.index'
-                ? CriticalPositionController::class.'@index'
-                : PerformanceTalentController::class.'@__invoke';
+            $expectedController = match ($routeName) {
+                'performance-talent.critical-positions.index' => CriticalPositionController::class.'@index',
+                'performance-talent.data-pegawai.index' => EmployeeController::class.'@index',
+                default => PerformanceTalentController::class.'@__invoke',
+            };
 
             $this->assertSame($expectedController, $route->getActionName());
             $this->assertSame(1, collect(Route::getRoutes())->filter(
@@ -262,6 +298,86 @@ class PerformanceTalentWorkspaceTest extends TestCase
             ->assertOk();
 
         $this->assertTrue($superAdmin->fresh()->employee->is($employee));
+    }
+
+    public function test_workspace_employee_page_reuses_employee_data_search_and_pagination(): void
+    {
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+
+        foreach (range(1, 21) as $number) {
+            Employee::query()->create([
+                'sap' => sprintf('PTM-SAP-%02d', $number),
+                'personal_number' => sprintf('PTM-PN-%02d', $number),
+            ]);
+        }
+
+        $this->actingAs($superAdmin)
+            ->get(route('performance-talent.data-pegawai.index', ['search' => 'PTM-PN-07']))
+            ->assertOk()
+            ->assertViewIs('performance-talent.show')
+            ->assertViewHas('employees', fn ($employees): bool => $employees->total() === 1
+                && $employees->sole()->personal_number === 'PTM-PN-07')
+            ->assertViewHas('employeeIndexRoute', 'performance-talent.data-pegawai.index')
+            ->assertSee('PTM-PN-07')
+            ->assertDontSee('PTM-PN-08')
+            ->assertSee('action="'.route('performance-talent.data-pegawai.index').'"', escape: false);
+
+        $this->get(route('performance-talent.data-pegawai.index', ['page' => 2]))
+            ->assertOk()
+            ->assertViewHas('employees', fn ($employees): bool => $employees->perPage() === 20
+                && $employees->total() === 21
+                && $employees->currentPage() === 2
+                && $employees->count() === 1);
+    }
+
+    public function test_employee_workspace_route_requires_both_workspace_and_employee_permissions(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::ADMIN->value]);
+
+        $this->actingAs($admin)
+            ->get(route('performance-talent.data-pegawai.index'))
+            ->assertForbidden();
+
+        $this->grantPermissionsToRole(UserRole::ADMIN, [self::PERMISSION]);
+        $this->removePermissionFromRole(UserRole::ADMIN, 'employees.view');
+
+        $this->get(route('performance-talent.data-pegawai.index'))
+            ->assertForbidden();
+
+        $this->grantPermissionsToRole(UserRole::ADMIN, ['employees.view']);
+
+        $this->get(route('performance-talent.data-pegawai.index'))
+            ->assertOk();
+    }
+
+    public function test_legacy_employee_page_and_shared_modules_remain_available(): void
+    {
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+
+        $this->actingAs($superAdmin)
+            ->get(route('data-pegawai'))
+            ->assertOk()
+            ->assertViewIs('pages.data-pegawai')
+            ->assertSee('Daftar pegawai');
+
+        $this->get(route('portal.workspace', 'performance-talent-management'))
+            ->assertRedirectToRoute('performance-talent.dashboard');
+
+        $legacyEmployeeResponse = $this->get(route('data-pegawai'))->assertOk();
+        $this->assertActiveNavigation($legacyEmployeeResponse->getContent(), 'Data Pegawai');
+
+        foreach (['organization.index', 'work-schedules.index', 'work-calendars.index'] as $routeName) {
+            $this->get(route($routeName))->assertOk();
+        }
+
+        $this->get(route('portal.workspace', 'hc-od-career-management'))
+            ->assertRedirectToRoute('dashboard');
+
+        $this->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('title="Master Organization"', escape: false)
+            ->assertSee('title="Work Schedules"', escape: false)
+            ->assertSee('title="Work Calendars"', escape: false);
     }
 
     /** @return array<string, array{UserRole}> */
@@ -291,6 +407,18 @@ class PerformanceTalentWorkspaceTest extends TestCase
             ],
             $permissionKeys,
         ));
+
+        app(RolePermissionCache::class)->clear();
+    }
+
+    private function removePermissionFromRole(UserRole $role, string $permissionKey): void
+    {
+        $permissionId = Permission::query()->where('key', $permissionKey)->value('id');
+
+        DB::table('permission_role')
+            ->where('permission_id', $permissionId)
+            ->where('role', $role->value)
+            ->delete();
 
         app(RolePermissionCache::class)->clear();
     }

@@ -30,11 +30,23 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class EmployeeController extends Controller
 {
+    /** @var array<string, string> */
+    private const WORKSPACE_FEATURE_VIEWS = [
+        'performance-talent.data-pegawai.index' => 'performance-talent.features.data-pegawai',
+    ];
+
     /**
      * Display a listing of the resource.
      */
     public function index(Request $request): View
     {
+        $routeName = $request->route()?->getName() ?? 'data-pegawai';
+        $workspaceFeatureView = self::WORKSPACE_FEATURE_VIEWS[$routeName] ?? null;
+
+        if ($workspaceFeatureView !== null) {
+            $request->session()->put('active_workspace', 'performance-talent-management');
+        }
+
         $search = trim((string) $request->input('search', ''));
         $validatedFilters = $request->validate([
             'department_id' => ['nullable', 'integer', 'required_with:unit_id,position_id', Rule::exists(Department::class, 'id')],
@@ -110,7 +122,7 @@ class EmployeeController extends Controller
             ? collect()
             : $organizationPositions->where('unit_id', $unitId)->values();
 
-        return view('pages.data-pegawai', [
+        $viewData = [
             'employees' => $employees,
             'search' => $search,
             'departmentId' => (string) ($departmentId ?? ''),
@@ -122,7 +134,18 @@ class EmployeeController extends Controller
             'organizationPositions' => $organizationPositions,
             'filterUnits' => $filterUnits,
             'filterPositions' => $filterPositions,
-        ]);
+            'employeeIndexRoute' => $workspaceFeatureView === null ? 'data-pegawai' : $routeName,
+        ];
+
+        if ($workspaceFeatureView !== null) {
+            return view('performance-talent.show', array_merge($viewData, [
+                'title' => 'Data Pegawai',
+                'description' => 'Kelola data utama dan informasi pegawai.',
+                'featureView' => $workspaceFeatureView,
+            ]));
+        }
+
+        return view('pages.data-pegawai', $viewData);
     }
 
     public function print(): View

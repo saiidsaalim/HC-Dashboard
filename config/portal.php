@@ -81,6 +81,13 @@ return [
                 'icon' => 'document',
                 'permission' => 'workspace.performance-talent-management.view',
             ],
+            [
+                'route' => 'performance-talent.data-pegawai.index',
+                'active' => '*data-pegawai*',
+                'label' => 'Data Pegawai',
+                'icon' => 'users',
+                'permission' => 'employees.view',
+            ],
         ],
     ],
     'units' => [

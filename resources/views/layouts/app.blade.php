@@ -85,17 +85,19 @@
                                 :icon="$item['icon']" :active="$isNavigationActive" />
                         @endif
                     @endforeach
-                    @if (auth()->user()->hasPermission('organization.view'))
-                        <x-sidebar-nav-link :href="route('organization.index')" label="Master Organization" icon="users"
-                            :active="request()->routeIs('organization.*')" />
-                    @endif
-                    @if (auth()->user()->hasPermission('work-schedules.view'))
-                        <x-sidebar-nav-link :href="route('work-schedules.index')" label="Work Schedules" icon="clipboard"
-                            :active="request()->routeIs('work-schedules.*')" />
-                    @endif
-                    @if (auth()->user()->hasPermission('work-calendars.view'))
-                        <x-sidebar-nav-link :href="route('work-calendars.index')" label="Work Calendars" icon="document"
-                            :active="request()->routeIs('work-calendars.*')" />
+                    @if (($activeWorkspace['slug'] ?? null) !== 'performance-talent-management')
+                        @if (auth()->user()->hasPermission('organization.view'))
+                            <x-sidebar-nav-link :href="route('organization.index')" label="Master Organization" icon="users"
+                                :active="request()->routeIs('organization.*')" />
+                        @endif
+                        @if (auth()->user()->hasPermission('work-schedules.view'))
+                            <x-sidebar-nav-link :href="route('work-schedules.index')" label="Work Schedules" icon="clipboard"
+                                :active="request()->routeIs('work-schedules.*')" />
+                        @endif
+                        @if (auth()->user()->hasPermission('work-calendars.view'))
+                            <x-sidebar-nav-link :href="route('work-calendars.index')" label="Work Calendars" icon="document"
+                                :active="request()->routeIs('work-calendars.*')" />
+                        @endif
                     @endif
                 @endunless
                 @if ($workspaceNavigation === null && auth()->user()->hasPermission('users.view'))

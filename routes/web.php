@@ -48,6 +48,9 @@ Route::middleware('auth')->group(function () {
             Route::get('/talent-pool', '__invoke')->name('talent-pool.index');
             Route::get('/development-plans', '__invoke')->name('development-plans.index');
             Route::get('/reports', '__invoke')->name('reports.index');
+            Route::get('/data-pegawai', [EmployeeController::class, 'index'])
+                ->middleware('can:employees.view')
+                ->name('data-pegawai.index');
         });
 
     Route::get('/dashboard', DashboardController::class)->middleware('can:dashboard.view')->name('dashboard');
