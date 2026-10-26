@@ -8,6 +8,7 @@ use App\Http\Controllers\Organization\DepartmentController;
 use App\Http\Controllers\Organization\OrganizationController;
 use App\Http\Controllers\Organization\PositionController;
 use App\Http\Controllers\Organization\UnitController;
+use App\Http\Controllers\PerformanceTalent\CriticalPositionController;
 use App\Http\Controllers\PerformanceTalent\PerformanceTalentController;
 use App\Http\Controllers\PortalController;
 use App\Http\Controllers\PortalWorkspaceController;
@@ -39,7 +40,10 @@ Route::middleware('auth')->group(function () {
         ->controller(PerformanceTalentController::class)
         ->group(function (): void {
             Route::get('/dashboard', '__invoke')->name('dashboard');
-            Route::get('/critical-positions', '__invoke')->name('critical-positions.index');
+            Route::get('/critical-positions', [CriticalPositionController::class, 'index'])->name('critical-positions.index');
+            Route::post('/critical-positions', [CriticalPositionController::class, 'store'])->name('critical-positions.store');
+            Route::put('/critical-positions/{criticalPosition}', [CriticalPositionController::class, 'update'])->name('critical-positions.update');
+            Route::delete('/critical-positions/{criticalPosition}', [CriticalPositionController::class, 'destroy'])->name('critical-positions.destroy');
             Route::get('/successors', '__invoke')->name('successors.index');
             Route::get('/talent-pool', '__invoke')->name('talent-pool.index');
             Route::get('/development-plans', '__invoke')->name('development-plans.index');

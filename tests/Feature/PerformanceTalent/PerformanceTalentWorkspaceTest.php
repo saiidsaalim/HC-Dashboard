@@ -3,6 +3,7 @@
 namespace Tests\Feature\PerformanceTalent;
 
 use App\Enums\UserRole;
+use App\Http\Controllers\PerformanceTalent\CriticalPositionController;
 use App\Http\Controllers\PerformanceTalent\PerformanceTalentController;
 use App\Models\Employee;
 use App\Models\Permission;
@@ -67,18 +68,57 @@ class PerformanceTalentWorkspaceTest extends TestCase
             ->assertSessionHas('active_workspace', 'performance-talent-management');
 
         foreach (self::PAGES as $routeName => $page) {
-            $this->get(route($routeName))
+            $response = $this->get(route($routeName))
                 ->assertOk()
                 ->assertSee($page['title'])
-                ->assertSee($page['description'])
-                ->assertSee('Fitur sedang dalam tahap pengembangan')
                 ->assertSee('aria-label="Breadcrumb"', escape: false);
+
+            if ($routeName === 'performance-talent.critical-positions.index') {
+                $response
+                    ->assertSee('Daftar Critical Position')
+                    ->assertSee('Pantau posisi kritis, tingkat prioritas, dan status keterisian dalam satu tampilan.');
+
+                continue;
+            }
+
+            $response
+                ->assertSee($page['description'])
+                ->assertSee('Fitur sedang dalam tahap pengembangan');
         }
     }
 
-    public function test_admin_with_the_workspace_permission_can_open_every_page(): void
+    public function test_critical_position_page_renders_the_database_table_structure(): void
     {
-        $this->grantPermissionToRole(UserRole::ADMIN);
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+
+        $response = $this->actingAs($superAdmin)
+            ->get(route('performance-talent.critical-positions.index'))
+            ->assertOk();
+
+        foreach (['No', 'Position', 'Level', 'Department', 'Direktorat', 'Criticality', 'Incumbent', 'SAP', 'Status'] as $column) {
+            $response->assertSee('>'.$column.'</th>', escape: false);
+        }
+
+        $response
+            ->assertSee('Aksi')
+            ->assertSee('Belum ada Critical Position')
+            ->assertSee('colspan="10"', escape: false)
+            ->assertDontSee('Level Jabatan')
+            ->assertDontSee('job_level')
+            ->assertSee('table-fixed', escape: false)
+            ->assertSee('min-w-[1000px]', escape: false)
+            ->assertSee('overflow-x-auto', escape: false)
+            ->assertDontSee('min-w-[1480px]', escape: false)
+            ->assertDontSee('DUMMY-001')
+            ->assertDontSee('Fitur sedang dalam tahap pengembangan');
+    }
+
+    public function test_admin_with_the_required_workspace_and_feature_permissions_can_open_every_page(): void
+    {
+        $this->grantPermissionsToRole(UserRole::ADMIN, [
+            self::PERMISSION,
+            'critical-positions.view',
+        ]);
         $admin = User::factory()->create(['role' => UserRole::ADMIN->value]);
 
         $this->actingAs($admin)
@@ -197,7 +237,11 @@ class PerformanceTalentWorkspaceTest extends TestCase
                 ->filter(fn (RouteDefinition $route): bool => $route->getName() === $routeName);
             $route = $namedRoutes->sole();
 
-            $this->assertSame(PerformanceTalentController::class.'@__invoke', $route->getActionName());
+            $expectedController = $routeName === 'performance-talent.critical-positions.index'
+                ? CriticalPositionController::class.'@index'
+                : PerformanceTalentController::class.'@__invoke';
+
+            $this->assertSame($expectedController, $route->getActionName());
             $this->assertSame(1, collect(Route::getRoutes())->filter(
                 fn (RouteDefinition $candidate): bool => $candidate->uri() === $route->uri()
                     && in_array('GET', $candidate->methods(), true),
@@ -230,14 +274,23 @@ class PerformanceTalentWorkspaceTest extends TestCase
         ];
     }
 
-    private function grantPermissionToRole(UserRole $role): void
+    /** @param array<int, string> $permissionKeys */
+    private function grantPermissionsToRole(UserRole $role, array $permissionKeys): void
     {
-        DB::table('permission_role')->insert([
-            'permission_id' => Permission::query()->where('key', self::PERMISSION)->valueOrFail('id'),
-            'role' => $role->value,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $now = now();
+        $permissionIds = Permission::query()
+            ->whereIn('key', $permissionKeys)
+            ->pluck('id', 'key');
+
+        DB::table('permission_role')->insert(array_map(
+            fn (string $permissionKey): array => [
+                'permission_id' => $permissionIds->get($permissionKey),
+                'role' => $role->value,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+            $permissionKeys,
+        ));
 
         app(RolePermissionCache::class)->clear();
     }

@@ -29,6 +29,12 @@ class PermissionRegistry
                 'workspace.performance-talent-management.view' => ['label' => 'Buka workspace Performance & Talent Management', 'roles' => $superAdmin],
                 'workspace.learning-development.view' => ['label' => 'Buka workspace Learning & Development', 'roles' => $management],
             ]],
+            'performance-talent' => ['label' => 'Performance & Talent Management', 'permissions' => [
+                'critical-positions.view' => ['label' => 'Lihat Critical Position', 'roles' => $superAdmin],
+                'critical-positions.create' => ['label' => 'Tambah Critical Position', 'roles' => $superAdmin],
+                'critical-positions.update' => ['label' => 'Edit Critical Position', 'roles' => $superAdmin],
+                'critical-positions.delete' => ['label' => 'Hapus Critical Position', 'roles' => $superAdmin],
+            ]],
             'employees' => ['label' => 'Data Pegawai', 'permissions' => [
                 'employees.view' => ['label' => 'Lihat data pegawai', 'roles' => $all],
                 'employees.create' => ['label' => 'Tambah data pegawai', 'roles' => $superAdmin],

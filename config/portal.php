@@ -52,9 +52,10 @@ return [
             ],
             [
                 'route' => 'performance-talent.critical-positions.index',
+                'active' => 'performance-talent.critical-positions.*',
                 'label' => 'Critical Position',
                 'icon' => 'clipboard',
-                'permission' => 'workspace.performance-talent-management.view',
+                'permission' => 'critical-positions.view',
             ],
             [
                 'route' => 'performance-talent.successors.index',
