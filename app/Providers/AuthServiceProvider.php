@@ -4,12 +4,14 @@ namespace App\Providers;
 
 use App\Models\CriticalPosition;
 use App\Models\EmployeePromotion;
+use App\Models\Successor;
 use App\Models\WlaAssessment;
 use App\Models\WlaParticipant;
 use App\Models\WorkCalendar;
 use App\Models\WorkSchedule;
 use App\Policies\CriticalPositionPolicy;
 use App\Policies\EmployeePromotionPolicy;
+use App\Policies\SuccessorPolicy;
 use App\Policies\WlaAssessmentPolicy;
 use App\Policies\WlaParticipantPolicy;
 use App\Policies\WorkCalendarPolicy;
@@ -27,6 +29,7 @@ class AuthServiceProvider extends ServiceProvider
      */
     protected $policies = [
         CriticalPosition::class => CriticalPositionPolicy::class,
+        Successor::class => SuccessorPolicy::class,
         EmployeePromotion::class => EmployeePromotionPolicy::class,
         WorkSchedule::class => WorkSchedulePolicy::class,
         WorkCalendar::class => WorkCalendarPolicy::class,

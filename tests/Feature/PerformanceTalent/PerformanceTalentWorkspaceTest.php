@@ -7,6 +7,7 @@ use App\Enums\UserRole;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\PerformanceTalent\CriticalPositionController;
 use App\Http\Controllers\PerformanceTalent\PerformanceTalentController;
+use App\Http\Controllers\PerformanceTalent\SuccessorController;
 use App\Models\Employee;
 use App\Models\Permission;
 use App\Models\User;
@@ -37,7 +38,7 @@ class PerformanceTalentWorkspaceTest extends TestCase
         ],
         'performance-talent.successors.index' => [
             'title' => 'Successor View',
-            'description' => 'Informasi kandidat penerus akan tersedia pada tahap pengembangan berikutnya.',
+            'description' => 'Pilih department untuk melihat struktur organisasi dan data formasinya.',
         ],
         'performance-talent.talent-pool.index' => [
             'title' => 'Talent Pool',
@@ -97,10 +98,74 @@ class PerformanceTalentWorkspaceTest extends TestCase
                 continue;
             }
 
+            if ($routeName === 'performance-talent.successors.index') {
+                $response
+                    ->assertViewIs('performance-talent.show')
+                    ->assertViewHas('featureView', 'performance-talent.successors.index')
+                    ->assertSee($page['description'])
+                    ->assertSee('Pilih Department')
+                    ->assertDontSee('Fitur sedang dalam tahap pengembangan');
+
+                continue;
+            }
+
             $response
                 ->assertSee($page['description'])
                 ->assertSee('Fitur sedang dalam tahap pengembangan');
         }
+    }
+
+    public function test_successor_view_renders_the_twelve_requested_departments_in_order(): void
+    {
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        $departments = [
+            'Market Planning & Development',
+            'Sales',
+            'Internal Audit',
+            'Communication Legal & GA',
+            'Finance & Accounting',
+            'HC & GRC',
+            'Production Planning & Control',
+            'Mining & Power Plant',
+            'Clinker & Cement Production',
+            'Infrastructure',
+            'Maintenance',
+            'Project Management & Maint. Support',
+        ];
+
+        $response = $this->actingAs($superAdmin)
+            ->get(route('performance-talent.successors.index'))
+            ->assertOk()
+            ->assertSee('Cari department...')
+            ->assertSee('Struktur Organisasi -')
+            ->assertSee('Total Formasi:')
+            ->assertSeeInOrder($departments)
+            ->assertDontSee('Comunication Legal &amp; GA', escape: false)
+            ->assertDontSee('Producting Planning &amp; Control', escape: false);
+
+        foreach ($departments as $department) {
+            $response->assertSee($department);
+        }
+    }
+
+    public function test_successor_view_renders_the_market_planning_organization_structure(): void
+    {
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+
+        $this->actingAs($superAdmin)
+            ->get(route('performance-talent.successors.index'))
+            ->assertOk()
+            ->assertSee('19 Formasi')
+            ->assertSee('General Manager')
+            ->assertSee('Product, Pricing &amp; Promotion Management', escape: false)
+            ->assertSee('Market Intelligence, Channel &amp; Sales Force Management', escape: false)
+            ->assertSee('Staff of Pricing Policy &amp; Revenue Management', escape: false)
+            ->assertSee('Staff of Trade Marketing &amp; Promotion Management', escape: false)
+            ->assertSee('Staff of Product Advocacy')
+            ->assertSee('Staff of Market Intelligence, Sales Planning &amp; Evaluation', escape: false)
+            ->assertSee('Staff of Channel &amp; Sales Force Management', escape: false)
+            ->assertSee('Staff of Sales Process Management')
+            ->assertSee('successor-org-chart', escape: false);
     }
 
     public function test_critical_position_page_renders_the_database_table_structure(): void
@@ -134,6 +199,7 @@ class PerformanceTalentWorkspaceTest extends TestCase
         $this->grantPermissionsToRole(UserRole::ADMIN, [
             self::PERMISSION,
             'critical-positions.view',
+            'successors.view',
         ]);
         $admin = User::factory()->create(['role' => UserRole::ADMIN->value]);
         app(SyncUserWorkspaceAccess::class)->execute($admin, [
@@ -278,6 +344,7 @@ class PerformanceTalentWorkspaceTest extends TestCase
 
             $expectedController = match ($routeName) {
                 'performance-talent.critical-positions.index' => CriticalPositionController::class.'@index',
+                'performance-talent.successors.index' => SuccessorController::class.'@index',
                 'performance-talent.data-pegawai.index' => EmployeeController::class.'@index',
                 default => PerformanceTalentController::class.'@__invoke',
             };

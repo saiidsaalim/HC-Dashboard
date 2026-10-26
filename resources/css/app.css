@@ -493,6 +493,81 @@ html {
 		font-weight: 700 !important;
 		box-shadow: none !important;
 	}
+
+	.successor-org-chart {
+		display: inline-block;
+		min-width: 100%;
+		padding: 1.5rem;
+	}
+
+	.successor-org-chart ul {
+		display: flex;
+		justify-content: center;
+		position: relative;
+		padding-top: 2.5rem;
+	}
+
+	.successor-org-chart > ul {
+		padding-top: 0;
+	}
+
+	.successor-org-chart li {
+		position: relative;
+		list-style: none;
+		padding: 2.5rem 0.625rem 0;
+		text-align: center;
+	}
+
+	.successor-org-chart > ul > li {
+		padding-top: 0;
+	}
+
+	.successor-org-chart li::before,
+	.successor-org-chart li::after {
+		position: absolute;
+		top: 0;
+		width: 50%;
+		height: 2.5rem;
+		border-top: 1.5px solid #94a3b8;
+		content: '';
+	}
+
+	.successor-org-chart li::before {
+		right: 50%;
+	}
+
+	.successor-org-chart li::after {
+		left: 50%;
+		border-left: 1.5px solid #94a3b8;
+	}
+
+	.successor-org-chart li:only-child::before,
+	.successor-org-chart li:only-child::after {
+		display: none;
+	}
+
+	.successor-org-chart li:first-child::before,
+	.successor-org-chart li:last-child::after {
+		border: 0;
+	}
+
+	.successor-org-chart li:last-child::before {
+		border-right: 1.5px solid #94a3b8;
+		border-radius: 0 0.5rem 0 0;
+	}
+
+	.successor-org-chart li:first-child::after {
+		border-radius: 0.5rem 0 0 0;
+	}
+
+	.successor-org-chart ul ul::before {
+		position: absolute;
+		top: 0;
+		left: 50%;
+		height: 2.5rem;
+		border-left: 1.5px solid #94a3b8;
+		content: '';
+	}
 }
 
 @media (min-width: 640px) {

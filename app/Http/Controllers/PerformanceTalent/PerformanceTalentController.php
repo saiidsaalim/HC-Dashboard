@@ -18,10 +18,6 @@ class PerformanceTalentController extends Controller
             'title' => 'Critical Position',
             'description' => 'Pengelolaan posisi kritis akan tersedia pada tahap pengembangan berikutnya.',
         ],
-        'performance-talent.successors.index' => [
-            'title' => 'Successor View',
-            'description' => 'Informasi kandidat penerus akan tersedia pada tahap pengembangan berikutnya.',
-        ],
         'performance-talent.talent-pool.index' => [
             'title' => 'Talent Pool',
             'description' => 'Pengelolaan talent pool akan tersedia pada tahap pengembangan berikutnya.',

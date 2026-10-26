@@ -61,7 +61,7 @@ return [
                 'route' => 'performance-talent.successors.index',
                 'label' => 'Successor View',
                 'icon' => 'users',
-                'permission' => 'workspace.performance-talent-management.view',
+                'permission' => 'successors.view',
             ],
             [
                 'route' => 'performance-talent.talent-pool.index',

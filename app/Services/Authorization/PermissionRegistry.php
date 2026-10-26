@@ -34,6 +34,10 @@ class PermissionRegistry
                 'critical-positions.create' => ['label' => 'Tambah Critical Position', 'roles' => $superAdmin],
                 'critical-positions.update' => ['label' => 'Edit Critical Position', 'roles' => $superAdmin],
                 'critical-positions.delete' => ['label' => 'Hapus Critical Position', 'roles' => $superAdmin],
+                'successors.view' => ['label' => 'Lihat Successor View', 'roles' => $superAdmin],
+                'successors.create' => ['label' => 'Tambah Successor', 'roles' => $superAdmin],
+                'successors.update' => ['label' => 'Edit Successor', 'roles' => $superAdmin],
+                'successors.delete' => ['label' => 'Hapus Successor', 'roles' => $superAdmin],
             ]],
             'employees' => ['label' => 'Data Pegawai', 'permissions' => [
                 'employees.view' => ['label' => 'Lihat data pegawai', 'roles' => $all],
