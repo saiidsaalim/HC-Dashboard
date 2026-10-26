@@ -41,10 +41,20 @@
             <div>
                 <a href="{{ route('data-pegawai.import.review.index') }}" class="text-sm font-semibold text-slate-500 hover:text-slate-900">Semua batch</a>
                 <h2 class="mt-2 font-display text-2xl font-bold text-slate-950">Batch #{{ $batch->id }}</h2>
+                <p class="mt-1 break-all text-sm font-semibold text-slate-700">Nama file: {{ $batch->displayFileName() }}</p>
                 <p class="mt-1 text-sm text-slate-500">{{ strtoupper($batch->source_type) }} · {{ $batch->imported_at?->format('Y-m-d H:i') ?? '-' }} · {{ $batch->status }}</p>
             </div>
             <div class="flex flex-wrap gap-2">
                 <a href="{{ route('data-pegawai.import.review.index') }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Riwayat batch</a>
+                <form method="POST" action="{{ route('data-pegawai.import.review.destroy', $batch) }}"
+                    data-confirm-submit data-confirm-title="Hapus batch import #{{ $batch->id }}?"
+                    data-confirm-text="Seluruh row review dalam batch ini akan dihapus. Data pegawai yang sudah diproses tidak ikut terhapus."
+                    data-confirm-button-text="Ya, hapus" data-confirm-button-color="#dc2626">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" :disabled="busy"
+                        class="rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50">Hapus batch</button>
+                </form>
                 @if ($approvableCount > 0)
                     <form method="POST" action="{{ route('data-pegawai.import-batches.approve-candidates', $batch) }}"
                         data-confirm-title="Setujui semua {{ $approvableCount }} row valid?"

@@ -11,6 +11,7 @@ use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 use RuntimeException;
 use SimpleXMLElement;
@@ -92,6 +93,11 @@ class EmployeeImportStagingService
     {
         $batch = EmployeeImportBatch::query()->create([
             'source_file' => 'pending',
+            'original_file_name' => Str::limit(
+                basename(str_replace('\\', '/', $file->getClientOriginalName())),
+                255,
+                '',
+            ),
             'source_type' => strtolower($file->getClientOriginalExtension()),
             'imported_by' => $actor->id,
             'imported_at' => now(),

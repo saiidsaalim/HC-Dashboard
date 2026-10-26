@@ -91,6 +91,8 @@ class EmployeeImportStagingTest extends TestCase
 
         $batch = EmployeeImportBatch::query()->firstOrFail();
         $row = $batch->rows()->firstOrFail();
+        $this->assertSame('employee-source.csv', $batch->original_file_name);
+        $this->assertSame('employee-source.csv', $batch->displayFileName());
         $this->assertSame('VALID', $row->validation_status);
         $this->assertSame('AUTO_CANDIDATE', $row->mapping_status);
         $this->assertSame('SAP-POS-001', $row->normalized_payload['position_id_source']);
@@ -477,17 +479,24 @@ class EmployeeImportStagingTest extends TestCase
         $this->actingAs($superAdmin)->get(route('data-pegawai.import.review.index'))
             ->assertOk()
             ->assertSee('#'.$batch->id)
-            ->assertSee('Review');
+            ->assertSee('employee-source.csv')
+            ->assertSee('Review')
+            ->assertSee('Hapus')
+            ->assertSee('action="'.route('data-pegawai.import.review.destroy', $batch).'"', escape: false)
+            ->assertSee('data-confirm-title="Hapus batch import #'.$batch->id.'?"', escape: false);
         $this->actingAs($superAdmin)->get(route('data-pegawai.import.review.show', $batch))
             ->assertOk()
             ->assertSee('Row '.$row->source_row)
+            ->assertSee('Nama file: employee-source.csv')
             ->assertSee('SAP-REVIEW-UI')
             ->assertSee('Source payload')
             ->assertSee('Normalized payload')
             ->assertSee('Position id')
             ->assertSee('EXT-POS-SAP-REVIEW-UI')
             ->assertSee('Setujui semua (1)')
-            ->assertSee('Invalid (1)');
+            ->assertSee('Invalid (1)')
+            ->assertSee('Hapus batch')
+            ->assertSee('action="'.route('data-pegawai.import.review.destroy', $batch).'"', escape: false);
 
         $this->actingAs($superAdmin)->get(route('data-pegawai.import.review.show', [
             'batch' => $batch,
@@ -496,6 +505,40 @@ class EmployeeImportStagingTest extends TestCase
             ->assertSee('Invalid (1)')
             ->assertSee('ID-WITHOUT-SAP')
             ->assertDontSee('SAP-REVIEW-UI');
+    }
+
+    public function test_super_admin_can_delete_an_import_review_batch_without_deleting_employee_data(): void
+    {
+        Storage::fake('local');
+        $superAdmin = $this->superAdmin();
+        $employee = $this->createEmployee('SAP-KEPT-AFTER-BATCH-DELETE');
+
+        $this->actingAs($superAdmin)->post(route('data-pegawai.import'), [
+            'file' => $this->csvFile(self::HEADERS, [
+                $this->canonicalSourceRow('SAP-BATCH-DELETE'),
+                ['SAP' => '', 'ID Number' => 'INVALID-BATCH-DELETE'],
+            ]),
+        ])->assertRedirect();
+
+        $batch = EmployeeImportBatch::query()->firstOrFail();
+        $rowIds = $batch->rows()->pluck('id');
+        $admin = User::factory()->create(['role' => UserRole::ADMIN->value]);
+
+        $this->actingAs($admin)
+            ->delete(route('data-pegawai.import.review.destroy', $batch))
+            ->assertForbidden();
+        $this->assertDatabaseHas('employee_import_batches', ['id' => $batch->id]);
+
+        $this->actingAs($superAdmin)
+            ->delete(route('data-pegawai.import.review.destroy', $batch))
+            ->assertRedirectToRoute('data-pegawai.import.review.index')
+            ->assertSessionHas('status', "Batch import #{$batch->id} berhasil dihapus.");
+
+        $this->assertDatabaseMissing('employee_import_batches', ['id' => $batch->id]);
+        foreach ($rowIds as $rowId) {
+            $this->assertDatabaseMissing('employee_import_rows', ['id' => $rowId]);
+        }
+        $this->assertDatabaseHas('employees', ['id' => $employee->id, 'sap' => $employee->sap]);
     }
 
     public function test_bulk_approval_only_approves_valid_auto_candidates(): void

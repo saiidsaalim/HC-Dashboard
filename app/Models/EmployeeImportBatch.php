@@ -2,14 +2,15 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Model;
 
 class EmployeeImportBatch extends Model
 {
     protected $fillable = [
         'source_file',
+        'original_file_name',
         'source_type',
         'imported_by',
         'imported_at',
@@ -41,5 +42,17 @@ class EmployeeImportBatch extends Model
     public function importer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'imported_by');
+    }
+
+    public function displayFileName(): string
+    {
+        return $this->original_file_name ?: basename($this->source_file);
+    }
+
+    protected static function booted(): void
+    {
+        static::deleting(function (EmployeeImportBatch $batch): void {
+            $batch->rows()->delete();
+        });
     }
 }

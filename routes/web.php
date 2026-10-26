@@ -101,6 +101,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('can:employees.import')->group(function (): void {
         Route::get('/data-pegawai/import/review', [EmployeeController::class, 'importReviewIndex'])->name('data-pegawai.import.review.index');
         Route::get('/data-pegawai/import/review/batches/{batch}', [EmployeeController::class, 'importReviewShow'])->name('data-pegawai.import.review.show');
+        Route::delete('/data-pegawai/import/review/batches/{batch}', [EmployeeController::class, 'destroyImportBatch'])->name('data-pegawai.import.review.destroy');
         Route::get('/data-pegawai/import/batches/{batch}', [EmployeeController::class, 'showImportBatch'])->name('data-pegawai.import-batches.show');
         Route::post('/data-pegawai/import/batches/{batch}/approve-candidates', [EmployeeController::class, 'approveImportBatchCandidates'])->name('data-pegawai.import-batches.approve-candidates');
         Route::post('/data-pegawai/import/batches/{batch}/process', [EmployeeController::class, 'processImportBatch'])->name('data-pegawai.import-batches.process');

@@ -252,6 +252,17 @@ class EmployeeController extends Controller
         return view('pages.employee-import-review-show', compact('batch', 'rows', 'filter', 'invalidCount', 'approvableCount'));
     }
 
+    public function destroyImportBatch(Request $request, EmployeeImportBatch $batch): RedirectResponse
+    {
+        $this->authorizeImportReview($request);
+        $batchId = $batch->getKey();
+
+        DB::transaction(fn (): bool => $batch->delete(), 3);
+
+        return to_route('data-pegawai.import.review.index')
+            ->with('status', "Batch import #{$batchId} berhasil dihapus.");
+    }
+
     public function showImportBatch(Request $request, EmployeeImportBatch $batch): JsonResponse
     {
         $this->authorizeImportReview($request);
@@ -260,6 +271,7 @@ class EmployeeController extends Controller
             'id' => $batch->id,
             'status' => $batch->status,
             'source_type' => $batch->source_type,
+            'original_file_name' => $batch->displayFileName(),
             'imported_at' => $batch->imported_at,
             'total_rows' => $batch->total_rows,
             'valid_rows' => $batch->valid_rows,
