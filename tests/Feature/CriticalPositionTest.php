@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Users\SyncUserWorkspaceAccess;
 use App\Enums\CriticalPositionCriticality;
 use App\Enums\CriticalPositionStatus;
 use App\Enums\UserRole;
@@ -228,6 +229,10 @@ class CriticalPositionTest extends TestCase
         $this->grantPermissions($admin->roleEnum(), [
             'workspace.performance-talent-management.view',
             'critical-positions.view',
+        ]);
+        app(SyncUserWorkspaceAccess::class)->execute($admin, [
+            'hc-od-career-management',
+            'performance-talent-management',
         ]);
 
         $this->actingAs($admin)

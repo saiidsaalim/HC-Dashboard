@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\UserRole;
 use App\Services\Authorization\PermissionRegistry;
 use App\Services\Authorization\RolePermissionCache;
+use App\Services\Authorization\WorkspaceRegistry;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -32,18 +33,34 @@ class User extends Authenticatable
         return $this->roleEnum()->canManageRbac();
     }
 
+    public function isSuperAdmin(): bool
+    {
+        return $this->roleEnum() === UserRole::SUPER_ADMIN;
+    }
+
     public function hasPermission(string $key): bool
     {
         if (! PermissionRegistry::has($key)) {
             return false;
         }
 
-        if ($this->roleEnum() === UserRole::SUPER_ADMIN) {
+        if ($this->isSuperAdmin()) {
             return true;
         }
 
         if ($key === 'users.manage-access') {
             return false;
+        }
+
+        if ($key === 'workspace.view') {
+            return collect(app(WorkspaceRegistry::class)->assignablePermissionKeys())
+                ->contains(fn (string $permissionKey): bool => $this->workspacePermissionDecision($permissionKey) === true);
+        }
+
+        $workspacePermission = $this->workspacePermissionDecision($key);
+
+        if ($workspacePermission !== null) {
+            return $workspacePermission;
         }
 
         $rolePermissionCache = app(RolePermissionCache::class);
@@ -79,6 +96,29 @@ class User extends Authenticatable
         )->withTimestamps();
     }
 
+    /** @return BelongsToMany<Permission, $this> */
+    public function permissionOverrides(): BelongsToMany
+    {
+        return $this->belongsToMany(Permission::class, 'permission_user')
+            ->withPivot('granted')
+            ->withTimestamps();
+    }
+
+    /** @return array<int, string> */
+    public function workspaceAccessKeys(): array
+    {
+        $workspaces = app(WorkspaceRegistry::class)->assignable();
+
+        if ($this->isSuperAdmin()) {
+            return array_keys($workspaces);
+        }
+
+        return collect($workspaces)
+            ->filter(fn (array $workspace): bool => $this->hasPermission($workspace['permission']))
+            ->keys()
+            ->all();
+    }
+
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
@@ -96,5 +136,26 @@ class User extends Authenticatable
             'password' => 'hashed',
             'must_change_password' => 'boolean',
         ];
+    }
+
+    private function workspacePermissionDecision(string $key): ?bool
+    {
+        $workspacePermissionKeys = app(WorkspaceRegistry::class)->assignablePermissionKeys();
+
+        if (! in_array($key, $workspacePermissionKeys, true)) {
+            return null;
+        }
+
+        $this->loadMissing('permissionOverrides');
+        $workspaceOverrides = $this->permissionOverrides
+            ->whereIn('key', $workspacePermissionKeys);
+
+        if ($workspaceOverrides->isEmpty()) {
+            return app(WorkspaceRegistry::class)->isDefaultPermission($key);
+        }
+
+        $override = $workspaceOverrides->firstWhere('key', $key);
+
+        return $override === null ? false : (bool) $override->pivot->granted;
     }
 }

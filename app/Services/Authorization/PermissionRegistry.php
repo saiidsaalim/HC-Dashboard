@@ -27,7 +27,7 @@ class PermissionRegistry
                 'workspace.view' => ['label' => 'Buka workspace portal', 'roles' => $all],
                 'workspace.hc-od-career-management.view' => ['label' => 'Buka workspace HC OD & Career Management', 'roles' => $all],
                 'workspace.performance-talent-management.view' => ['label' => 'Buka workspace Performance & Talent Management', 'roles' => $superAdmin],
-                'workspace.learning-development.view' => ['label' => 'Buka workspace Learning & Development', 'roles' => $management],
+                'workspace.learning-development.view' => ['label' => 'Buka workspace Learning & Development', 'roles' => $superAdmin],
             ]],
             'performance-talent' => ['label' => 'Performance & Talent Management', 'permissions' => [
                 'critical-positions.view' => ['label' => 'Lihat Critical Position', 'roles' => $superAdmin],

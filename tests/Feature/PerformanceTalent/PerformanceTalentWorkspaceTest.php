@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\PerformanceTalent;
 
+use App\Actions\Users\SyncUserWorkspaceAccess;
 use App\Enums\UserRole;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\PerformanceTalent\CriticalPositionController;
@@ -135,6 +136,10 @@ class PerformanceTalentWorkspaceTest extends TestCase
             'critical-positions.view',
         ]);
         $admin = User::factory()->create(['role' => UserRole::ADMIN->value]);
+        app(SyncUserWorkspaceAccess::class)->execute($admin, [
+            'hc-od-career-management',
+            'performance-talent-management',
+        ]);
 
         $this->actingAs($admin)
             ->get(route('portal.workspace', 'performance-talent-management'))
@@ -339,6 +344,10 @@ class PerformanceTalentWorkspaceTest extends TestCase
             ->assertForbidden();
 
         $this->grantPermissionsToRole(UserRole::ADMIN, [self::PERMISSION]);
+        app(SyncUserWorkspaceAccess::class)->execute($admin, [
+            'hc-od-career-management',
+            'performance-talent-management',
+        ]);
         $this->removePermissionFromRole(UserRole::ADMIN, 'employees.view');
 
         $this->get(route('performance-talent.data-pegawai.index'))

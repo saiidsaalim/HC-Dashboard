@@ -315,6 +315,7 @@
                                 placeholder="Kosongkan jika tidak ingin mengubah password"
                                 class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
                         </div>
+                        @include('pages.partials.user-workspace-access')
                         @if ($user->roleEnum() === \App\Enums\UserRole::STAFF)
                             <div>
                                 <label for="edit-user-{{ $user->id }}-employee" class="text-sm font-semibold text-slate-700">Employee terkait</label>

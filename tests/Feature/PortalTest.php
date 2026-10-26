@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Users\SyncUserWorkspaceAccess;
 use App\Enums\UserRole;
 use App\Models\Permission;
 use App\Models\User;
@@ -164,12 +165,21 @@ class PortalTest extends TestCase
             ->assertSessionHas('active_workspace', 'hc-od-career-management');
     }
 
-    public function test_authenticated_user_can_open_learning_and_development_workspace(): void
+    public function test_manager_needs_explicit_access_to_open_learning_and_development_workspace(): void
     {
+        $this->seed(PermissionSeeder::class);
         $user = User::factory()->create(['role' => UserRole::MANAGER->value]);
 
         $this->actingAs($user)
             ->get(route('portal.workspace', 'learning-development'))
+            ->assertForbidden();
+
+        app(SyncUserWorkspaceAccess::class)->execute($user, [
+            'hc-od-career-management',
+            'learning-development',
+        ]);
+
+        $this->get(route('portal.workspace', 'learning-development'))
             ->assertRedirectToRoute('dashboard')
             ->assertSessionHas('active_workspace', 'learning-development');
     }
@@ -215,6 +225,14 @@ class PortalTest extends TestCase
 
         DB::table('permission_role')->insert($rows);
 
-        return User::factory()->create(['role' => $role->value]);
+        $user = User::factory()->create(['role' => $role->value]);
+        $workspaceKeys = collect(config('portal.units'))
+            ->flatMap(fn (array $unit): array => $unit['workspaces'] ?? [])
+            ->filter(fn (array $workspace): bool => in_array($workspace['permission'], $permissionKeys, true))
+            ->pluck('slug')
+            ->all();
+        app(SyncUserWorkspaceAccess::class)->execute($user, $workspaceKeys);
+
+        return $user;
     }
 }

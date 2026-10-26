@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Actions\Users\SyncUserWorkspaceAccess;
 use App\Enums\UserRole;
 use App\Models\Employee;
 use App\Models\Permission;
@@ -297,7 +298,7 @@ class PermissionSynchronizationTest extends TestCase
             ->assertRedirectToRoute('dashboard');
     }
 
-    public function test_manager_without_workspace_permission_cannot_see_or_open_it(): void
+    public function test_default_hc_od_access_does_not_depend_on_the_role_permission_matrix(): void
     {
         $this->seed(PermissionSeeder::class);
         $manager = User::factory()->create(['role' => UserRole::MANAGER->value]);
@@ -312,37 +313,22 @@ class PermissionSynchronizationTest extends TestCase
 
         $this->actingAs($manager)->get(route('portal'))
             ->assertOk()
-            ->assertDontSee('HC OD & Career Management');
-        $this->get(route('portal.workspace', 'hc-od-career-management'))->assertForbidden();
+            ->assertSee('HC OD & Career Management');
+        $this->get(route('portal.workspace', 'hc-od-career-management'))
+            ->assertRedirectToRoute('dashboard');
     }
 
     public function test_empty_workspace_state_only_appears_when_no_workspace_is_authorized(): void
     {
         $this->seed(PermissionSeeder::class);
         $manager = User::factory()->create(['role' => UserRole::MANAGER->value]);
-        $workspacePermissionIds = Permission::query()
-            ->where('key', 'like', 'workspace.%.view')
-            ->pluck('id');
-        DB::table('permission_role')
-            ->where('role', UserRole::MANAGER->value)
-            ->whereIn('permission_id', $workspacePermissionIds)
-            ->delete();
-        app(RolePermissionCache::class)->clear();
+        app(SyncUserWorkspaceAccess::class)->execute($manager, []);
 
         $this->actingAs($manager)->get(route('portal'))
             ->assertOk()
             ->assertSee('Belum ada workspace yang dapat diakses.');
 
-        $allowedPermissionId = Permission::query()
-            ->where('key', 'workspace.hc-od-career-management.view')
-            ->value('id');
-        DB::table('permission_role')->insert([
-            'permission_id' => $allowedPermissionId,
-            'role' => UserRole::MANAGER->value,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
-        app(RolePermissionCache::class)->clear();
+        app(SyncUserWorkspaceAccess::class)->execute($manager, ['hc-od-career-management']);
 
         $this->get(route('portal'))
             ->assertOk()

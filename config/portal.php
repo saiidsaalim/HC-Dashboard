@@ -98,6 +98,9 @@ return [
                 [
                     'slug' => 'hc-od-career-management',
                     'name' => 'HC OD & Career Management',
+                    'active' => true,
+                    'assignable' => true,
+                    'default_access' => true,
                     'description' => 'Kelola struktur organisasi, perencanaan tenaga kerja, dan pengembangan karier dalam satu ruang kerja.',
                     'icon' => 'org-chart',
                     'tone' => 'blue',
@@ -106,6 +109,9 @@ return [
                 [
                     'slug' => 'performance-talent-management',
                     'name' => 'Performance & Talent Management',
+                    'active' => true,
+                    'assignable' => true,
+                    'default_access' => false,
                     'description' => 'Pantau performa, kelola data pegawai, dan dukung keputusan pengembangan talenta.',
                     'icon' => 'target',
                     'tone' => 'green',
@@ -115,6 +121,9 @@ return [
                 [
                     'slug' => 'learning-development',
                     'name' => 'Learning & Development',
+                    'active' => true,
+                    'assignable' => true,
+                    'default_access' => false,
                     'description' => 'Akses layanan pembelajaran dan pengembangan kompetensi pegawai secara terarah.',
                     'icon' => 'learning',
                     'tone' => 'amber',

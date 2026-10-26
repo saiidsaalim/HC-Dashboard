@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Users\SyncUserWorkspaceAccess;
 use App\Enums\UserRole;
 use App\Http\Requests\UpdateRolePermissionsRequest;
+use App\Http\Requests\UpdateUserRequest;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Permission;
@@ -11,6 +13,7 @@ use App\Models\Position;
 use App\Models\Unit;
 use App\Models\User;
 use App\Services\Authorization\RolePermissionCache;
+use App\Services\Authorization\WorkspaceRegistry;
 use App\Services\Users\StaffUserProvisioningService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,6 +28,8 @@ class UserManagementController extends Controller
     public function __construct(
         private StaffUserProvisioningService $staffUserProvisioningService,
         private RolePermissionCache $rolePermissionCache,
+        private WorkspaceRegistry $workspaceRegistry,
+        private SyncUserWorkspaceAccess $syncUserWorkspaceAccess,
     ) {}
 
     public function index(Request $request): View
@@ -35,6 +40,7 @@ class UserManagementController extends Controller
         $canManageAllRoles = $actor->hasPermission('users.manage-roles');
         $canApproveCandidates = $actor->hasPermission('users.approve-candidates');
         $canManageAccess = $actor->hasPermission('users.manage-access');
+        $canManageWorkspaceAccess = $actor->isSuperAdmin();
         $canViewAllUsers = $actor->hasAnyPermission([
             'users.create',
             'users.update',
@@ -42,8 +48,14 @@ class UserManagementController extends Controller
             'users.manage-roles',
             'users.manage-access',
         ]);
+        $userRelations = ['employee'];
+
+        if ($canManageWorkspaceAccess) {
+            $userRelations[] = 'permissionOverrides';
+        }
+
         $users = User::query()
-            ->with('employee')
+            ->with($userRelations)
             ->when(! $canViewAllUsers, fn ($query) => $query->whereKey($actor->getKey()))
             ->orderBy('name')
             ->get();
@@ -99,6 +111,12 @@ class UserManagementController extends Controller
                     : $storedRolePermissions->get($role->value, collect())->pluck('key'),
             ],
         );
+        $workspaces = $canManageWorkspaceAccess
+            ? collect($this->workspaceRegistry->assignable())->values()
+            : collect();
+        $userWorkspaceAccessKeys = $canManageWorkspaceAccess
+            ? $users->mapWithKeys(fn (User $user): array => [$user->getKey() => $user->workspaceAccessKeys()])
+            : collect();
 
         return view('pages.konfigurasi-user', [
             'users' => $users,
@@ -131,6 +149,9 @@ class UserManagementController extends Controller
             'canDeleteUsers' => $actor->hasPermission('users.delete'),
             'canApproveCandidates' => $canApproveCandidates,
             'canManageAccess' => $canManageAccess,
+            'canManageWorkspaceAccess' => $canManageWorkspaceAccess,
+            'workspaces' => $workspaces,
+            'userWorkspaceAccessKeys' => $userWorkspaceAccessKeys,
         ]);
     }
 
@@ -153,27 +174,9 @@ class UserManagementController extends Controller
         return back()->with('status', 'Role pengguna berhasil diperbarui.');
     }
 
-    public function update(Request $request, User $user): RedirectResponse
+    public function update(UpdateUserRequest $request, User $user): RedirectResponse
     {
-        $actor = $request->user();
-        abort_unless($actor instanceof User && $actor->hasPermission('users.update'), 403);
-        abort_if($user->roleEnum() === UserRole::SUPER_ADMIN && $actor->roleEnum() !== UserRole::SUPER_ADMIN, 403);
-
-        $usesEmployeeIdentity = $request->filled('employee_id')
-            || (! $request->exists('employee_id') && $user->employee_id !== null);
-
-        $validated = $request->validate([
-            'name' => [Rule::requiredIf(! $usesEmployeeIdentity), 'nullable', 'string', 'max:255'],
-            'email' => [Rule::requiredIf(! $usesEmployeeIdentity), 'nullable', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user)],
-            'password' => ['nullable', 'string', 'min:8'],
-            'employee_id' => [
-                Rule::prohibitedIf($user->roleEnum() !== UserRole::STAFF),
-                'nullable',
-                'integer',
-                Rule::exists('employees', 'id'),
-                Rule::unique('users', 'employee_id')->ignore($user),
-            ],
-        ]);
+        $validated = $request->validated();
 
         $employeeId = array_key_exists('employee_id', $validated)
             ? $validated['employee_id']
@@ -182,13 +185,24 @@ class UserManagementController extends Controller
             ? $this->staffUserProvisioningService->identityFor(Employee::query()->findOrFail($employeeId), $user)
             : ['name' => $validated['name'], 'email' => $validated['email']];
 
-        $user->update([
-            ...$identity,
-            'employee_id' => $employeeId,
-            ...($validated['password'] ?? null ? ['password' => Hash::make($validated['password'])] : []),
-        ]);
+        DB::transaction(function () use ($identity, $employeeId, $request, $user, $validated): void {
+            $user->update([
+                ...$identity,
+                'employee_id' => $employeeId,
+                ...($validated['password'] ?? null ? ['password' => Hash::make($validated['password'])] : []),
+            ]);
 
-        return back()->with('status', 'Data pengguna berhasil diperbarui.');
+            if ($request->workspaceAccessSubmitted()) {
+                $this->syncUserWorkspaceAccess->execute($user, $validated['workspace_access'] ?? []);
+            }
+        }, 3);
+
+        return back()->with(
+            'status',
+            $request->workspaceAccessSubmitted()
+                ? 'Akses workspace pengguna berhasil diperbarui.'
+                : 'Data pengguna berhasil diperbarui.',
+        );
     }
 
     public function destroy(Request $request, User $user): RedirectResponse
