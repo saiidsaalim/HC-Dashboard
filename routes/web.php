@@ -8,6 +8,7 @@ use App\Http\Controllers\Organization\DepartmentController;
 use App\Http\Controllers\Organization\OrganizationController;
 use App\Http\Controllers\Organization\PositionController;
 use App\Http\Controllers\Organization\UnitController;
+use App\Http\Controllers\PerformanceTalent\PerformanceTalentController;
 use App\Http\Controllers\PortalController;
 use App\Http\Controllers\PortalWorkspaceController;
 use App\Http\Controllers\ProfileController;
@@ -31,6 +32,19 @@ Route::get('/', function (): RedirectResponse {
 Route::middleware('auth')->group(function () {
     Route::get('/portal', PortalController::class)->name('portal');
     Route::get('/workspace/{slug}', PortalWorkspaceController::class)->middleware('can:workspace.view')->name('portal.workspace');
+
+    Route::prefix('workspace/performance-talent-management')
+        ->name('performance-talent.')
+        ->middleware('can:workspace.performance-talent-management.view')
+        ->controller(PerformanceTalentController::class)
+        ->group(function (): void {
+            Route::get('/dashboard', '__invoke')->name('dashboard');
+            Route::get('/critical-positions', '__invoke')->name('critical-positions.index');
+            Route::get('/successors', '__invoke')->name('successors.index');
+            Route::get('/talent-pool', '__invoke')->name('talent-pool.index');
+            Route::get('/development-plans', '__invoke')->name('development-plans.index');
+            Route::get('/reports', '__invoke')->name('reports.index');
+        });
 
     Route::get('/dashboard', DashboardController::class)->middleware('can:dashboard.view')->name('dashboard');
 

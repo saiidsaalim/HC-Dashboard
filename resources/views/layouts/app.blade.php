@@ -16,6 +16,12 @@
     $activeWorkspace = collect(config('portal.units'))
         ->flatMap(fn (array $unit) => $unit['workspaces'])
         ->firstWhere('slug', session('active_workspace'));
+
+    if ($activeWorkspace !== null && ! auth()->user()->hasPermission($activeWorkspace['permission'])) {
+        $activeWorkspace = null;
+    }
+
+    $workspaceHomeRoute = $activeWorkspace['home_route'] ?? 'dashboard';
 @endphp
 
 <body data-app-shell x-data="{ sidebarOpen: false, sidebarExpanded: false, isScrolled: false }"
@@ -36,7 +42,7 @@
             }"
             class="app-sidebar fixed inset-y-0 left-0 z-[60] m-3 flex h-[calc(100dvh-1.5rem)] w-64 max-w-[calc(100vw-1.5rem)] transform flex-col justify-between overflow-hidden rounded-[2rem] bg-slate-950 px-4 py-3 text-slate-300 transition-all duration-300 ease-in-out sm:m-4 sm:h-[calc(100dvh-2rem)] sm:max-w-[calc(100vw-2rem)] md:top-0 md:bottom-auto md:left-0 md:translate-x-0">
             <div class="mb-1 flex shrink-0 items-center gap-1 rounded-2xl border border-slate-800 bg-slate-900 p-2">
-                <a href="{{ route('dashboard') }}" title="HC Dashboard"
+                <a href="{{ route($workspaceHomeRoute) }}" title="HC Dashboard"
                     class="flex min-w-0 flex-1 items-center gap-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-400">
                     <div
                         class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-sky-500 font-display text-xs font-bold text-white">
@@ -63,7 +69,9 @@
                 <x-sidebar-nav-link :href="route('portal')" label="Kembali ke Portal" icon="arrows" outlined
                     class="mb-2" />
                 @php
-                    $workspaceNavigation = config('portal.workspace_navigation.'.session('active_workspace'));
+                    $workspaceNavigation = $activeWorkspace === null
+                        ? null
+                        : config('portal.workspace_navigation.'.$activeWorkspace['slug']);
                 @endphp
                 @unless (auth()->user()->must_change_password)
                     @php($navigation = $workspaceNavigation ?? [['route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'home', 'permission' => 'dashboard.view'], ['route' => 'data-pegawai', 'label' => 'Data Pegawai', 'icon' => 'users', 'permission' => 'employees.view'], ['route' => 'wla', 'label' => 'WLA', 'icon' => 'chart', 'permission' => 'wla.view'], ['route' => 'fit-proper', 'label' => 'Fit & Proper', 'icon' => 'clipboard', 'permission' => 'fit-proper.view'], ['route' => 'mutasi', 'label' => 'Mutasi', 'icon' => 'arrows', 'permission' => 'mutations.view'], ['route' => 'promosi', 'label' => 'Promosi', 'icon' => 'chart', 'permission' => 'promotions.view'], ['route' => 'demosi', 'label' => 'Demosi', 'icon' => 'demosi', 'permission' => 'demotions.view'], ['route' => 'formasi', 'label' => 'Formasi', 'icon' => 'formasi', 'permission' => 'formation.view'], ['route' => 'definitif', 'label' => 'Definitif', 'icon' => 'clipboard', 'permission' => 'definitive.view'], ['route' => 'laporan', 'label' => 'Laporan', 'icon' => 'document', 'permission' => 'reports.view']])
@@ -111,13 +119,13 @@
                             <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                         </svg>
                     </button>
-                    <a href="{{ route('dashboard') }}"
+                    <a href="{{ route($workspaceHomeRoute) }}"
                         class="col-start-2 row-start-1 w-fit rounded-lg font-display text-lg font-bold text-slate-950 focus:outline-none focus:ring-2 focus:ring-amber-400 md:hidden">
                         HCM
                     </a>
                     <div class="col-span-3 row-start-2 min-w-0 md:col-span-1 md:col-start-1 md:row-start-1">
                         <nav aria-label="Breadcrumb" class="flex min-w-0 items-center gap-2 text-xs font-semibold text-slate-400">
-                            <a href="{{ route('dashboard') }}" class="shrink-0 transition hover:text-sky-700">Beranda</a>
+                            <a href="{{ route($workspaceHomeRoute) }}" class="shrink-0 transition hover:text-sky-700">{{ $activeWorkspace['name'] ?? 'Beranda' }}</a>
                             <span class="shrink-0" aria-hidden="true">/</span>
                             <span aria-current="page" class="truncate text-slate-500">@yield('page-title', 'Dashboard')</span>
                         </nav>

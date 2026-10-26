@@ -264,6 +264,9 @@ html {
 
 	[data-app-content] > * {
 		min-width: 0;
+	}
+
+	[data-app-content] > *:not([data-dashboard-card-grid]) {
 		animation: hc-content-enter 240ms ease-out;
 	}
 

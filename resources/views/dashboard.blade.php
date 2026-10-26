@@ -30,12 +30,13 @@
         </span>
     </div>
 
-    <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+    <div data-dashboard-card-grid class="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         @foreach ($stats as $stat)
             <a href="{{ route($statRoutes[$stat['label']]) }}"
-                class="ui-card group relative overflow-hidden p-5 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2">
+                data-dashboard-card
+                class="ui-card group relative overflow-hidden p-5 hover:-translate-y-1 hover:scale-[1.01] hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 motion-reduce:transform-none">
                 <div class="flex items-start justify-between gap-4">
-                    <span class="rounded-xl p-3 ring-1 ring-inset {{ $toneClasses[$stat['tone']] }}">
+                    <span class="rounded-xl p-3 ring-1 ring-inset transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:scale-[1.03] motion-reduce:transform-none {{ $toneClasses[$stat['tone']] }}">
                         <x-dashboard-icon :name="$stat['icon']" />
                     </span>
                     <svg class="h-5 w-5 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-slate-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -43,7 +44,8 @@
                     </svg>
                 </div>
                 <p class="mt-6 text-sm font-semibold text-slate-500">{{ $stat['label'] }}</p>
-                <p class="mt-1 font-display text-3xl font-bold tracking-tight text-slate-950">{{ number_format($stat['value'], 0, ',', '.') }}</p>
+                <p data-dashboard-counter="{{ $stat['value'] }}"
+                    class="mt-1 font-display text-3xl font-bold tracking-tight text-slate-950">0</p>
                 <p class="mt-2 text-xs leading-5 text-slate-500">{{ $stat['description'] }}</p>
             </a>
         @endforeach

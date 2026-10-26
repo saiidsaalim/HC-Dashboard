@@ -22,6 +22,6 @@ class PortalWorkspaceController extends Controller
 
         $request->session()->put('active_workspace', $slug);
 
-        return to_route('dashboard');
+        return to_route($workspace['home_route'] ?? 'dashboard');
     }
 }

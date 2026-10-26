@@ -141,7 +141,7 @@ class PortalTest extends TestCase
             ->assertForbidden();
 
         $this->get(route('portal.workspace', 'performance-talent-management'))
-            ->assertRedirectToRoute('dashboard')
+            ->assertRedirectToRoute('performance-talent.dashboard')
             ->assertSessionHas('active_workspace', 'performance-talent-management');
     }
 

@@ -1,12 +1,69 @@
 
 
 import Alpine from 'alpinejs';
+import { gsap } from 'gsap';
 import './fit-proper';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
 window.Alpine = Alpine;
 window.Swal = Swal;
+
+function initializeDashboardAnimations() {
+    const cards = [...document.querySelectorAll('[data-dashboard-card]')];
+    const counters = [...document.querySelectorAll('[data-dashboard-counter]')];
+
+    if (cards.length === 0 && counters.length === 0) {
+        return;
+    }
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const counterValues = counters.map((counter) => Number(counter.dataset.dashboardCounter));
+
+    const renderCounter = (counter, value) => {
+        counter.textContent = Math.round(value).toLocaleString('id-ID');
+    };
+
+    counters.forEach((counter, index) => {
+        const finalValue = counterValues[index];
+
+        if (!Number.isFinite(finalValue)) {
+            return;
+        }
+
+        if (reduceMotion) {
+            renderCounter(counter, finalValue);
+            return;
+        }
+
+        const counterState = { value: 0 };
+
+        gsap.to(counterState, {
+            value: finalValue,
+            duration: 0.8,
+            delay: 0.2 + (index * 0.12),
+            ease: 'power2.out',
+            onUpdate: () => renderCounter(counter, counterState.value),
+            onComplete: () => renderCounter(counter, finalValue),
+        });
+    });
+
+    if (reduceMotion || cards.length === 0) {
+        return;
+    }
+
+    gsap.from(cards, {
+        opacity: 0,
+        y: 30,
+        scale: 0.96,
+        duration: 0.7,
+        stagger: 0.12,
+        ease: 'power3.out',
+        clearProps: 'transform,opacity',
+    });
+}
+
+document.addEventListener('DOMContentLoaded', initializeDashboardAnimations);
 
 async function confirmFormAction(form) {
     if (form.dataset.confirmPending === 'true' || form.dataset.confirmSubmitting === 'true') {
