@@ -10,6 +10,7 @@ use App\Http\Controllers\PerformanceTalent\PerformanceTalentController;
 use App\Http\Controllers\PerformanceTalent\SuccessorController;
 use App\Models\Employee;
 use App\Models\Permission;
+use App\Models\SuccessorStructurePosition;
 use App\Models\User;
 use App\Services\Authorization\RolePermissionCache;
 use Database\Seeders\PermissionSeeder;
@@ -165,7 +166,46 @@ class PerformanceTalentWorkspaceTest extends TestCase
             ->assertSee('Staff of Market Intelligence, Sales Planning &amp; Evaluation', escape: false)
             ->assertSee('Staff of Channel &amp; Sales Force Management', escape: false)
             ->assertSee('Staff of Sales Process Management')
+            ->assertSee('--successor-level-offset: 1', escape: false)
+            ->assertSee('successor-position-slot--offset', escape: false)
             ->assertSee('successor-org-chart', escape: false);
+    }
+
+    public function test_successor_view_renders_the_sales_organization_structure(): void
+    {
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+
+        $this->actingAs($superAdmin)
+            ->get(route('performance-talent.successors.index', ['department' => 'sales']))
+            ->assertOk()
+            ->assertSee('32 Formasi')
+            ->assertSee('Sales Excellence Specialist')
+            ->assertSee('Sales 1')
+            ->assertSee('Sales 2')
+            ->assertSee('Corporate Sales')
+            ->assertSee('Outbound Logistic')
+            ->assertSee('Sulbar &amp; Sulteng', escape: false)
+            ->assertSee('Sultra, Sulut &amp; Gorontalo', escape: false)
+            ->assertSee('Maluku &amp; Maluku Utara', escape: false)
+            ->assertSee('Technical &amp; Customer Support', escape: false)
+            ->assertSee('Key Account Officer')
+            ->assertSee('Shipment Management')
+            ->assertSee('Packaging Management')
+            ->assertSee('Bulk Transportation')
+            ->assertSee('Land Transportation')
+            ->assertSee('Sea Transportation');
+
+        $this->assertDatabaseCount('successor_structure_positions', 30);
+
+        $salesOne = SuccessorStructurePosition::query()->where('key', 'sales.sales-1')->firstOrFail();
+        $salesTwo = SuccessorStructurePosition::query()->where('key', 'sales.sales-2')->firstOrFail();
+        $corporateSales = SuccessorStructurePosition::query()->where('key', 'sales.corporate-sales')->firstOrFail();
+        $outboundLogistic = SuccessorStructurePosition::query()->where('key', 'sales.outbound-logistic')->firstOrFail();
+
+        $this->assertSame(4, $salesOne->children()->count());
+        $this->assertSame(4, $salesTwo->children()->count());
+        $this->assertSame(2, $corporateSales->children()->count());
+        $this->assertSame(5, $outboundLogistic->children()->count());
     }
 
     public function test_critical_position_page_renders_the_database_table_structure(): void

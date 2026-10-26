@@ -38,40 +38,40 @@ class SuccessorStructureManagementTest extends TestCase
             ->assertSee('Product, Pricing &amp; Promotion Management', escape: false);
 
         $this->assertDatabaseCount('successor_structure_departments', 12);
-        $this->assertDatabaseCount('successor_structure_positions', 9);
+        $this->assertDatabaseCount('successor_structure_positions', 30);
     }
 
     public function test_structure_position_can_be_created_and_rendered_as_a_child(): void
     {
-        $department = SuccessorStructureDepartment::query()->where('slug', 'sales')->firstOrFail();
+        $department = SuccessorStructureDepartment::query()->where('slug', 'internal-audit')->firstOrFail();
 
         $this->actingAs($this->superAdmin())
             ->post(route('performance-talent.successor-structure.positions.store'), $this->validData($department, [
                 'level' => 'General Manager',
-                'name' => 'Sales General Manager',
+                'name' => 'Internal Audit General Manager',
             ]))
             ->assertRedirect(route('performance-talent.successors.index', [
-                'department' => 'sales',
+                'department' => 'internal-audit',
                 'structure_editor' => 1,
             ]))
             ->assertSessionHas('status', 'Posisi struktur berhasil ditambahkan.');
 
-        $root = SuccessorStructurePosition::query()->where('key', 'sales.sales-general-manager')->sole();
+        $root = SuccessorStructurePosition::query()->where('key', 'internal-audit.internal-audit-general-manager')->sole();
 
         $this->post(route('performance-talent.successor-structure.positions.store'), $this->validData($department, [
             'parent_id' => $root->id,
             'level' => 'Senior Manager',
-            'name' => 'Regional Sales Management',
+            'name' => 'Audit Assurance Management',
             'formation_count' => 2,
         ]))->assertRedirect();
 
-        $child = SuccessorStructurePosition::query()->where('key', 'sales.regional-sales-management')->sole();
+        $child = SuccessorStructurePosition::query()->where('key', 'internal-audit.audit-assurance-management')->sole();
 
         $this->assertSame($root->id, $child->parent_id);
-        $this->get(route('performance-talent.successors.index', ['department' => 'sales']))
+        $this->get(route('performance-talent.successors.index', ['department' => 'internal-audit']))
             ->assertOk()
-            ->assertSee('Sales General Manager')
-            ->assertSee('Regional Sales Management');
+            ->assertSee('Internal Audit General Manager')
+            ->assertSee('Audit Assurance Management');
     }
 
     public function test_structure_position_can_be_updated_without_changing_its_key(): void

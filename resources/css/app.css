@@ -568,6 +568,19 @@ html {
 		border-left: 1.5px solid #94a3b8;
 		content: '';
 	}
+
+	.successor-position-slot--offset {
+		padding-top: calc(var(--successor-level-offset) * 12rem);
+	}
+
+	.successor-position-slot--offset::before {
+		position: absolute;
+		top: 0;
+		left: 50%;
+		height: calc(var(--successor-level-offset) * 12rem);
+		border-left: 1.5px solid #94a3b8;
+		content: '';
+	}
 }
 
 @media (min-width: 640px) {
