@@ -5,8 +5,10 @@ use App\Http\Controllers\DemotionController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\MutationController;
 use App\Http\Controllers\Organization\DepartmentController;
+use App\Http\Controllers\Organization\DirectorateController;
 use App\Http\Controllers\Organization\OrganizationController;
 use App\Http\Controllers\Organization\PositionController;
+use App\Http\Controllers\Organization\SectionController;
 use App\Http\Controllers\Organization\UnitController;
 use App\Http\Controllers\PerformanceTalent\CriticalPositionController;
 use App\Http\Controllers\PerformanceTalent\PerformanceTalentController;
@@ -162,8 +164,10 @@ Route::middleware('auth')->group(function () {
 
     Route::prefix('organization')->name('organization.')->group(function (): void {
         Route::get('/', OrganizationController::class)->name('index');
+        Route::resource('directorates', DirectorateController::class)->except('show');
         Route::resource('departments', DepartmentController::class)->except('show');
         Route::resource('units', UnitController::class)->except('show');
+        Route::resource('sections', SectionController::class)->except('show');
         Route::resource('positions', PositionController::class)->except('show');
     });
 });

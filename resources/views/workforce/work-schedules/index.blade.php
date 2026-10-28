@@ -18,15 +18,22 @@
     @endif
 
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <form method="GET" class="grid gap-3 border-b border-slate-200 p-4 sm:grid-cols-[1fr_180px_auto]">
-            <input name="search" value="{{ $search }}" placeholder="Cari kode, nama, atau tipe" class="rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
-            <select name="active" class="rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
-                <option value="">Semua status</option>
-                <option value="1" @selected($active === '1')>Aktif</option>
-                <option value="0" @selected($active === '0')>Nonaktif</option>
-            </select>
-            <button class="rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200">Filter</button>
-        </form>
+        <div class="border-b border-slate-200 p-4">
+            <x-ui.filter-panel id="work-schedule-filters" title="Filter Work Schedule"
+                :reset-href="route('work-schedules.index')" :active="$search !== '' || $active !== ''">
+                <label class="block text-sm font-semibold text-slate-700">Pencarian
+                    <input name="search" value="{{ $search }}" placeholder="Cari kode, nama, atau tipe"
+                        class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
+                </label>
+                <label class="block text-sm font-semibold text-slate-700">Status
+                    <select name="active" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
+                        <option value="">Semua status</option>
+                        <option value="1" @selected($active === '1')>Aktif</option>
+                        <option value="0" @selected($active === '0')>Nonaktif</option>
+                    </select>
+                </label>
+            </x-ui.filter-panel>
+        </div>
         <div class="overflow-x-auto">
             <table class="w-full min-w-[980px] text-left text-sm">
                 <thead class="bg-slate-50 text-xs uppercase text-slate-500"><tr><th class="px-4 py-3">Kode</th><th class="px-4 py-3">Nama</th><th class="px-4 py-3">Tipe</th><th class="px-4 py-3">Kalkulasi WLA</th><th class="px-4 py-3">Jam / hari</th><th class="px-4 py-3">Hari / minggu</th><th class="px-4 py-3">Jam / minggu</th><th class="px-4 py-3">Status</th><th class="px-4 py-3 text-right">Aksi</th></tr></thead>

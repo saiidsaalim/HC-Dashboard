@@ -12,61 +12,61 @@
             description="Analisis tersedia setelah minimal satu WLA difinalisasi." />
     @else
         <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <form method="GET"
-                x-data="{
-                    departmentId: @js((string) ($filters['department_id'] ?? '')),
-                    unitId: @js((string) ($filters['unit_id'] ?? '')),
-                    positionId: @js((string) ($filters['position_id'] ?? '')),
-                    units: @js($units),
-                    positions: @js($positions),
-                    resetDepartment() { this.unitId = ''; this.positionId = ''; },
-                    resetUnit() { this.positionId = ''; },
-                }"
-                class="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-[150px_1fr_1fr_1fr_170px_auto]">
-                <label class="text-sm font-medium text-slate-700">Periode
-                    <select name="period" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
-                        @foreach ($periods as $period)
-                            <option value="{{ $period }}" @selected($selectedPeriod === $period)>{{ $period }}</option>
-                        @endforeach
-                    </select>
-                </label>
-                <label class="text-sm font-medium text-slate-700">Department
-                    <select name="department_id" x-model="departmentId" @change="resetDepartment()" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
-                        <option value="">Semua Department</option>
-                        @foreach ($departments as $department)
-                            <option value="{{ $department['id'] }}">{{ $department['name'] }}</option>
-                        @endforeach
-                    </select>
-                </label>
-                <label class="text-sm font-medium text-slate-700">Unit
-                    <select name="unit_id" x-model="unitId" @change="resetUnit()" :disabled="!departmentId" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400 disabled:bg-slate-100">
-                        <option value="">Semua Unit</option>
-                        <template x-for="unit in units.filter(item => String(item.department_id) === String(departmentId))" :key="unit.id">
-                            <option :value="String(unit.id)" x-text="unit.name"></option>
-                        </template>
-                    </select>
-                </label>
-                <label class="text-sm font-medium text-slate-700">Position
-                    <select name="position_id" x-model="positionId" :disabled="!unitId" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400 disabled:bg-slate-100">
-                        <option value="">Semua Position</option>
-                        <template x-for="position in positions.filter(item => String(item.unit_id) === String(unitId))" :key="position.id">
-                            <option :value="String(position.id)" x-text="position.name"></option>
-                        </template>
-                    </select>
-                </label>
-                <label class="text-sm font-medium text-slate-700">Status gap
-                    <select name="gap_status" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
-                        <option value="">Semua</option>
-                        <option value="shortage" @selected($filters['gap_status'] === 'shortage')>Kekurangan</option>
-                        <option value="balanced" @selected($filters['gap_status'] === 'balanced')>Seimbang</option>
-                        <option value="surplus" @selected($filters['gap_status'] === 'surplus')>Kelebihan</option>
-                    </select>
-                </label>
-                <div class="flex items-end gap-2">
-                    <button class="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700">Filter</button>
-                    <a href="{{ route('wla.headcount-analysis') }}" class="rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Reset</a>
-                </div>
-            </form>
+            <div class="p-4">
+                <x-ui.filter-panel id="wla-headcount-filters" title="Filter Analisis WLA"
+                    :reset-href="route('wla.headcount-analysis')"
+                    :active="request()->filled('period') || collect($filters)->except('period')->filter()->isNotEmpty()">
+                    <div x-data="{
+                        departmentId: @js((string) ($filters['department_id'] ?? '')),
+                        unitId: @js((string) ($filters['unit_id'] ?? '')),
+                        positionId: @js((string) ($filters['position_id'] ?? '')),
+                        units: @js($units),
+                        positions: @js($positions),
+                        resetDepartment() { this.unitId = ''; this.positionId = ''; },
+                        resetUnit() { this.positionId = ''; },
+                    }" class="space-y-4">
+                        <label class="block text-sm font-semibold text-slate-700">Periode
+                            <select name="period" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
+                                @foreach ($periods as $period)
+                                    <option value="{{ $period }}" @selected($selectedPeriod === $period)>{{ $period }}</option>
+                                @endforeach
+                            </select>
+                        </label>
+                        <label class="block text-sm font-semibold text-slate-700">Department
+                            <select name="department_id" x-model="departmentId" @change="resetDepartment()" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
+                                <option value="">Semua Department</option>
+                                @foreach ($departments as $department)
+                                    <option value="{{ $department['id'] }}">{{ $department['name'] }}</option>
+                                @endforeach
+                            </select>
+                        </label>
+                        <label class="block text-sm font-semibold text-slate-700">Unit
+                            <select name="unit_id" x-model="unitId" @change="resetUnit()" :disabled="!departmentId" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400 disabled:bg-slate-100">
+                                <option value="">Semua Unit</option>
+                                <template x-for="unit in units.filter(item => String(item.department_id) === String(departmentId))" :key="unit.id">
+                                    <option :value="String(unit.id)" x-text="unit.name"></option>
+                                </template>
+                            </select>
+                        </label>
+                        <label class="block text-sm font-semibold text-slate-700">Position
+                            <select name="position_id" x-model="positionId" :disabled="!unitId" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400 disabled:bg-slate-100">
+                                <option value="">Semua Position</option>
+                                <template x-for="position in positions.filter(item => String(item.unit_id) === String(unitId))" :key="position.id">
+                                    <option :value="String(position.id)" x-text="position.name"></option>
+                                </template>
+                            </select>
+                        </label>
+                        <label class="block text-sm font-semibold text-slate-700">Status gap
+                            <select name="gap_status" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
+                                <option value="">Semua</option>
+                                <option value="shortage" @selected($filters['gap_status'] === 'shortage')>Kekurangan</option>
+                                <option value="balanced" @selected($filters['gap_status'] === 'balanced')>Seimbang</option>
+                                <option value="surplus" @selected($filters['gap_status'] === 'surplus')>Kelebihan</option>
+                            </select>
+                        </label>
+                    </div>
+                </x-ui.filter-panel>
+            </div>
         </section>
 
         <section class="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

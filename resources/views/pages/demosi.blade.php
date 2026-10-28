@@ -134,18 +134,14 @@
         <div class="flex w-full flex-col items-stretch justify-between gap-4 p-4 sm:p-6 xl:flex-row xl:items-center">
             <h3 class="font-display text-lg font-bold text-slate-950">Usulan demosi terbaru</h3>
             <div class="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-                <form method="GET" action="{{ route('demosi') }}" class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-                    <label for="demotion-search" class="sr-only">Cari data demosi</label>
-                    <input id="demotion-search" name="search" value="{{ $search }}" type="search"
-                        placeholder="Cari SAP, nama, jabatan..."
-                        class="w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 sm:w-56">
-                    <button type="submit"
-                        class="w-full rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700 sm:w-auto">Cari</button>
-                    @if ($search !== '')
-                        <a href="{{ route('demosi') }}"
-                            class="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-center text-sm font-semibold text-slate-600 transition hover:bg-slate-50 sm:w-auto">Reset</a>
-                    @endif
-                </form>
+                <x-ui.filter-panel id="demotion-filters" title="Filter Demosi" class="w-full sm:w-auto"
+                    :action="route('demosi')" :reset-href="route('demosi')" :active="$search !== ''">
+                    <label for="demotion-search" class="block text-sm font-semibold text-slate-700">Pencarian
+                        <input id="demotion-search" name="search" value="{{ $search }}" type="search"
+                            placeholder="Cari SAP, nama, jabatan..."
+                            class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
+                    </label>
+                </x-ui.filter-panel>
                 @if ($canDeleteDemotions && $demotions->contains(fn($demotion): bool => $demotion->verification_status !== 'Final'))
                     <div class="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
                         <label class="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-600">

@@ -39,7 +39,9 @@ class Employee extends Model
         'organilk',
         'alamat',
         'department_id',
+        'directorate_id',
         'unit_id',
+        'section_id',
         'position_id',
         'directorate',
         'department',
@@ -73,9 +75,19 @@ class Employee extends Model
         return $this->belongsTo(Department::class, 'department_id');
     }
 
+    public function organizationDirectorate(): BelongsTo
+    {
+        return $this->belongsTo(Directorate::class, 'directorate_id');
+    }
+
     public function unit(): BelongsTo
     {
         return $this->belongsTo(Unit::class, 'unit_id');
+    }
+
+    public function organizationSection(): BelongsTo
+    {
+        return $this->belongsTo(Section::class, 'section_id');
     }
 
     public function position(): BelongsTo

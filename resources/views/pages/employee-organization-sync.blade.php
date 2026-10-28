@@ -11,7 +11,7 @@
 
     <div class="mx-auto max-w-7xl space-y-6">
         <x-ui.page-header title="Sinkronisasi Organisasi Pegawai" eyebrow="Preview aman"
-            description="Department berasal dari TXT_DEPT, Unit dari TXT_BIRO, dan Position dari Position. Nilai Organizational Unit tidak digunakan dalam pemetaan ini. Preview ini tidak mengubah database."
+            description="Urutan sinkronisasi: Directorate dari TXT_DIR, Department dari TXT_DEPT, Unit dari TXT_BIRO, Section dari TXT_SECT, dan Position dari Position. Nilai Organizational Unit tidak digunakan. Preview ini tidak mengubah database."
             :back-href="route('data-pegawai')" back-label="Kembali ke Data Pegawai" class="mb-0" />
 
         @if (session('status'))
@@ -37,8 +37,10 @@
                 ['label' => 'Siap Disinkronkan', 'value' => $pendingSafe],
                 ['label' => 'Sudah Terpetakan', 'value' => $summary['statuses']['already_mapped']],
                 ['label' => 'Perlu Review', 'value' => $summary['review_employees']],
+                ['label' => 'Directorate Baru', 'value' => $summary['directorates_to_create']],
                 ['label' => 'Department Baru', 'value' => $summary['departments_to_create']],
                 ['label' => 'Unit Baru', 'value' => $summary['units_to_create']],
+                ['label' => 'Section Baru', 'value' => $summary['sections_to_create']],
                 ['label' => 'Position Baru', 'value' => $summary['positions_to_create']],
                 ['label' => 'FK Akan Diubah', 'value' => $summary['foreign_keys_to_update']],
             ] as $metric)

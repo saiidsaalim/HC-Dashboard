@@ -4,9 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['code', 'name', 'active'])]
+#[Fillable(['directorate_id', 'code', 'name', 'active'])]
 class Department extends Model
 {
     protected function casts(): array
@@ -14,6 +15,11 @@ class Department extends Model
         return [
             'active' => 'boolean',
         ];
+    }
+
+    public function directorate(): BelongsTo
+    {
+        return $this->belongsTo(Directorate::class);
     }
 
     public function units(): HasMany

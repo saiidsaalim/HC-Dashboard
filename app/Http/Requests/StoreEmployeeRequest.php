@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -17,14 +18,33 @@ class StoreEmployeeRequest extends FormRequest
     {
         return [
             'sap' => ['required', 'string', 'max:50', 'unique:employees,sap'],
-            'department_id' => ['nullable', 'integer', 'exists:departments,id', 'required_with:unit_id'],
+            'directorate_id' => ['nullable', 'integer', 'exists:directorates,id'],
+            'department_id' => [
+                'nullable', 'integer', 'required_with:unit_id,section_id,position_id',
+                Rule::exists('departments', 'id')->where(function (QueryBuilder $query): void {
+                    if ($this->filled('directorate_id')) {
+                        $query->where('directorate_id', $this->input('directorate_id'));
+                    }
+                }),
+            ],
             'unit_id' => [
-                'nullable', 'integer', 'required_with:position_id',
+                'nullable', 'integer', 'required_with:section_id,position_id',
                 Rule::exists('units', 'id')->where('department_id', $this->input('department_id')),
+            ],
+            'section_id' => [
+                'nullable', 'integer',
+                Rule::requiredIf(fn (): bool => $this->filled('directorate_id') && $this->filled('position_id')),
+                Rule::exists('sections', 'id')->where('unit_id', $this->input('unit_id')),
             ],
             'position_id' => [
                 'nullable', 'integer',
-                Rule::exists('positions', 'id')->where('unit_id', $this->input('unit_id')),
+                Rule::exists('positions', 'id')
+                    ->where('unit_id', $this->input('unit_id'))
+                    ->where(function (QueryBuilder $query): void {
+                        if ($this->filled('section_id')) {
+                            $query->where('section_id', $this->input('section_id'));
+                        }
+                    }),
             ],
             'id_number' => ['nullable', 'string', 'max:100'],
             'agkn' => ['nullable', 'string', 'max:100'],

@@ -30,7 +30,7 @@ class EmployeeOrganizationMapper
         ?int $unitId = null,
         ?int $positionId = null,
     ): array {
-        return $this->syncService->resolveExisting(
+        $resolved = $this->syncService->resolveExisting(
             $departmentName,
             $unitName,
             $positionName,
@@ -38,6 +38,15 @@ class EmployeeOrganizationMapper
             $unitId,
             $positionId,
         );
+
+        return [
+            'ids' => array_intersect_key($resolved['ids'], array_flip(['department_id', 'unit_id', 'position_id'])),
+            'statuses' => array_intersect_key($resolved['statuses'], array_flip(['department', 'unit', 'position'])),
+            'conflicts' => array_values(array_filter(
+                $resolved['conflicts'],
+                fn (string $field): bool => in_array($field, ['department', 'unit', 'position'], true),
+            )),
+        ];
     }
 
     public function exportTemplate(?string $path = null): string

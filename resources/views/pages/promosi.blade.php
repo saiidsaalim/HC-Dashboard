@@ -88,21 +88,21 @@
     <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div class="flex flex-col justify-between gap-4 p-4 sm:p-6 xl:flex-row xl:items-center">
             <h3 class="font-display text-lg font-bold text-slate-950">Usulan Promosi</h3>
-            <form method="GET" action="{{ route('promosi') }}" class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <input name="search" value="{{ $search }}" type="search" placeholder="Cari SAP, nama, jabatan..."
-                    aria-label="Cari data Promosi"
-                    class="rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 sm:w-56">
-                <select name="status" aria-label="Filter status Promosi"
-                    class="rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
-                    @foreach (['all' => 'Semua', 'draft' => 'Draft', 'waiting' => 'Menunggu Persetujuan', 'returned' => 'Dikembalikan', 'final' => 'Final', 'mine' => 'Menunggu Persetujuan Saya'] as $value => $label)
-                        <option value="{{ $value }}" @selected($filter === $value)>{{ $label }}</option>
-                    @endforeach
-                </select>
-                <button type="submit" class="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700">Terapkan</button>
-                @if ($search !== '' || $filter !== 'all')
-                    <a href="{{ route('promosi') }}" class="rounded-lg border border-slate-200 px-3 py-2.5 text-center text-sm font-semibold text-slate-600 hover:bg-slate-50">Reset</a>
-                @endif
-            </form>
+            <x-ui.filter-panel id="promotion-filters" title="Filter Promosi"
+                :action="route('promosi')" :reset-href="route('promosi')"
+                :active="$search !== '' || $filter !== 'all'">
+                <label class="block text-sm font-semibold text-slate-700">Pencarian
+                    <input name="search" value="{{ $search }}" type="search" placeholder="Cari SAP, nama, jabatan..."
+                        class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
+                </label>
+                <label class="block text-sm font-semibold text-slate-700">Status Promosi
+                    <select name="status" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
+                        @foreach (['all' => 'Semua', 'draft' => 'Draft', 'waiting' => 'Menunggu Persetujuan', 'returned' => 'Dikembalikan', 'final' => 'Final', 'mine' => 'Menunggu Persetujuan Saya'] as $value => $label)
+                            <option value="{{ $value }}" @selected($filter === $value)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+                </label>
+            </x-ui.filter-panel>
         </div>
 
         <form id="bulk-delete-promotions" method="POST" action="{{ route('promosi.destroy-many') }}"

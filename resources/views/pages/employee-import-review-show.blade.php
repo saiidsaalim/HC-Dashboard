@@ -92,24 +92,16 @@
             @endforeach
         </dl>
 
-        <nav aria-label="Filter row import" class="inline-flex rounded-lg border border-slate-300 bg-white p-1">
-            <a href="{{ route('data-pegawai.import.review.show', ['batch' => $batch, 'filter' => 'all']) }}"
-                @class([
-                    'rounded-md px-3 py-2 text-sm font-semibold transition',
-                    'bg-slate-900 text-white' => $filter === 'all',
-                    'text-slate-600 hover:bg-slate-100' => $filter !== 'all',
-                ]) aria-current="{{ $filter === 'all' ? 'page' : 'false' }}">
-                Semua ({{ $batch->total_rows }})
-            </a>
-            <a href="{{ route('data-pegawai.import.review.show', ['batch' => $batch, 'filter' => 'invalid']) }}"
-                @class([
-                    'rounded-md px-3 py-2 text-sm font-semibold transition',
-                    'bg-red-700 text-white' => $filter === 'invalid',
-                    'text-slate-600 hover:bg-red-50' => $filter !== 'invalid',
-                ]) aria-current="{{ $filter === 'invalid' ? 'page' : 'false' }}">
-                Invalid ({{ $invalidCount }})
-            </a>
-        </nav>
+        <x-ui.filter-panel id="employee-import-row-filters" title="Filter Row Import" class="justify-start"
+            :action="route('data-pegawai.import.review.show', $batch)"
+            :reset-href="route('data-pegawai.import.review.show', $batch)" :active="$filter !== 'all'">
+            <label class="block text-sm font-semibold text-slate-700">Status row
+                <select name="filter" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
+                    <option value="all" @selected($filter === 'all')>Semua ({{ $batch->total_rows }})</option>
+                    <option value="invalid" @selected($filter === 'invalid')>Invalid ({{ $invalidCount }})</option>
+                </select>
+            </label>
+        </x-ui.filter-panel>
 
         <section class="overflow-hidden rounded-xl border border-slate-200 bg-white">
             <div class="border-b border-slate-200 px-4 py-3"><h3 class="font-semibold text-slate-900">Row sumber</h3></div>

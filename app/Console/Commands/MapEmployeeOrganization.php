@@ -80,16 +80,22 @@ class MapEmployeeOrganization extends Command
         $summary = $result['summary'];
         $this->line('Mode: '.($applying ? 'apply' : 'dry-run'));
         $this->line('Total Employees: '.$summary['employees']);
+        $this->line('Unique Directorate (txt_dir): '.$summary['unique_directorates']);
         $this->line('Unique Department (txt_dept): '.$summary['unique_departments']);
         $this->line('Unique Unit (txt_dept + txt_biro): '.$summary['unique_units']);
+        $this->line('Unique Section (txt_sect): '.$summary['unique_sections']);
         $this->line('Unique Position (txt_dept + txt_biro + position): '.$summary['unique_positions']);
         $this->line('Exact master matches: '.$summary['exact_matches']);
         $this->line('Normalized master matches: '.$summary['normalized_matches']);
+        $this->line('New Directorates: '.$summary['directorates_to_create']);
         $this->line('New Departments: '.$summary['departments_to_create']);
         $this->line('New Units: '.$summary['units_to_create']);
+        $this->line('New Sections: '.$summary['sections_to_create']);
         $this->line('New Positions: '.$summary['positions_to_create']);
+        $this->line('Empty txt_dir: '.$summary['empty_directorate']);
         $this->line('Empty txt_dept: '.$summary['empty_department']);
         $this->line('Empty txt_biro: '.$summary['empty_unit']);
+        $this->line('Empty txt_sect: '.$summary['empty_section']);
         $this->line('Empty position: '.$summary['empty_position']);
         $this->line('Conflicts: '.$summary['conflicts']);
         $this->line('Mappable Employees: '.$summary['mappable_employees']);
@@ -114,8 +120,10 @@ class MapEmployeeOrganization extends Command
         if ($applying) {
             $this->line('Employee rows updated: '.$result['applied']['employees_updated']);
             $this->line('Foreign keys updated: '.$result['applied']['foreign_keys_updated']);
+            $this->line('Directorates created: '.$result['applied']['directorates_created']);
             $this->line('Departments created: '.$result['applied']['departments_created']);
             $this->line('Units created: '.$result['applied']['units_created']);
+            $this->line('Sections created: '.$result['applied']['sections_created']);
             $this->line('Positions created: '.$result['applied']['positions_created']);
         } else {
             $this->comment('Dry-run selesai. Database tidak diubah.');
@@ -136,8 +144,8 @@ class MapEmployeeOrganization extends Command
         }
 
         fputcsv($handle, [
-            'employee_id', 'status', 'reason', 'current_department_id', 'current_unit_id',
-            'current_position_id', 'target_department_id', 'target_unit_id', 'target_position_id',
+            'employee_id', 'status', 'reason', 'current_directorate_id', 'current_department_id', 'current_unit_id',
+            'current_section_id', 'current_position_id', 'target_directorate_id', 'target_department_id', 'target_unit_id', 'target_section_id', 'target_position_id',
             'foreign_keys_to_update',
         ]);
         foreach ($result['rows'] as $row) {
@@ -145,11 +153,15 @@ class MapEmployeeOrganization extends Command
                 $row['employee_id'],
                 $row['status'],
                 $row['reason'],
+                $row['current']['directorate_id'],
                 $row['current']['department_id'],
                 $row['current']['unit_id'],
+                $row['current']['section_id'],
                 $row['current']['position_id'],
+                $row['target']['directorate_id'],
                 $row['target']['department_id'],
                 $row['target']['unit_id'],
+                $row['target']['section_id'],
                 $row['target']['position_id'],
                 $row['foreign_keys_to_update'],
             ]);

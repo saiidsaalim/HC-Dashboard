@@ -25,7 +25,7 @@ class UnitController extends Controller
         $departments = Department::query()->orderBy('name')->get();
         $units = Unit::query()
             ->with('department')
-            ->withCount('positions')
+            ->withCount(['sections', 'positions'])
             ->when($search !== '', fn ($query) => $query->where(fn ($query) => $query
                 ->where('code', 'like', "%{$search}%")
                 ->orWhere('name', 'like', "%{$search}%")))
@@ -100,8 +100,8 @@ class UnitController extends Controller
     {
         Gate::authorize('delete', $unit);
 
-        if ($unit->positions()->exists()) {
-            return back()->withErrors(['unit' => 'Unit tidak dapat dihapus selama masih memiliki Position.']);
+        if ($unit->sections()->exists() || $unit->positions()->exists()) {
+            return back()->withErrors(['unit' => 'Unit tidak dapat dihapus selama masih memiliki Section atau Position.']);
         }
 
         $unit->delete();

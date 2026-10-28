@@ -4,6 +4,16 @@
         @method($method)
     @endif
     <div>
+        <label for="directorate_id" class="text-sm font-semibold text-slate-700">Directorate</label>
+        <select id="directorate_id" name="directorate_id" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
+            <option value="">Tanpa Directorate (data lama)</option>
+            @foreach ($directorates as $directorate)
+                <option value="{{ $directorate->id }}" @selected(old('directorate_id', $department?->directorate_id) == $directorate->id)>{{ $directorate->name }}{{ $directorate->active ? '' : ' (Nonaktif)' }}</option>
+            @endforeach
+        </select>
+        @error('directorate_id')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+    </div>
+    <div>
         <label for="code" class="text-sm font-semibold text-slate-700">Kode <span class="text-red-500" aria-hidden="true">*</span></label>
         <input id="code" name="code" value="{{ old('code', $department?->code) }}" required maxlength="50" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
         @error('code')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror

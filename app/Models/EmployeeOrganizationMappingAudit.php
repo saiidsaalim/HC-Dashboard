@@ -11,10 +11,14 @@ class EmployeeOrganizationMappingAudit extends Model
 
     protected $fillable = [
         'employee_id',
+        'old_directorate_id',
+        'new_directorate_id',
         'old_department_id',
         'new_department_id',
         'old_unit_id',
         'new_unit_id',
+        'old_section_id',
+        'new_section_id',
         'old_position_id',
         'new_position_id',
         'executed_by',

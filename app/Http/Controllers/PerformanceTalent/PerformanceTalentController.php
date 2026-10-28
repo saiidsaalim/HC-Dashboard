@@ -8,7 +8,7 @@ use Illuminate\View\View;
 
 class PerformanceTalentController extends Controller
 {
-    /** @var array<string, array{title: string, description: string}> */
+    /** @var array<string, array{title: string, description: string, featureView?: string}> */
     private const PAGES = [
         'performance-talent.dashboard' => [
             'title' => 'Dashboard',
@@ -20,7 +20,8 @@ class PerformanceTalentController extends Controller
         ],
         'performance-talent.talent-pool.index' => [
             'title' => 'Talent Pool',
-            'description' => 'Pengelolaan talent pool akan tersedia pada tahap pengembangan berikutnya.',
+            'description' => 'Petakan talenta berdasarkan tingkat potential dan performance dalam 9-Box Talent Matrix.',
+            'featureView' => 'performance-talent.features.talent-pool',
         ],
         'performance-talent.development-plans.index' => [
             'title' => 'Development Plan',

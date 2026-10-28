@@ -59,31 +59,41 @@
                 @endif
             </div>
 
-            <form method="GET" action="{{ route('konfigurasi-user') }}" class="grid gap-3 border-b border-slate-200 bg-slate-50 p-4 md:grid-cols-5">
-                <input name="candidate_search" value="{{ $candidateFilters['search'] }}" placeholder="Cari Personal Number, SAP, atau email"
-                    class="rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 md:col-span-2">
-                <select name="candidate_department_id" class="rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
-                    <option value="">Semua Department</option>
-                    @foreach ($candidateDepartments as $department)
-                        <option value="{{ $department->id }}" @selected((string) $candidateFilters['department_id'] === (string) $department->id)>{{ $department->name }}</option>
-                    @endforeach
-                </select>
-                <select name="candidate_unit_id" class="rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
-                    <option value="">Semua Unit</option>
-                    @foreach ($candidateUnits as $unit)
-                        <option value="{{ $unit->id }}" @selected((string) $candidateFilters['unit_id'] === (string) $unit->id)>{{ $unit->name }}</option>
-                    @endforeach
-                </select>
-                <div class="flex gap-2">
-                    <select name="candidate_position_id" class="min-w-0 flex-1 rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
-                        <option value="">Semua Position</option>
-                        @foreach ($candidatePositions as $position)
-                            <option value="{{ $position->id }}" @selected((string) $candidateFilters['position_id'] === (string) $position->id)>{{ $position->name }}</option>
-                        @endforeach
-                    </select>
-                    <button class="rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white">Filter</button>
-                </div>
-            </form>
+            <div class="border-b border-slate-200 bg-slate-50 p-4">
+                <x-ui.filter-panel id="candidate-user-filters" title="Filter Calon User"
+                    :action="route('konfigurasi-user')" :reset-href="route('konfigurasi-user')"
+                    :active="collect($candidateFilters)->filter()->isNotEmpty()">
+                    <label class="block text-sm font-semibold text-slate-700">Pencarian
+                        <input name="candidate_search" value="{{ $candidateFilters['search'] }}"
+                            placeholder="Cari Personal Number, SAP, atau email"
+                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
+                    </label>
+                    <label class="block text-sm font-semibold text-slate-700">Department
+                        <select name="candidate_department_id" class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
+                            <option value="">Semua Department</option>
+                            @foreach ($candidateDepartments as $department)
+                                <option value="{{ $department->id }}" @selected((string) $candidateFilters['department_id'] === (string) $department->id)>{{ $department->name }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <label class="block text-sm font-semibold text-slate-700">Unit
+                        <select name="candidate_unit_id" class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
+                            <option value="">Semua Unit</option>
+                            @foreach ($candidateUnits as $unit)
+                                <option value="{{ $unit->id }}" @selected((string) $candidateFilters['unit_id'] === (string) $unit->id)>{{ $unit->name }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <label class="block text-sm font-semibold text-slate-700">Position
+                        <select name="candidate_position_id" class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
+                            <option value="">Semua Position</option>
+                            @foreach ($candidatePositions as $position)
+                                <option value="{{ $position->id }}" @selected((string) $candidateFilters['position_id'] === (string) $position->id)>{{ $position->name }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                </x-ui.filter-panel>
+            </div>
 
             <div class="overflow-x-auto">
                 <table class="w-full min-w-[960px] text-left text-sm">

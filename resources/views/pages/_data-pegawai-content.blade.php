@@ -7,8 +7,11 @@
     @php($canPrintEmployees = auth()->user()->hasPermission('employees.print'))
     <div x-data="{
         open: @js($errors->any() && old('_form') === 'create'),
+        organizationDirectorates: @js($organizationDirectorates->map(fn ($directorate) => ['id' => $directorate->id, 'name' => $directorate->name])->values()),
+        organizationDepartments: @js($organizationDepartments->map(fn ($department) => ['id' => $department->id, 'directorate_id' => $department->directorate_id, 'name' => $department->name])->values()),
         organizationUnits: @js($organizationUnits->map(fn ($unit) => ['id' => $unit->id, 'department_id' => $unit->department_id, 'name' => $unit->name])->values()),
-        organizationPositions: @js($organizationPositions->map(fn ($position) => ['id' => $position->id, 'unit_id' => $position->unit_id, 'department_id' => $position->unit->department_id, 'name' => $position->name])->values()),
+        organizationSections: @js($organizationSections->map(fn ($section) => ['id' => $section->id, 'unit_id' => $section->unit_id, 'name' => $section->name])->values()),
+        organizationPositions: @js($organizationPositions->map(fn ($position) => ['id' => $position->id, 'section_id' => $position->section_id, 'unit_id' => $position->unit_id, 'department_id' => $position->unit->department_id, 'name' => $position->name])->values()),
         async chooseExport(pdfUrl, excelUrl, canPrint, canExport) {
             if (canPrint && !canExport) {
                 window.location.href = pdfUrl;
@@ -141,7 +144,21 @@
                         </div>
                     </nav>
 
-                <form method="POST" action="{{ route('data-pegawai.store') }}" x-data="{ departmentId: @js(old('department_id', '')), unitId: @js(old('unit_id', '')), positionId: @js(old('position_id', '')) }" class="flex min-h-0 flex-1 flex-col">
+                <form method="POST" action="{{ route('data-pegawai.store') }}" x-data="{
+                    directorateId: @js((string) old('directorate_id', '')),
+                    departmentId: @js((string) old('department_id', '')),
+                    unitId: @js((string) old('unit_id', '')),
+                    sectionId: @js((string) old('section_id', '')),
+                    positionId: @js((string) old('position_id', '')),
+                    txtDir: @js(old('txt_dir', '')),
+                    txtDept: @js(old('txt_dept', '')),
+                    txtBiro: @js(old('txt_biro', '')),
+                    txtSect: @js(old('txt_sect', '')),
+                    positionName: @js(old('position', '')),
+                    selectedName(items, id) {
+                        return items.find(item => String(item.id) === String(id))?.name ?? '';
+                    },
+                }" class="flex min-h-0 flex-1 flex-col">
                     @csrf
                     <input type="hidden" name="_form" value="create">
                     <div id="employee-form-body" class="min-h-0 flex-1 overflow-y-auto bg-slate-100/70 px-4 py-5 sm:px-6 lg:px-8">
@@ -203,25 +220,41 @@
                                     <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sky-700 text-xs font-bold text-white">02</span>
                                     <div>
                                         <h4 class="font-display font-bold text-slate-950">Penempatan organisasi</h4>
-                                        <p class="mt-0.5 text-xs leading-5 text-slate-500">Pilih berurutan dari Department, Unit, lalu Position.</p>
+                                        <p class="mt-0.5 text-xs leading-5 text-slate-500">Pilih berurutan dari Directorate, Department, Unit, Section, lalu Position.</p>
                                     </div>
                                 </div>
-                                <div class="mt-5 grid gap-x-5 gap-y-4 sm:grid-cols-3">
+                                <div class="mt-5 grid gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-5">
+                    <div>
+                        <label for="create-directorate-id" class="text-sm font-semibold text-slate-700">Directorate</label>
+                        <select id="create-directorate-id" name="directorate_id" x-model="directorateId"
+                            @change="departmentId = ''; unitId = ''; sectionId = ''; positionId = ''; txtDir = selectedName(organizationDirectorates, directorateId); txtDept = ''; txtBiro = ''; txtSect = ''; positionName = ''"
+                            @error('directorate_id') aria-invalid="true" aria-describedby="directorate-id-error" @enderror
+                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500 @error('directorate_id') border-red-400 @enderror">
+                            <option value="">Pilih Directorate</option>
+                            <template x-for="directorate in organizationDirectorates" :key="directorate.id">
+                                <option :value="String(directorate.id)" x-text="directorate.name"></option>
+                            </template>
+                        </select>
+                        @error('directorate_id')<p id="directorate-id-error" class="mt-1.5 text-sm font-medium text-red-600">{{ $message }}</p>@enderror
+                    </div>
                     <div>
                         <label for="create-department-id" class="text-sm font-semibold text-slate-700">Department</label>
-                        <select id="create-department-id" name="department_id" x-model="departmentId" @change="unitId = ''; positionId = ''"
+                        <select id="create-department-id" name="department_id" x-model="departmentId"
+                            @change="unitId = ''; sectionId = ''; positionId = ''; txtDept = selectedName(organizationDepartments, departmentId); txtBiro = ''; txtSect = ''; positionName = ''"
+                            :disabled="!directorateId"
                             @error('department_id') aria-invalid="true" aria-describedby="department-id-error" @enderror
-                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500 @error('department_id') border-red-400 @enderror">
-                            <option value="">Pilih Department</option>
-                            @foreach ($organizationDepartments as $departmentOption)
-                                <option value="{{ $departmentOption->id }}">{{ $departmentOption->name }}</option>
-                            @endforeach
+                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 @error('department_id') border-red-400 @enderror">
+                            <option value="" x-text="directorateId ? 'Pilih Department' : 'Pilih Directorate terlebih dahulu'"></option>
+                            <template x-for="department in organizationDepartments.filter(item => String(item.directorate_id) === String(directorateId))" :key="department.id">
+                                <option :value="String(department.id)" x-text="department.name"></option>
+                            </template>
                         </select>
                         @error('department_id')<p id="department-id-error" class="mt-1.5 text-sm font-medium text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div>
                         <label for="create-unit-id" class="text-sm font-semibold text-slate-700">Unit</label>
-                        <select id="create-unit-id" name="unit_id" x-model="unitId" @change="positionId = ''"
+                        <select id="create-unit-id" name="unit_id" x-model="unitId"
+                            @change="sectionId = ''; positionId = ''; txtBiro = selectedName(organizationUnits, unitId); txtSect = ''; positionName = ''"
                             :disabled="!departmentId"
                             @error('unit_id') aria-invalid="true" aria-describedby="unit-id-error" @enderror
                             class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 @error('unit_id') border-red-400 @enderror">
@@ -233,12 +266,28 @@
                         @error('unit_id')<p id="unit-id-error" class="mt-1.5 text-sm font-medium text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div>
+                        <label for="create-section-id" class="text-sm font-semibold text-slate-700">Section</label>
+                        <select id="create-section-id" name="section_id" x-model="sectionId"
+                            @change="positionId = ''; txtSect = selectedName(organizationSections, sectionId); positionName = ''"
+                            :disabled="!unitId"
+                            @error('section_id') aria-invalid="true" aria-describedby="section-id-error" @enderror
+                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 @error('section_id') border-red-400 @enderror">
+                            <option value="" x-text="unitId ? 'Pilih Section' : 'Pilih Unit terlebih dahulu'"></option>
+                            <template x-for="section in organizationSections.filter(item => String(item.unit_id) === String(unitId))" :key="section.id">
+                                <option :value="String(section.id)" x-text="section.name"></option>
+                            </template>
+                        </select>
+                        @error('section_id')<p id="section-id-error" class="mt-1.5 text-sm font-medium text-red-600">{{ $message }}</p>@enderror
+                    </div>
+                    <div>
                         <label for="create-position-id" class="text-sm font-semibold text-slate-700">Position</label>
-                        <select id="create-position-id" name="position_id" x-model="positionId" :disabled="!unitId"
+                        <select id="create-position-id" name="position_id" x-model="positionId"
+                            @change="positionName = selectedName(organizationPositions, positionId)"
+                            :disabled="!sectionId"
                             @error('position_id') aria-invalid="true" aria-describedby="position-id-error" @enderror
                             class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400 @error('position_id') border-red-400 @enderror">
-                            <option value="" x-text="unitId ? 'Pilih Position' : 'Pilih Unit terlebih dahulu'"></option>
-                            <template x-for="position in organizationPositions.filter(item => String(item.unit_id) === String(unitId))" :key="position.id">
+                            <option value="" x-text="sectionId ? 'Pilih Position' : 'Pilih Section terlebih dahulu'"></option>
+                            <template x-for="position in organizationPositions.filter(item => String(item.section_id) === String(sectionId))" :key="position.id">
                                 <option :value="String(position.id)" x-text="position.name"></option>
                             </template>
                         </select>
@@ -265,28 +314,28 @@
                     </div>
                     <div>
                         <label for="position" class="text-sm font-semibold text-slate-700">Position</label>
-                        <input id="position" name="position" value="{{ old('position') }}"
-                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
+                        <input id="position" name="position" x-model="positionName" :readonly="!!positionId"
+                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 read-only:bg-slate-100">
                     </div>
                     <div>
                         <label for="txt_dir" class="text-sm font-semibold text-slate-700">TXT_DIR</label>
-                        <input id="txt_dir" name="txt_dir" value="{{ old('txt_dir') }}"
-                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
+                        <input id="txt_dir" name="txt_dir" x-model="txtDir" :readonly="!!directorateId"
+                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 read-only:bg-slate-100">
                     </div>
                     <div>
                         <label for="txt_dept" class="text-sm font-semibold text-slate-700">TXT_DEPT</label>
-                        <input id="txt_dept" name="txt_dept" value="{{ old('txt_dept') }}"
-                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
+                        <input id="txt_dept" name="txt_dept" x-model="txtDept" :readonly="!!departmentId"
+                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 read-only:bg-slate-100">
                     </div>
                     <div>
                         <label for="txt_biro" class="text-sm font-semibold text-slate-700">TXT_BIRO</label>
-                        <input id="txt_biro" name="txt_biro" value="{{ old('txt_biro') }}"
-                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
+                        <input id="txt_biro" name="txt_biro" x-model="txtBiro" :readonly="!!unitId"
+                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 read-only:bg-slate-100">
                     </div>
                     <div>
                         <label for="txt_sect" class="text-sm font-semibold text-slate-700">TXT_SECT</label>
-                        <input id="txt_sect" name="txt_sect" value="{{ old('txt_sect') }}"
-                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
+                        <input id="txt_sect" name="txt_sect" x-model="txtSect" :readonly="!!sectionId"
+                            class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 read-only:bg-slate-100">
                     </div>
                     <div>
                         <label for="employee_subgroup" class="text-sm font-semibold text-slate-700">Employee Subgroup</label>
@@ -412,63 +461,54 @@
                     <p class="mt-1 text-sm text-slate-500">{{ $employees->total() }} data pegawai</p>
                 </div>
                 <div class="flex flex-col gap-3 xl:items-end">
-                    <form method="GET" action="{{ route($employeeIndexRoute) }}" class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
-                        <div class="col-span-2 sm:col-span-1">
-                            <label for="employee-search" class="sr-only">Cari pegawai</label>
+                    <x-ui.filter-panel id="employee-filters" title="Filter Pegawai"
+                        :action="route($employeeIndexRoute)" :reset-href="route($employeeIndexRoute)"
+                        :active="$search !== '' || $departmentId !== '' || $unitId !== '' || $positionId !== '' || $sortBy !== 'latest'">
+                        <label for="employee-search" class="block text-sm font-semibold text-slate-700">Pencarian
                             <input id="employee-search" name="search" value="{{ $search }}" type="search"
                                 placeholder="Cari SAP, Personal Number, TXT_DEPT, Position, E-mail..."
-                                class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 sm:w-56">
-                        </div>
-                        <div>
-                            <label for="employee-department-filter" class="sr-only">Filter Department</label>
+                                class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
+                        </label>
+                        <label for="employee-department-filter" class="block text-sm font-semibold text-slate-700">Department
                             <select id="employee-department-filter" name="department_id"
                                 onchange="this.form.elements.namedItem('unit_id').value = ''; this.form.elements.namedItem('position_id').value = ''; this.form.submit()"
-                                class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 sm:w-40">
+                                class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
                                 <option value="">Semua Department</option>
                                 @foreach ($organizationDepartments as $departmentOption)
                                     <option value="{{ $departmentOption->id }}" @selected((string) $departmentOption->id === $departmentId)>{{ $departmentOption->name }}</option>
                                 @endforeach
                             </select>
-                        </div>
-                        <div>
-                            <label for="employee-unit-filter" class="sr-only">Filter unit</label>
+                        </label>
+                        <label for="employee-unit-filter" class="block text-sm font-semibold text-slate-700">Unit
                             <select id="employee-unit-filter" name="unit_id"
                                 onchange="this.form.elements.namedItem('position_id').value = ''; this.form.submit()"
                                 @disabled($departmentId === '')
-                                class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 disabled:bg-slate-100 sm:w-40">
+                                class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 disabled:bg-slate-100">
                                 <option value="">Semua unit</option>
                                 @foreach ($filterUnits as $unitOption)
                                     <option value="{{ $unitOption->id }}" @selected((string) $unitOption->id === $unitId)>{{ $unitOption->name }}</option>
                                 @endforeach
                             </select>
-                        </div>
-                        <div>
-                            <label for="employee-position-filter" class="sr-only">Filter position</label>
+                        </label>
+                        <label for="employee-position-filter" class="block text-sm font-semibold text-slate-700">Position
                             <select id="employee-position-filter" name="position_id" onchange="this.form.submit()"
                                 @disabled($unitId === '')
-                                class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 disabled:bg-slate-100 sm:w-40">
+                                class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 disabled:bg-slate-100">
                                 <option value="">Semua position</option>
                                 @foreach ($filterPositions as $positionOption)
                                     <option value="{{ $positionOption->id }}" @selected((string) $positionOption->id === $positionId)>{{ $positionOption->name }}</option>
                                 @endforeach
                             </select>
-                        </div>
-                        <div>
-                            <label for="employee-sort" class="sr-only">Urutkan berdasarkan</label>
+                        </label>
+                        <label for="employee-sort" class="block text-sm font-semibold text-slate-700">Urutkan berdasarkan
                             <select id="employee-sort" name="sort_by"
-                                class="block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400 sm:w-40">
+                                class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
                                 <option value="latest" @selected($sortBy === 'latest')>Terbaru ditambahkan</option>
                                 <option value="organic_newest" @selected($sortBy === 'organic_newest')>Organik terbaru</option>
                                 <option value="organic_oldest" @selected($sortBy === 'organic_oldest')>Organik terlama</option>
                             </select>
-                        </div>
-                        <div class="col-span-2 flex gap-2 sm:col-span-1">
-                            <button type="submit" class="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700">Cari</button>
-                            @if ($search !== '' || $departmentId !== '' || $unitId !== '' || $positionId !== '' || $sortBy !== 'latest')
-                                <a href="{{ route($employeeIndexRoute) }}" class="rounded-lg border border-slate-200 px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50">Reset</a>
-                            @endif
-                        </div>
-                    </form>
+                        </label>
+                    </x-ui.filter-panel>
                     @if ($canDeleteEmployees)
                         <div class="flex flex-wrap items-center justify-end gap-3">
                             <label class="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-600">

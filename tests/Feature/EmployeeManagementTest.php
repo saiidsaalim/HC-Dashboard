@@ -4,8 +4,10 @@ namespace Tests\Feature;
 
 use App\Enums\UserRole;
 use App\Models\Department;
+use App\Models\Directorate;
 use App\Models\Employee;
 use App\Models\EmployeeImportRow;
+use App\Models\Section;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -724,6 +726,75 @@ class EmployeeManagementTest extends TestCase
         ]);
         $this->assertNull($employee->fresh()->organizational_unit);
         $this->assertNull($employee->fresh()->position);
+    }
+
+    public function test_employee_create_uses_full_organization_hierarchy_and_fills_sap_text_fields(): void
+    {
+        $user = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        $directorate = Directorate::query()->create(['code' => 'DIR-FORM', 'name' => 'Commercial Directorate', 'active' => true]);
+        $department = $directorate->departments()->create(['code' => 'DPT-FORM', 'name' => 'Sales Department', 'active' => true]);
+        $unit = $department->units()->create(['code' => 'UNT-FORM', 'name' => 'Retail Unit', 'active' => true]);
+        $section = Section::query()->create(['unit_id' => $unit->id, 'code' => 'SCT-FORM', 'name' => 'Domestic Section', 'active' => true]);
+        $position = $unit->positions()->create(['section_id' => $section->id, 'code' => 'POS-FORM', 'name' => 'Sales Analyst', 'active' => true]);
+
+        $this->actingAs($user)->get(route('data-pegawai'))
+            ->assertOk()
+            ->assertSee('name="directorate_id"', false)
+            ->assertSee('name="section_id"', false)
+            ->assertSee('x-model="txtDir"', false)
+            ->assertSee('x-model="txtSect"', false)
+            ->assertSee('Pilih berurutan dari Directorate, Department, Unit, Section, lalu Position.');
+
+        $this->post(route('data-pegawai.store'), [
+            ...$this->employeeAttributes('SAP-FULL-ORG'),
+            'directorate_id' => $directorate->id,
+            'department_id' => $department->id,
+            'unit_id' => $unit->id,
+            'section_id' => $section->id,
+            'position_id' => $position->id,
+            'txt_dir' => 'Wrong Directorate',
+            'txt_dept' => 'Wrong Department',
+            'txt_biro' => 'Wrong Unit',
+            'txt_sect' => 'Wrong Section',
+            'position' => 'Wrong Position',
+        ])->assertRedirect(route('data-pegawai'));
+
+        $this->assertDatabaseHas('employees', [
+            'sap' => 'SAP-FULL-ORG',
+            'directorate_id' => $directorate->id,
+            'department_id' => $department->id,
+            'unit_id' => $unit->id,
+            'section_id' => $section->id,
+            'position_id' => $position->id,
+            'txt_dir' => 'Commercial Directorate',
+            'txt_dept' => 'Sales Department',
+            'txt_biro' => 'Retail Unit',
+            'txt_sect' => 'Domestic Section',
+            'position' => 'Sales Analyst',
+        ]);
+    }
+
+    public function test_employee_create_rejects_department_and_section_outside_selected_hierarchy(): void
+    {
+        $user = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        $directorate = Directorate::query()->create(['code' => 'DIR-VALID-A', 'name' => 'Directorate A', 'active' => true]);
+        $department = $directorate->departments()->create(['code' => 'DPT-VALID-A', 'name' => 'Department A', 'active' => true]);
+        $unit = $department->units()->create(['code' => 'UNT-VALID-A', 'name' => 'Unit A', 'active' => true]);
+        $otherDirectorate = Directorate::query()->create(['code' => 'DIR-VALID-B', 'name' => 'Directorate B', 'active' => true]);
+        $otherDepartment = $otherDirectorate->departments()->create(['code' => 'DPT-VALID-B', 'name' => 'Department B', 'active' => true]);
+        $otherUnit = $otherDepartment->units()->create(['code' => 'UNT-VALID-B', 'name' => 'Unit B', 'active' => true]);
+        $otherSection = Section::query()->create(['unit_id' => $otherUnit->id, 'code' => 'SCT-VALID-B', 'name' => 'Section B', 'active' => true]);
+
+        $this->actingAs($user)->from(route('data-pegawai'))->post(route('data-pegawai.store'), [
+            ...$this->employeeAttributes('SAP-BAD-FULL-ORG'),
+            'directorate_id' => $directorate->id,
+            'department_id' => $otherDepartment->id,
+            'unit_id' => $unit->id,
+            'section_id' => $otherSection->id,
+        ])->assertRedirect(route('data-pegawai'))
+            ->assertSessionHasErrors(['department_id', 'section_id']);
+
+        $this->assertDatabaseMissing('employees', ['sap' => 'SAP-BAD-FULL-ORG']);
     }
 
     public function test_employee_requests_reject_units_and_positions_outside_the_selected_parent(): void

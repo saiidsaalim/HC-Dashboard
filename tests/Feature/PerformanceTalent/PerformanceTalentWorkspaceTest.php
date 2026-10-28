@@ -43,7 +43,7 @@ class PerformanceTalentWorkspaceTest extends TestCase
         ],
         'performance-talent.talent-pool.index' => [
             'title' => 'Talent Pool',
-            'description' => 'Pengelolaan talent pool akan tersedia pada tahap pengembangan berikutnya.',
+            'description' => 'Petakan talenta berdasarkan tingkat potential dan performance dalam 9-Box Talent Matrix.',
         ],
         'performance-talent.development-plans.index' => [
             'title' => 'Development Plan',
@@ -110,10 +110,55 @@ class PerformanceTalentWorkspaceTest extends TestCase
                 continue;
             }
 
+            if ($routeName === 'performance-talent.talent-pool.index') {
+                $response
+                    ->assertViewIs('performance-talent.show')
+                    ->assertViewHas('featureView', 'performance-talent.features.talent-pool')
+                    ->assertDontSee($page['description'])
+                    ->assertSee('Pemetaan talenta')
+                    ->assertDontSee('Fitur sedang dalam tahap pengembangan');
+
+                continue;
+            }
+
             $response
                 ->assertSee($page['description'])
                 ->assertSee('Fitur sedang dalam tahap pengembangan');
         }
+    }
+
+    public function test_talent_pool_renders_the_nine_box_matrix_in_the_required_order(): void
+    {
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+
+        $response = $this->actingAs($superAdmin)
+            ->get(route('performance-talent.talent-pool.index'))
+            ->assertOk()
+            ->assertSee('aria-label="Potential meningkat ke atas"', escape: false)
+            ->assertSee('aria-label="Performance meningkat ke kanan"', escape: false)
+            ->assertSee('grid-cols-[1.5rem_repeat(3,minmax(0,1fr))]', escape: false)
+            ->assertSee('aspect-square', escape: false)
+            ->assertDontSee('overflow-x-auto', escape: false)
+            ->assertDontSee('min-w-[860px]', escape: false)
+            ->assertDontSee('min-h-[160px]', escape: false)
+            ->assertSeeInOrder([
+                'data-box="07"',
+                'data-box="08"',
+                'data-box="09"',
+                'data-box="04"',
+                'data-box="05"',
+                'data-box="06"',
+                'data-box="01"',
+                'data-box="02"',
+                'data-box="03"',
+            ], escape: false);
+
+        $html = $response->getContent();
+
+        $this->assertSame(9, substr_count($html, 'data-talent-box'));
+        $this->assertSame(9, substr_count($html, 'Belum ada talenta'));
+        $this->assertStringContainsString('data-potential="Tinggi" data-performance="Rendah"', $html);
+        $this->assertStringContainsString('data-potential="Rendah" data-performance="Tinggi"', $html);
     }
 
     public function test_successor_view_renders_the_twelve_requested_departments_in_order(): void

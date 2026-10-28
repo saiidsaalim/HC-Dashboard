@@ -7,10 +7,12 @@ use App\Http\Requests\StoreEmployeeRequest;
 use App\Http\Requests\UpdateEmployeeRequest;
 use App\Imports\EmployeeImport;
 use App\Models\Department;
+use App\Models\Directorate;
 use App\Models\Employee;
 use App\Models\EmployeeImportBatch;
 use App\Models\EmployeeImportRow;
 use App\Models\Position;
+use App\Models\Section;
 use App\Models\Unit;
 use App\Models\User;
 use App\Services\Employees\EmployeeImportStagingService;
@@ -112,9 +114,11 @@ class EmployeeController extends Controller
         $departmentIds = $employees->pluck('department_id')->filter()->merge($departmentId !== null ? [$departmentId] : [])->unique()->all();
         $unitIds = $employees->pluck('unit_id')->filter()->merge($unitId !== null ? [$unitId] : [])->unique()->all();
         $positionIds = $employees->pluck('position_id')->filter()->merge($positionId !== null ? [$positionId] : [])->unique()->all();
+        $organizationDirectorates = Directorate::query()->where('active', true)->orderBy('name')->get();
         $organizationDepartments = Department::query()->where('active', true)->orWhereIn('id', $departmentIds)->orderBy('name')->get();
         $organizationUnits = Unit::query()->with('department')->where('active', true)->orWhereIn('id', $unitIds)->orderBy('name')->get();
-        $organizationPositions = Position::query()->with('unit.department')->where('active', true)->orWhereIn('id', $positionIds)->orderBy('name')->get();
+        $organizationSections = Section::query()->with('unit')->where('active', true)->orderBy('name')->get();
+        $organizationPositions = Position::query()->with(['unit.department', 'section'])->where('active', true)->orWhereIn('id', $positionIds)->orderBy('name')->get();
         $filterUnits = $departmentId === null
             ? collect()
             : $organizationUnits->where('department_id', $departmentId)->values();
@@ -129,8 +133,10 @@ class EmployeeController extends Controller
             'unitId' => (string) ($unitId ?? ''),
             'positionId' => (string) ($positionId ?? ''),
             'sortBy' => $sortBy,
+            'organizationDirectorates' => $organizationDirectorates,
             'organizationDepartments' => $organizationDepartments,
             'organizationUnits' => $organizationUnits,
+            'organizationSections' => $organizationSections,
             'organizationPositions' => $organizationPositions,
             'filterUnits' => $filterUnits,
             'filterPositions' => $filterPositions,
@@ -191,11 +197,13 @@ class EmployeeController extends Controller
         return to_route('data-pegawai.organization-sync.preview')->with(
             'status',
             sprintf(
-                'Sinkronisasi selesai: %d pegawai dan %d foreign key diperbarui; %d department, %d unit, dan %d position dibuat.',
+                'Sinkronisasi selesai: %d pegawai dan %d foreign key diperbarui; %d Directorate, %d Department, %d Unit, %d Section, dan %d Position dibuat.',
                 $applied['employees_updated'],
                 $applied['foreign_keys_updated'],
+                $applied['directorates_created'],
                 $applied['departments_created'],
                 $applied['units_created'],
+                $applied['sections_created'],
                 $applied['positions_created'],
             ),
         );
@@ -349,7 +357,7 @@ class EmployeeController extends Controller
      */
     public function store(StoreEmployeeRequest $request): RedirectResponse
     {
-        Employee::create($request->validated());
+        Employee::create($this->withSelectedOrganizationNames($request->validated()));
 
         return to_route('data-pegawai')->with('status', 'Data pegawai berhasil ditambahkan.');
     }
@@ -432,5 +440,32 @@ class EmployeeController extends Controller
         abort_unless($actor instanceof User && $actor->hasPermission('employees.import'), 403);
 
         return $actor;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function withSelectedOrganizationNames(array $data): array
+    {
+        $organizationIds = [
+            $data['directorate_id'] ?? null,
+            $data['department_id'] ?? null,
+            $data['unit_id'] ?? null,
+            $data['section_id'] ?? null,
+            $data['position_id'] ?? null,
+        ];
+
+        if (in_array(null, $organizationIds, true)) {
+            return $data;
+        }
+
+        $data['txt_dir'] = Directorate::query()->findOrFail($data['directorate_id'])->name;
+        $data['txt_dept'] = Department::query()->findOrFail($data['department_id'])->name;
+        $data['txt_biro'] = Unit::query()->findOrFail($data['unit_id'])->name;
+        $data['txt_sect'] = Section::query()->findOrFail($data['section_id'])->name;
+        $data['position'] = Position::query()->findOrFail($data['position_id'])->name;
+
+        return $data;
     }
 }

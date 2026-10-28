@@ -27,6 +27,11 @@ class Unit extends Model
         return $this->hasMany(Position::class);
     }
 
+    public function sections(): HasMany
+    {
+        return $this->hasMany(Section::class);
+    }
+
     public function employees(): HasMany
     {
         return $this->hasMany(Employee::class, 'unit_id');
