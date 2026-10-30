@@ -8,9 +8,12 @@ use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\PerformanceTalent\CriticalPositionController;
 use App\Http\Controllers\PerformanceTalent\PerformanceTalentController;
 use App\Http\Controllers\PerformanceTalent\SuccessorController;
+use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Permission;
-use App\Models\SuccessorStructurePosition;
+use App\Models\Position;
+use App\Models\Section;
+use App\Models\Unit;
 use App\Models\User;
 use App\Services\Authorization\RolePermissionCache;
 use Database\Seeders\PermissionSeeder;
@@ -18,6 +21,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Routing\Route as RouteDefinition;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -161,96 +165,92 @@ class PerformanceTalentWorkspaceTest extends TestCase
         $this->assertStringContainsString('data-potential="Rendah" data-performance="Tinggi"', $html);
     }
 
-    public function test_successor_view_renders_the_twelve_requested_departments_in_order(): void
+    public function test_successor_view_renders_the_master_organization_hierarchy(): void
     {
-        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
-        $departments = [
-            'Market Planning & Development',
-            'Sales',
-            'Internal Audit',
-            'Communication Legal & GA',
-            'Finance & Accounting',
-            'HC & GRC',
-            'Production Planning & Control',
-            'Mining & Power Plant',
-            'Clinker & Cement Production',
-            'Infrastructure',
-            'Maintenance',
-            'Project Management & Maint. Support',
-        ];
+        $department = Department::query()->create([
+            'code' => 'SALES',
+            'name' => 'Department of Sales',
+            'active' => true,
+        ]);
+        $unit = Unit::query()->create([
+            'department_id' => $department->id,
+            'code' => 'CORP',
+            'name' => 'Unit of Corporate Sales',
+            'active' => true,
+        ]);
+        $section = Section::query()->create([
+            'unit_id' => $unit->id,
+            'code' => 'KEY',
+            'name' => 'Section of Key Account',
+            'active' => true,
+        ]);
+        Position::query()->create([
+            'unit_id' => $unit->id,
+            'code' => 'GM-SALES',
+            'name' => 'General Manager of Sales',
+            'job_level' => 'General Manager',
+            'formation_count' => 1,
+            'sort_order' => 1,
+            'active' => true,
+        ]);
+        Position::query()->create([
+            'unit_id' => $unit->id,
+            'code' => 'SM-SALES',
+            'name' => 'Senior Manager of Corporate Sales',
+            'job_level' => 'Senior Manager',
+            'formation_count' => 1,
+            'sort_order' => 2,
+            'active' => true,
+        ]);
+        Position::query()->create([
+            'unit_id' => $unit->id,
+            'section_id' => $section->id,
+            'code' => 'MGR-SALES',
+            'name' => 'Manager of Key Account',
+            'job_level' => 'Manager',
+            'formation_count' => 1,
+            'sort_order' => 3,
+            'active' => true,
+        ]);
+        $position = Position::query()->create([
+            'unit_id' => $unit->id,
+            'section_id' => $section->id,
+            'code' => 'KEY-OFFICER',
+            'name' => 'Key Account Officer',
+            'job_level' => 'Staff',
+            'formation_count' => 4,
+            'sort_order' => 4,
+            'active' => true,
+        ]);
+        foreach (range(1, 3) as $number) {
+            Employee::query()->forceCreate([
+                'sap' => 'SALES-'.$number,
+                'name' => 'Sales Employee '.$number,
+                'position_id' => $position->id,
+            ]);
+        }
 
-        $response = $this->actingAs($superAdmin)
-            ->get(route('performance-talent.successors.index'))
+        $this->actingAs(User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]))
+            ->get(route('performance-talent.successors.index', ['department' => $department->id]))
             ->assertOk()
             ->assertSee('Cari department...')
-            ->assertSee('Struktur Organisasi -')
-            ->assertSee('Total Formasi:')
-            ->assertSeeInOrder($departments)
-            ->assertDontSee('Comunication Legal &amp; GA', escape: false)
-            ->assertDontSee('Producting Planning &amp; Control', escape: false);
-
-        foreach ($departments as $department) {
-            $response->assertSee($department);
-        }
-    }
-
-    public function test_successor_view_renders_the_market_planning_organization_structure(): void
-    {
-        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
-
-        $this->actingAs($superAdmin)
-            ->get(route('performance-talent.successors.index'))
-            ->assertOk()
-            ->assertSee('19 Formasi')
-            ->assertSee('General Manager')
-            ->assertSee('Product, Pricing &amp; Promotion Management', escape: false)
-            ->assertSee('Market Intelligence, Channel &amp; Sales Force Management', escape: false)
-            ->assertSee('Staff of Pricing Policy &amp; Revenue Management', escape: false)
-            ->assertSee('Staff of Trade Marketing &amp; Promotion Management', escape: false)
-            ->assertSee('Staff of Product Advocacy')
-            ->assertSee('Staff of Market Intelligence, Sales Planning &amp; Evaluation', escape: false)
-            ->assertSee('Staff of Channel &amp; Sales Force Management', escape: false)
-            ->assertSee('Staff of Sales Process Management')
-            ->assertSee('--successor-level-offset: 1', escape: false)
-            ->assertSee('successor-position-slot--offset', escape: false)
+            ->assertSee('Department of Sales')
+            ->assertSeeInOrder([
+                'General Manager of Sales',
+                'Senior Manager of Corporate Sales',
+                'Manager of Key Account',
+                'Key Account Officer',
+            ])
+            ->assertDontSee('Unit of Corporate Sales')
+            ->assertDontSee('Section of Key Account')
+            ->assertSee('Formasi')
+            ->assertSee('Terisi')
+            ->assertSee('>3</span>', escape: false)
+            ->assertSee('Data langsung dari Master Organization.')
             ->assertSee('successor-org-chart', escape: false);
-    }
 
-    public function test_successor_view_renders_the_sales_organization_structure(): void
-    {
-        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
-
-        $this->actingAs($superAdmin)
-            ->get(route('performance-talent.successors.index', ['department' => 'sales']))
-            ->assertOk()
-            ->assertSee('32 Formasi')
-            ->assertSee('Sales Excellence Specialist')
-            ->assertSee('Sales 1')
-            ->assertSee('Sales 2')
-            ->assertSee('Corporate Sales')
-            ->assertSee('Outbound Logistic')
-            ->assertSee('Sulbar &amp; Sulteng', escape: false)
-            ->assertSee('Sultra, Sulut &amp; Gorontalo', escape: false)
-            ->assertSee('Maluku &amp; Maluku Utara', escape: false)
-            ->assertSee('Technical &amp; Customer Support', escape: false)
-            ->assertSee('Key Account Officer')
-            ->assertSee('Shipment Management')
-            ->assertSee('Packaging Management')
-            ->assertSee('Bulk Transportation')
-            ->assertSee('Land Transportation')
-            ->assertSee('Sea Transportation');
-
-        $this->assertDatabaseCount('successor_structure_positions', 30);
-
-        $salesOne = SuccessorStructurePosition::query()->where('key', 'sales.sales-1')->firstOrFail();
-        $salesTwo = SuccessorStructurePosition::query()->where('key', 'sales.sales-2')->firstOrFail();
-        $corporateSales = SuccessorStructurePosition::query()->where('key', 'sales.corporate-sales')->firstOrFail();
-        $outboundLogistic = SuccessorStructurePosition::query()->where('key', 'sales.outbound-logistic')->firstOrFail();
-
-        $this->assertSame(4, $salesOne->children()->count());
-        $this->assertSame(4, $salesTwo->children()->count());
-        $this->assertSame(2, $corporateSales->children()->count());
-        $this->assertSame(5, $outboundLogistic->children()->count());
+        $this->assertFalse(Schema::hasTable('successor_structure_departments'));
+        $this->assertFalse(Schema::hasTable('successor_structure_positions'));
     }
 
     public function test_critical_position_page_renders_the_database_table_structure(): void
@@ -357,11 +357,14 @@ class PerformanceTalentWorkspaceTest extends TestCase
         }
 
         $response
-            ->assertDontSee('title="Master Organization"', escape: false)
+            ->assertSee('title="Master Organization"', escape: false)
+            ->assertSee('href="'.route('organization.index').'"', escape: false)
             ->assertDontSee('title="Work Schedules"', escape: false)
             ->assertDontSee('title="Work Calendars"', escape: false);
 
         $html = $response->getContent();
+        $this->assertSame(1, substr_count($html, 'href="'.route('organization.index').'"'));
+
         $menuPositions = array_map(
             static fn (array $page): int|false => strpos($html, 'title="'.$page['title'].'"'),
             self::PAGES,
@@ -374,6 +377,37 @@ class PerformanceTalentWorkspaceTest extends TestCase
                 $this->assertGreaterThan(array_values($menuPositions)[$index - 1], $position);
             }
         }
+
+        $this->assertGreaterThan(
+            $menuPositions['performance-talent.data-pegawai.index'],
+            strpos($html, 'title="Master Organization"'),
+        );
+    }
+
+    public function test_workspace_organization_menu_and_route_require_organization_permission(): void
+    {
+        $this->grantPermissionsToRole(UserRole::ADMIN, [self::PERMISSION]);
+        $admin = User::factory()->create(['role' => UserRole::ADMIN->value]);
+        app(SyncUserWorkspaceAccess::class)->execute($admin, [
+            'hc-od-career-management',
+            'performance-talent-management',
+        ]);
+
+        $this->actingAs($admin)
+            ->withSession(['active_workspace' => 'performance-talent-management'])
+            ->get(route('performance-talent.dashboard'))
+            ->assertOk()
+            ->assertDontSee('href="'.route('organization.index').'"', escape: false);
+
+        $this->get(route('organization.index'))->assertForbidden();
+
+        $this->grantPermissionsToRole(UserRole::ADMIN, ['organization.view']);
+
+        $this->get(route('performance-talent.dashboard'))
+            ->assertOk()
+            ->assertSee('href="'.route('organization.index').'"', escape: false);
+
+        $this->get(route('organization.index'))->assertOk();
     }
 
     public function test_workspace_menu_is_hidden_from_a_user_without_access(): void

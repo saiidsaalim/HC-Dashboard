@@ -13,7 +13,6 @@ use App\Http\Controllers\Organization\UnitController;
 use App\Http\Controllers\PerformanceTalent\CriticalPositionController;
 use App\Http\Controllers\PerformanceTalent\PerformanceTalentController;
 use App\Http\Controllers\PerformanceTalent\SuccessorController;
-use App\Http\Controllers\PerformanceTalent\SuccessorStructurePositionController;
 use App\Http\Controllers\PortalController;
 use App\Http\Controllers\PortalWorkspaceController;
 use App\Http\Controllers\ProfileController;
@@ -52,9 +51,6 @@ Route::middleware('auth')->group(function () {
             Route::post('/successors', [SuccessorController::class, 'store'])->name('successors.store');
             Route::put('/successors/{successor}', [SuccessorController::class, 'update'])->name('successors.update');
             Route::delete('/successors/{successor}', [SuccessorController::class, 'destroy'])->name('successors.destroy');
-            Route::post('/successor-structure/positions', [SuccessorStructurePositionController::class, 'store'])->name('successor-structure.positions.store');
-            Route::put('/successor-structure/positions/{structurePosition}', [SuccessorStructurePositionController::class, 'update'])->name('successor-structure.positions.update');
-            Route::delete('/successor-structure/positions/{structurePosition}', [SuccessorStructurePositionController::class, 'destroy'])->name('successor-structure.positions.destroy');
             Route::get('/talent-pool', '__invoke')->name('talent-pool.index');
             Route::get('/development-plans', '__invoke')->name('development-plans.index');
             Route::get('/reports', '__invoke')->name('reports.index');
@@ -162,7 +158,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('work-schedules', WorkScheduleController::class)->except('show');
     Route::resource('work-calendars', WorkCalendarController::class)->except('show');
 
-    Route::prefix('organization')->name('organization.')->group(function (): void {
+    Route::prefix('organization')->name('organization.')->middleware('can:organization.view')->group(function (): void {
         Route::get('/', OrganizationController::class)->name('index');
         Route::resource('directorates', DirectorateController::class)->except('show');
         Route::resource('departments', DepartmentController::class)->except('show');

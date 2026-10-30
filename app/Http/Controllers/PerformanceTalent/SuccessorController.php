@@ -5,9 +5,9 @@ namespace App\Http\Controllers\PerformanceTalent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreSuccessorRequest;
 use App\Http\Requests\UpdateSuccessorRequest;
+use App\Models\Employee;
 use App\Models\Successor;
-use App\Models\SuccessorStructurePosition;
-use App\Support\SuccessorStructure;
+use App\Support\SuccessorOrganizationStructure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -17,15 +17,16 @@ use Throwable;
 
 class SuccessorController extends Controller
 {
-    public function index(Request $request, SuccessorStructure $structure): View
+    public function index(Request $request, SuccessorOrganizationStructure $structure): View
     {
         Gate::authorize('viewAny', Successor::class);
 
         $successors = Successor::query()
+            ->with(['employee.organizationDirectorate', 'employee.organizationPosition'])
             ->orderBy('name')
             ->orderBy('id')
             ->get();
-        $successorCounts = $successors->countBy('structure_position_key');
+        $successorCounts = $successors->countBy('target_position_id');
         $positions = $structure->positions();
         $departments = $structure->departments();
         $selectedPositionKey = trim((string) $request->query('position', ''));
@@ -37,32 +38,6 @@ class SuccessorController extends Controller
         $requestedDepartment = collect($departments)
             ->firstWhere('slug', trim((string) $request->query('department', '')));
         $selectedDepartmentName = $requestedDepartment['name'] ?? null;
-        $structurePositionRecords = SuccessorStructurePosition::query()
-            ->with(['department:id,name,slug', 'parent:id,name'])
-            ->withCount('children')
-            ->orderBy('department_id')
-            ->orderBy('sort_order')
-            ->orderBy('id')
-            ->get()
-            ->map(fn (SuccessorStructurePosition $position): array => [
-                'id' => $position->id,
-                'department_id' => $position->department_id,
-                'department_name' => $position->department->name,
-                'department_slug' => $position->department->slug,
-                'parent_id' => $position->parent_id,
-                'parent_name' => $position->parent?->name,
-                'key' => $position->key,
-                'level' => $position->level,
-                'name' => $position->name,
-                'formation_count' => $position->formation_count,
-                'sort_order' => $position->sort_order,
-                'align_with_grandchildren' => $position->align_with_grandchildren,
-                'children_count' => $position->children_count,
-                'successor_count' => (int) ($successorCounts[$position->key] ?? 0),
-                'update_url' => route('performance-talent.successor-structure.positions.update', $position),
-                'destroy_url' => route('performance-talent.successor-structure.positions.destroy', $position),
-            ])
-            ->values();
 
         return view('performance-talent.show', [
             'title' => 'Successor View',
@@ -75,14 +50,18 @@ class SuccessorController extends Controller
             'successorCounts' => $successorCounts->all(),
             'selectedPositionKey' => $selectedPositionKey,
             'selectedDepartmentName' => $selectedDepartmentName,
-            'structurePositionRecords' => $structurePositionRecords,
-            'structureEditorOpen' => $request->boolean('structure_editor'),
+            'employees' => Employee::query()
+                ->with(['organizationDirectorate:id,name', 'organizationPosition:id,name'])
+                ->whereNotNull('name')
+                ->orderBy('name')
+                ->get(),
         ]);
     }
 
     public function store(StoreSuccessorRequest $request): RedirectResponse
     {
         $data = $request->safe()->except('photo');
+        $data = [...$data, ...$this->employeeSnapshot($data['employee_id'])];
         $photoPath = $request->file('photo')?->store('successors', 'public');
 
         if (is_string($photoPath)) {
@@ -99,13 +78,14 @@ class SuccessorController extends Controller
             throw $exception;
         }
 
-        return to_route('performance-talent.successors.index', ['position' => $successor->structure_position_key])
+        return to_route('performance-talent.successors.index', ['position' => $successor->target_position_id])
             ->with('status', 'Successor berhasil ditambahkan.');
     }
 
     public function update(UpdateSuccessorRequest $request, Successor $successor): RedirectResponse
     {
         $data = $request->safe()->except('successor_id', 'photo');
+        $data = [...$data, ...$this->employeeSnapshot($data['employee_id'])];
         $oldPhotoPath = $successor->photo_path;
         $newPhotoPath = $request->file('photo')?->store('successors', 'public');
 
@@ -127,14 +107,14 @@ class SuccessorController extends Controller
             Storage::disk('public')->delete($oldPhotoPath);
         }
 
-        return to_route('performance-talent.successors.index', ['position' => $successor->structure_position_key])
+        return to_route('performance-talent.successors.index', ['position' => $successor->target_position_id])
             ->with('status', 'Successor berhasil diperbarui.');
     }
 
     public function destroy(Successor $successor): RedirectResponse
     {
         Gate::authorize('delete', $successor);
-        $positionKey = $successor->structure_position_key;
+        $positionId = $successor->target_position_id;
         $photoPath = $successor->photo_path;
 
         try {
@@ -151,7 +131,27 @@ class SuccessorController extends Controller
             Storage::disk('public')->delete($photoPath);
         }
 
-        return to_route('performance-talent.successors.index', ['position' => $positionKey])
+        return to_route('performance-talent.successors.index', ['position' => $positionId])
             ->with('status', 'Successor berhasil dihapus.');
+    }
+
+    /** @return array{name: string, position: string, education: string, tenure: string, directorate: string} */
+    private function employeeSnapshot(int $employeeId): array
+    {
+        $employee = Employee::query()
+            ->with(['organizationDirectorate:id,name', 'organizationPosition:id,name'])
+            ->findOrFail($employeeId);
+        $hiringDate = $employee->hiring_date ?? $employee->hiring;
+
+        return [
+            'name' => $employee->name ?? $employee->personal_number ?? $employee->sap,
+            'position' => $employee->organizationPositionName() ?? '-',
+            'education' => $employee->education ?? $employee->pendidikan ?? '-',
+            'tenure' => $hiringDate === null ? '-' : ((int) $hiringDate->diffInYears(now())).' tahun',
+            'directorate' => $employee->txt_dir
+                ?? $employee->organizationDirectorate?->name
+                ?? $employee->directorate
+                ?? '-',
+        ];
     }
 }

@@ -194,12 +194,18 @@ class PositionController extends Controller
     {
         Gate::authorize('delete', $position);
 
+        if ($position->successors()->exists()) {
+            return back()->withErrors([
+                'position' => 'Position tidak dapat dihapus selama masih digunakan sebagai target successor.',
+            ]);
+        }
+
         $position->delete();
 
         return to_route('organization.positions.index')->with('status', 'Position berhasil dihapus.');
     }
 
-    /** @return array{unit_id: int, section_id: ?int, code: string, name: string, active: bool} */
+    /** @return array{unit_id: int, section_id: ?int, code: string, name: string, job_level: ?string, formation_count: int, sort_order: int, active: bool} */
     private function validatedData(Request $request, ?Position $position = null): array
     {
         $position?->loadMissing('unit.department');
@@ -243,6 +249,9 @@ class PositionController extends Controller
                 Rule::unique('positions', 'code')->where('unit_id', $request->input('unit_id'))->ignore($position),
             ],
             'name' => ['required', 'string', 'max:255'],
+            'job_level' => ['nullable', 'string', 'max:100'],
+            'formation_count' => ['sometimes', 'required', 'integer', 'min:1', 'max:999'],
+            'sort_order' => ['sometimes', 'required', 'integer', 'min:0', 'max:999999'],
             'active' => ['required', 'boolean'],
         ], [
             'directorate_id.integer' => 'Directorate yang dipilih tidak valid.',
@@ -258,11 +267,20 @@ class PositionController extends Controller
             'code.unique' => 'Kode Position sudah digunakan pada Unit tersebut.',
             'name.required' => 'Nama Position wajib diisi.',
             'name.max' => 'Nama Position maksimal 255 karakter.',
+            'job_level.max' => 'Level jabatan maksimal 100 karakter.',
+            'formation_count.required' => 'Jumlah formasi wajib diisi.',
+            'formation_count.integer' => 'Jumlah formasi harus berupa angka.',
+            'formation_count.min' => 'Jumlah formasi minimal 1.',
+            'formation_count.max' => 'Jumlah formasi maksimal 999.',
+            'sort_order.required' => 'Urutan tampil wajib diisi.',
+            'sort_order.integer' => 'Urutan tampil harus berupa angka.',
             'active.required' => 'Status Position wajib dipilih.',
             'active.boolean' => 'Status Position tidak valid.',
         ]);
 
         unset($validated['directorate_id'], $validated['department_id']);
+        $validated['formation_count'] ??= $position?->formation_count ?? 1;
+        $validated['sort_order'] ??= $position?->sort_order ?? 0;
 
         return $validated;
     }

@@ -24,6 +24,14 @@ class UpdateSuccessorRequest extends StoreSuccessorRequest
 
         return [
             ...parent::rules(),
+            'employee_id' => [
+                'required',
+                'integer',
+                'exists:employees,id',
+                Rule::unique('successors')
+                    ->where('target_position_id', $this->input('target_position_id'))
+                    ->ignore($successor),
+            ],
             'successor_id' => ['required', 'integer', Rule::in([$successor?->getKey()])],
         ];
     }

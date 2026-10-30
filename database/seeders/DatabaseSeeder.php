@@ -17,8 +17,6 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call(PermissionSeeder::class);
-        $this->call(SuccessorStructureDepartmentSeeder::class);
-        $this->call(SuccessorStructurePositionSeeder::class);
 
         User::query()->updateOrCreate(
             ['email' => 'admin@sig.com'],

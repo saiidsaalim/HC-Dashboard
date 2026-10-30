@@ -31,9 +31,4 @@ class SuccessorPolicy
     {
         return $user->hasPermission('successors.delete');
     }
-
-    public function updateStructure(User $user): bool
-    {
-        return $user->hasPermission('successors.update');
-    }
 }

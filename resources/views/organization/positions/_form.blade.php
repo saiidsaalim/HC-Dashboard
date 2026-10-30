@@ -100,6 +100,30 @@
         @enderror
     </div>
 
+    <div class="grid gap-4 sm:grid-cols-3">
+        <div>
+            <label for="job_level" class="text-sm font-semibold text-slate-700">Level Jabatan</label>
+            <input id="job_level" name="job_level" value="{{ old('job_level', $position?->job_level) }}" maxlength="100"
+                class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400"
+                placeholder="Contoh: Senior Manager">
+            @error('job_level')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+        </div>
+        <div>
+            <label for="formation_count" class="text-sm font-semibold text-slate-700">Jumlah Formasi <span class="text-red-500" aria-hidden="true">*</span></label>
+            <input id="formation_count" name="formation_count" value="{{ old('formation_count', $position?->formation_count ?? 1) }}"
+                type="number" required min="1" max="999"
+                class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
+            @error('formation_count')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+        </div>
+        <div>
+            <label for="sort_order" class="text-sm font-semibold text-slate-700">Urutan Tampil <span class="text-red-500" aria-hidden="true">*</span></label>
+            <input id="sort_order" name="sort_order" value="{{ old('sort_order', $position?->sort_order ?? 0) }}"
+                type="number" required min="0" max="999999"
+                class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
+            @error('sort_order')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+        </div>
+    </div>
+
     <div>
         <input type="hidden" name="active" value="0">
         <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-700">

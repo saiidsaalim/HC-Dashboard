@@ -88,6 +88,13 @@ return [
                 'icon' => 'users',
                 'permission' => 'employees.view',
             ],
+            [
+                'route' => 'organization.index',
+                'active' => 'organization.*',
+                'label' => 'Master Organization',
+                'icon' => 'users',
+                'permission' => 'organization.view',
+            ],
         ],
     ],
     'units' => [

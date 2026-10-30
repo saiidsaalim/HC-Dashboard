@@ -3,7 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Successor;
-use App\Support\SuccessorStructure;
+use App\Support\SuccessorOrganizationStructure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -20,15 +20,16 @@ class StoreSuccessorRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'structure_position_key' => ['required', 'string', Rule::in(app(SuccessorStructure::class)->positionKeys())],
-            'name' => ['required', 'string', 'max:255'],
-            'position' => ['required', 'string', 'max:255'],
+            'target_position_id' => ['required', 'integer', Rule::in(app(SuccessorOrganizationStructure::class)->positionIds())],
+            'employee_id' => [
+                'required',
+                'integer',
+                'exists:employees,id',
+                Rule::unique('successors')->where('target_position_id', $this->input('target_position_id')),
+            ],
             'talent_mapping' => ['required', 'string', 'max:100'],
             'succession_readiness' => ['required', 'string', 'max:100'],
             'idp' => ['required', 'string', 'max:2000'],
-            'education' => ['required', 'string', 'max:255'],
-            'tenure' => ['required', 'string', 'max:100'],
-            'directorate' => ['required', 'string', 'max:255'],
             'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ];
     }
