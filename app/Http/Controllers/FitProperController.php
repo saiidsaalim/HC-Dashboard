@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\SaveFitProperScoresRequest;
 use App\Models\Employee;
 use App\Models\FitProperActivity;
 use App\Models\FitProperExaminer;
@@ -271,10 +272,11 @@ class FitProperController extends Controller
         return $this->assessmentView($examiner);
     }
 
-    public function submit(Request $request, FitProperActivity $activity, FitProperExaminer $examiner): RedirectResponse|JsonResponse
+    public function submit(SaveFitProperScoresRequest $request, FitProperActivity $activity, FitProperExaminer $examiner): RedirectResponse|JsonResponse
     {
         $this->internalExaminer($request, $activity, $examiner);
         $request->merge(['_fit_proper_examiner_id' => $examiner->id]);
+        request()->merge(['_fit_proper_examiner_id' => $examiner->id]);
         $this->service->saveScores($examiner, $request->all(), $request->input('intent') === 'submit', $request->user());
 
         return $this->assessmentSavedResponse($request, $examiner);
@@ -289,10 +291,11 @@ class FitProperController extends Controller
         }
     }
 
-    public function linkSubmit(Request $request, string $token): RedirectResponse|JsonResponse
+    public function linkSubmit(SaveFitProperScoresRequest $request, string $token): RedirectResponse|JsonResponse
     {
         $examinerRecord = $this->service->resolveToken($token);
         $request->merge(['_fit_proper_examiner_id' => $examinerRecord->id]);
+        request()->merge(['_fit_proper_examiner_id' => $examinerRecord->id]);
         $this->service->mutate($examinerRecord->activity, function () use ($request, $token) {
             $examiner = $this->service->resolveToken($token);
             $this->service->saveScores($examiner, $request->all(), $request->input('intent') === 'submit');

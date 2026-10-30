@@ -1,0 +1,77 @@
+.fit-proper-assessment-form,
+.fit-proper-assessment-form form,
+.fit-proper-assessment-card,
+.fit-proper-assessment-body > * {
+    min-width: 0;
+}
+
+.fit-proper-assessment-form {
+    overflow-wrap: anywhere;
+}
+
+.fit-proper-assessment-candidates {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+    scroll-margin-top: 6rem;
+}
+
+.fit-proper-assessment-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.25rem;
+}
+
+.fit-proper-assessment-form input[type='number'],
+.fit-proper-assessment-form textarea {
+    min-height: 2.75rem;
+    max-width: 100%;
+}
+
+.fit-proper-assessment-form textarea {
+    resize: vertical;
+}
+
+.fit-proper-assessment-form input[aria-invalid='true'],
+.fit-proper-assessment-form textarea[aria-invalid='true'] {
+    border-color: var(--hc-danger);
+}
+
+.fit-proper-assessment-form :is(input, textarea, button, a, summary):focus-visible {
+    outline: 2px solid var(--hc-secondary);
+    outline-offset: 3px;
+}
+
+.fit-proper-assessment-form fieldset:disabled .fit-proper-assessment-section {
+    background: var(--hc-canvas);
+}
+
+@media (min-width: 1024px) {
+    .fit-proper-assessment-form .fit-proper-assessment-inputs {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .fit-proper-assessment-body {
+        grid-template-columns: minmax(0, 1fr) minmax(12rem, 0.4fr);
+    }
+
+    .fit-proper-assessment-form .fit-proper-score-summary {
+        position: sticky;
+        top: 6rem;
+    }
+}
+
+@media (min-width: 1536px) {
+    .fit-proper-assessment-candidates {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+    }
+
+    .fit-proper-assessment-body {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .fit-proper-assessment-form .fit-proper-score-summary {
+        position: static;
+    }
+}

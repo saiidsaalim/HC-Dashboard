@@ -11,10 +11,10 @@
 <dl class="fp-detail-metrics mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
 <div><dt>Peserta</dt><dd>{{ $activity->participants->count() }}</dd></div>
 <div><dt>Penguji</dt><dd>{{ $activity->examiners->count() }}</dd></div>
-<div><dt>Passing grade</dt><dd>{{ $activity->standard['passing_grade'] }}</dd></div>
+<div><dt>Passing grade</dt><dd>{{ number_format($activity->standard['passing_grade'], 1, ',', '.') }}</dd></div>
 <div><dt>Penilaian terkirim</dt><dd>{{ $activity->examiners->whereNotNull('submitted_at')->count() }} / {{ $activity->examiners->count() }}</dd></div>
 </dl>
-<p class="mt-4 text-sm">Standar tersimpan: KPI {{ $activity->standard['weight_kpi']*100 }}%, asesmen {{ $activity->standard['weight_assessment']*100 }}%, FP {{ $activity->standard['weight_fp']*100 }}%. Skala KPI {{ $activity->standard['max_kpi'] }}, asesmen {{ $activity->standard['max_assessment'] }}. Passing grade {{ $activity->standard['passing_grade'] }}.</p>
+<p class="mt-4 text-sm">Standar tersimpan: KPI {{ number_format($activity->standard['weight_kpi']*100, 1, ',', '.') }}%, asesmen {{ number_format($activity->standard['weight_assessment']*100, 1, ',', '.') }}%, FP {{ number_format($activity->standard['weight_fp']*100, 1, ',', '.') }}%. Skala KPI {{ number_format($activity->standard['max_kpi'], 1, ',', '.') }}, asesmen {{ number_format($activity->standard['max_assessment'], 1, ',', '.') }}. Passing grade {{ number_format($activity->standard['passing_grade'], 1, ',', '.') }}.</p>
 <p class="mt-2 text-xs text-slate-500">Pembuat ID {{ $activity->created_by ?? '—' }} · Finalisasi {{ $activity->finalized_at?->format('d/m/Y H:i') ?? 'Belum' }}</p>
 </div><div class="mt-4 flex flex-wrap gap-3">
 @if($activity->status !== 'Selesai')
@@ -30,10 +30,10 @@
 <section data-fp-structure="peserta" id="peserta" class="rounded-xl border border-slate-200 bg-white p-5">
 <div class="flex items-center justify-between gap-3"><h2 class="font-display text-lg font-bold">Peserta · {{ $activity->participants->count() }}</h2>@if($activity->status === 'Draft')<a class="rounded-lg bg-slate-950 px-4 py-2 text-sm text-white" href="{{ route('fit-proper.participants.create',$activity) }}">Tambah peserta</a>@endif</div>
 <div class="mt-4 overflow-x-auto"><table class="w-full text-left text-sm"><thead><tr class="border-b text-slate-500"><th class="p-3">Identitas</th><th class="p-3">Profil</th><th class="p-3">KPI / asesmen</th><th class="p-3">Tindakan</th></tr></thead><tbody class="divide-y">
-@foreach($activity->participants as $p)<tr><td class="p-3"><strong>{{ $p->name }}</strong><p class="text-xs">{{ $p->sap ?: $p->internal_identity }}</p><p class="text-xs">Umur: {{ $p->age() ?? '—' }} tahun</p></td><td class="p-3">{{ $p->profile['department'] ?? '—' }}<p>{{ $p->profile['current_position'] ?? '—' }} → {{ $p->profile['target_position'] ?? '—' }}</p><p>JG {{ $p->profile['current_jg'] ?? '—' }} → {{ $p->profile['target_jg'] ?? '—' }} · gap {{ $p->profile['gap_jg'] ?? '—' }}</p></td><td class="p-3">KPI {{ $p->kpi() === null ? 'Belum lengkap' : number_format($p->kpi(),2) }}<p>Asesmen {{ $p->assessment ?? 'Belum lengkap' }}</p></td><td class="p-3"><div class="flex flex-wrap gap-3">
+@forelse($activity->participants as $p)<tr><td class="p-3"><strong>{{ $p->name }}</strong><p class="text-xs">{{ $p->sap ?: $p->internal_identity }}</p><p class="text-xs">Umur: {{ $p->age() ?? '—' }} tahun</p></td><td class="p-3">{{ $p->profile['department'] ?? '—' }}<p>{{ $p->profile['current_position'] ?? '—' }} → {{ $p->profile['target_position'] ?? '—' }}</p><p>JG {{ $p->profile['current_jg'] ?? '—' }} → {{ $p->profile['target_jg'] ?? '—' }} · gap {{ $p->profile['gap_jg'] ?? '—' }}</p></td><td class="p-3">KPI {{ $p->kpi() === null ? 'Belum lengkap' : number_format($p->kpi(), 1, ',', '.') }}<p>Asesmen {{ $p->assessment === null ? 'Belum lengkap' : number_format($p->assessment, 1, ',', '.') }}</p></td><td class="p-3"><div class="flex flex-wrap gap-3">
 @if($p->cv_path)<a href="{{ route('fit-proper.cv',[$activity,$p]) }}" class="text-sky-700 underline">CV</a>@endif
 @if($activity->status === 'Draft')<a href="{{ route('fit-proper.participants.edit',[$activity,$p]) }}" class="text-sky-700 underline">Edit</a><form method="POST" action="{{ route('fit-proper.participants.delete',[$activity,$p]) }}" onsubmit="return confirm('Hapus peserta beserta nilainya?')">@csrf @method('DELETE')<button class="text-red-700 underline">Hapus</button></form>@endif
-</div><details class="mt-2"><summary class="cursor-pointer">Profil lengkap</summary>@foreach(['education'=>'Pendidikan','education_background'=>'Latar pendidikan','experience'=>'Pengalaman','training'=>'Pelatihan','achievement'=>'Achievement','assessment_notes'=>'Rekomendasi asesmen'] as $key=>$label)<p class="mt-1 whitespace-pre-line">{{ $label }}: {{ $p->profile[$key] ?? '—' }}</p>@endforeach</details></td></tr>@endforeach
+</div><details class="mt-2"><summary class="cursor-pointer">Profil lengkap</summary>@foreach(['education'=>'Pendidikan','education_background'=>'Latar pendidikan','experience'=>'Pengalaman','training'=>'Pelatihan','achievement'=>'Achievement','assessment_notes'=>'Rekomendasi asesmen'] as $key=>$label)<p class="mt-1 whitespace-pre-line">{{ $label }}: {{ $p->profile[$key] ?? '—' }}</p>@endforeach</details></td></tr>@empty<tr><x-ui.empty-state colspan="4" title="Belum ada peserta." description="Tambahkan peserta saat kegiatan masih Draft." /></tr>@endforelse
 </tbody></table></div></section>
 <div class="fp-detail-assignments grid items-start gap-6 xl:grid-cols-2">
 <section data-fp-structure="pic" id="pic" class="rounded-xl border border-slate-200 bg-white p-5">
@@ -91,7 +91,7 @@
 <li>
 <details class="fp-history rounded-xl border border-slate-200" data-history-id="{{ $h->id }}">
 <summary class="flex cursor-pointer items-center justify-between gap-3 p-4">
-<span class="min-w-0"><strong class="block break-words">{{ $h->action }}</strong><span class="mt-1 block text-xs text-slate-500"><time>{{ $h->created_at }}</time> ? {{ $users->firstWhere('id', $h->user_id)?->name ?? ($h->user_id ? 'Pengguna '.$h->user_id : 'Penguji tautan / sistem') }}</span></span>
+<span class="min-w-0"><strong class="block break-words">{{ $h->action }}</strong><span class="mt-1 block text-xs text-slate-500"><time>{{ $h->created_at }}</time> &middot; {{ $users->firstWhere('id', $h->user_id)?->name ?? ($h->user_id ? 'Pengguna '.$h->user_id : 'Penguji tautan / sistem') }}</span></span>
 <span class="fp-history-chevron shrink-0" aria-hidden="true"></span>
 </summary>
 <div class="fp-history-content border-t border-slate-200 p-4">

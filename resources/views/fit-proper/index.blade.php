@@ -8,6 +8,7 @@
 <div class="rounded-xl border border-slate-200 bg-white p-5"><p class="text-sm text-slate-500">Kegiatan operasional</p><strong class="font-display text-3xl">{{ $realCount }}</strong></div>
 <div class="rounded-xl border border-amber-200 bg-amber-50 p-5"><p class="text-sm">Data Simulasi — terpisah dari statistik nyata</p><strong class="font-display text-3xl">{{ $demoCount }}</strong></div>
 </div>
+<<<<<<< HEAD
 <x-ui.filter-panel id="fit-proper-filters" title="Filter Fit & Proper" :reset-href="route('fit-proper')"
     :active="request()->filled('q') || request()->filled('status') || request()->filled('simulation')">
 <label class="block text-sm font-semibold text-slate-700">Pencarian<input name="q" value="{{ request('q') }}" placeholder="Cari kegiatan…" class="mt-1 block w-full rounded-lg border-slate-300"></label>
@@ -17,6 +18,17 @@
 <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white"><table class="w-full text-left text-sm"><thead class="bg-slate-50 text-slate-600"><tr><th class="p-4">Kegiatan</th><th class="p-4">Pelaksanaan</th><th class="p-4">Status</th><th class="p-4">Peserta</th><th class="p-4">Penguji selesai</th></tr></thead><tbody class="divide-y divide-slate-100">
 @forelse($activities as $a)<tr><td class="p-4"><a class="font-semibold text-sky-700 underline" href="{{ route('fit-proper.show',$a) }}">{{ $a->name }}</a><p class="text-xs text-slate-500">{{ $a->target_position }}</p>@if($a->is_simulation)<span class="text-xs font-semibold text-amber-700">Data Simulasi</span>@endif</td><td class="p-4">{{ $a->scheduled_at->format('d/m/Y') }}</td><td class="p-4">{{ $a->status }}</td><td class="p-4">{{ $a->participants_count }}</td><td class="p-4">{{ $a->submitted_count }} / {{ $a->examiners_count }}</td></tr>
 @empty<tr><td colspan="5" class="p-8 text-center text-slate-500">Belum ada kegiatan yang dapat diakses.</td></tr>@endforelse
+=======
+<form method="GET" class="fp-filters flex flex-wrap gap-3">
+<input aria-label="Cari kegiatan" name="q" value="{{ request('q') }}" placeholder="Cari kegiatan…" class="min-w-0 flex-1 rounded-lg border-slate-300">
+<select aria-label="Status" name="status" class="rounded-lg border-slate-300"><option value="">Semua status</option>@foreach(['Draft','Berjalan','Selesai'] as $status)<option @selected(request('status')===$status)>{{ $status }}</option>@endforeach</select>
+<select aria-label="Jenis data" name="simulation" class="rounded-lg border-slate-300"><option value="">Semua jenis data</option><option value="0" @selected(request('simulation')==='0')>Operasional</option><option value="1" @selected(request('simulation')==='1')>Data Simulasi</option></select>
+<button class="rounded-lg bg-slate-950 px-4 py-2 text-white">Terapkan</button>
+</form>
+<div class="overflow-x-auto rounded-xl border border-slate-200 bg-white"><table class="fp-activity-table w-full text-left text-sm"><thead class="bg-slate-50 text-slate-600"><tr><th class="p-4">Kegiatan</th><th class="p-4">Pelaksanaan</th><th class="p-4">Status</th><th class="p-4">Peserta</th><th class="p-4">Penguji selesai</th></tr></thead><tbody class="divide-y divide-slate-100">
+@forelse($activities as $a)<tr><td class="p-4"><a class="font-semibold text-sky-700 underline" href="{{ route('fit-proper.show',$a) }}">{{ $a->name }}</a><p class="text-xs text-slate-500">{{ $a->target_position }}</p>@if($a->is_simulation)<span class="text-xs font-semibold text-amber-700">Data Simulasi</span>@endif</td><td class="p-4">{{ $a->scheduled_at->format('d/m/Y') }}</td><td class="p-4"><span class="inline-flex whitespace-nowrap rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{{ $a->status }}</span></td><td class="p-4">{{ $a->participants_count }}</td><td class="p-4">{{ $a->submitted_count }} / {{ $a->examiners_count }}</td></tr>
+@empty<tr><x-ui.empty-state colspan="5" title="Belum ada data Fit & Proper." description="Belum ada kegiatan yang dapat diakses. Sesuaikan filter atau tambahkan kegiatan baru." /></tr>@endforelse
+>>>>>>> f824c67 (Simpan perubahan lokal sebelum pull)
 </tbody></table></div>{{ $activities->links() }}
 @can('create',\App\Models\FitProperActivity::class)
 <details class="rounded-xl border border-slate-200 bg-white p-5" @if(old('name')) open @endif><summary class="cursor-pointer font-display text-lg font-bold">Tambah kegiatan</summary><form data-fp-async method="POST" action="{{ route('fit-proper.store') }}" class="mt-4">@include('fit-proper._activity-form',['activity'=>null])</form></details>

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join, dirname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -89,11 +89,33 @@ test('Isolated private Chrome: asynchronous forms, PICs and public examiner link
         const socket=new WebSocket(version.webSocketDebuggerUrl);
         await new Promise((resolvePromise,reject)=>{socket.addEventListener('open',resolvePromise,{once:true});socket.addEventListener('error',reject,{once:true});});
         cdp=new Cdp(socket);
+        const screenshotDirectory = join(root, 'storage/framework/testing/fit-proper-ui');
+        mkdirSync(screenshotDirectory, { recursive: true });
+        async function screenshot(session, name) {
+            const { data } = await cdp.send('Page.captureScreenshot', { format:'png' }, session);
+            writeFileSync(join(screenshotDirectory, name+'.png'), Buffer.from(data, 'base64'));
+        }
         const admin=await cdp.page();
         await cdp.navigate(admin,base+'/fit-proper/'+ids.activity);
         await cdp.until(admin,()=>!!document.querySelector('input[name=email]'));
         await cdp.run(admin,()=>{document.querySelector('input[name=email]').value='browser-admin@example.test';document.querySelector('input[name=password]').value='password';document.querySelector('form').requestSubmit();});
         await cdp.until(admin,()=>location.pathname!=='/login');
+        // Production pages must confine wide content to their own scroll containers.
+        for (const path of ['/fit-proper', '/fit-proper/'+ids.activity, '/fit-proper/'+ids.activity+'/participants/create', '/fit-proper/'+ids.activity+'/print']) {
+            await cdp.navigate(admin, base+path);
+            await cdp.until(admin, () => !!document.querySelector('[data-fp-root]'));
+            for (const width of [1440, 1280, 768, 390]) {
+                await cdp.send('Emulation.setDeviceMetricsOverride', {width, height:900, deviceScaleFactor:1, mobile:false}, admin);
+                const overflow = await cdp.run(admin, async () => {
+                    document.querySelectorAll('[data-fp-root] details').forEach(item => item.open = true);
+                    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                    return document.documentElement.scrollWidth > innerWidth + 1;
+                });
+                assert.equal(overflow, false, `Page overflow: ${path} at ${width}px`);
+                if (width === 390 || width === 1440) await screenshot(admin, path.split('/').filter(Boolean).join('-')+'-'+width);
+            }
+        }
+        await cdp.send('Emulation.clearDeviceMetricsOverride', {}, admin);
         await cdp.navigate(admin,base+'/fit-proper/'+ids.activity+'#pic');
         await cdp.until(admin,()=>!!window.Alpine && !!document.querySelector('[data-fp-root]'));
         await cdp.run(admin,async()=>{await document.fonts.ready;await Promise.all(document.getAnimations().filter(animation=>animation.effect?.getTiming().iterations!==Infinity).map(animation=>animation.finished.catch(()=>{})));});
@@ -170,17 +192,28 @@ test('Isolated private Chrome: asynchronous forms, PICs and public examiner link
         await cdp.navigate(guest,link);
         await cdp.until(guest,()=>document.body.innerText.includes('Kandidat Browser Alfa') && !!window.Alpine);
         assert.equal(await cdp.run(guest,()=>document.querySelector('[data-app-shell]')===null),true);
+        for (const width of [1440, 1280, 768, 390]) {
+            await cdp.send('Emulation.setDeviceMetricsOverride', {width, height:900, deviceScaleFactor:1, mobile:false}, guest);
+            const fits = await cdp.run(guest, async () => {
+                await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                return document.documentElement.scrollWidth <= innerWidth + 1;
+            });
+            assert.equal(fits, true, `Examiner page overflow at ${width}px`);
+            if (width === 390 || width === 1440) await screenshot(guest, 'assessment-'+width);
+        }
+        await cdp.send('Emulation.clearDeviceMetricsOverride', {}, guest);
         assert.equal(await cdp.run(guest,()=>document.querySelectorAll('input[type=number]').length),20);
         assert.equal(await cdp.run(guest,()=>Array.from(document.querySelectorAll('input[type=number]')).every(input=>input.value==='' && input.getBoundingClientRect().height>0)),true);
         assert.equal(await cdp.run(guest,()=>document.querySelector('[data-fp-candidates]').clientWidth<=innerWidth),true);
-        await cdp.run(guest,()=>{window.fpDraftSentinel=84;const fields=document.querySelectorAll('input[type=number]');fields[0].value='0';fields[0].dispatchEvent(new Event('input',{bubbles:true}));fields[1].value='2.5';fields[1].dispatchEvent(new Event('input',{bubbles:true}));document.querySelectorAll('textarea')[0].value='Rekomendasi browser';document.querySelectorAll('textarea')[1].value='Catatan draft browser';Array.from(document.querySelectorAll('button')).find(button=>button.textContent.includes('Simpan Draft')).click();});
+        await cdp.run(guest,()=>{window.fpDraftSentinel=84;const fields=document.querySelectorAll('input[type=number]');fields[0].value='1';fields[0].dispatchEvent(new Event('input',{bubbles:true}));fields[1].value='2.5';fields[1].dispatchEvent(new Event('input',{bubbles:true}));document.querySelectorAll('textarea')[0].value='Rekomendasi browser';document.querySelectorAll('textarea')[1].value='Catatan draft browser';Array.from(document.querySelectorAll('button')).find(button=>button.textContent.includes('Simpan Draft')).click();});
         await cdp.until(guest,()=>document.querySelector('[data-fp-assessment-state]').innerText.includes('Draft penilaian disimpan') && document.querySelector('[data-fp-root]').dataset.fpBusy!=='true');
         assert.equal(await cdp.run(guest,()=>window.fpDraftSentinel),84);
+        assert.equal(await cdp.run(guest,()=>document.querySelector('[data-fp-result=core]').value),'1,8');
         await cdp.send('Page.navigate',{url:'about:blank'},guest);
         await cdp.until(guest,()=>location.href==='about:blank');
         await cdp.navigate(guest,link);
         await cdp.until(guest,()=>!!document.querySelector('[data-fp-candidates]') && !!window.Alpine);
-        assert.deepEqual(await cdp.run(guest,()=>Array.from(document.querySelectorAll('input[type=number]')).slice(0,3).map(input=>input.value)),['0','2.5','']);
+        assert.deepEqual(await cdp.run(guest,()=>Array.from(document.querySelectorAll('input[type=number]')).slice(0,3).map(input=>input.value)),['1','2.5','']);
         assert.deepEqual(await cdp.run(guest,()=>Array.from(document.querySelectorAll('textarea')).slice(0,2).map(input=>input.value)),['Rekomendasi browser','Catatan draft browser']);
         await cdp.run(guest,()=>{document.querySelectorAll('input[type=number]').forEach(input=>{input.value='4';input.dispatchEvent(new Event('input',{bubbles:true}));});Array.from(document.querySelectorAll('button')).find(b=>b.textContent.includes('Simpan Draft')).click();});
         await cdp.until(guest,()=>document.body.innerText.includes('Penilaian disimpan'));
@@ -200,6 +233,16 @@ test('Isolated private Chrome: asynchronous forms, PICs and public examiner link
         await cdp.until(admin,()=>document.querySelector('.swal2-popup')?.classList.contains('swal2-modal'));
         await cdp.run(admin,()=>document.querySelector('.swal2-confirm').click());
         await cdp.until(admin,()=>document.querySelector('[data-fp-fragment=examiner-list]').innerText.includes('Seluruh penilaian terkunci'));
+        for (const width of [1440, 1280, 768, 390]) {
+            await cdp.send('Emulation.setDeviceMetricsOverride', {width, height:900, deviceScaleFactor:1, mobile:false}, admin);
+            const overflow = await cdp.run(admin, async () => {
+                document.querySelectorAll('#rekap details').forEach(item => item.open = true);
+                await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                return document.documentElement.scrollWidth > innerWidth + 1;
+            });
+            assert.equal(overflow, false, `Final recap overflow at ${width}px`);
+            if (width === 390 || width === 1440) await screenshot(admin, 'final-recap-'+width);
+        }
         await cdp.navigate(guest,renewed);
         await cdp.until(guest,()=>document.body.innerText.includes('Kegiatan sudah selesai'));
         assert.deepEqual(cdp.errors,[],'Browser JavaScript errors');

@@ -21,7 +21,7 @@ class FitProperCalculationService
     public function examinerAverage(array $values): ?array
     {
         foreach (array_keys(self::INDICATORS) as $key) {
-            if (! isset($values[$key]) || ! is_numeric($values[$key]) || $values[$key] < 0 || $values[$key] > 5) {
+            if (! isset($values[$key]) || ! is_numeric($values[$key]) || $values[$key] < 1 || $values[$key] > 5) {
                 return null;
             }
         }
@@ -51,18 +51,18 @@ class FitProperCalculationService
                 $details[] = ['examiner_id' => $examiner->id, 'examiner_name' => $examiner->name, 'user_id' => $examiner->user_id,
                     'submitted' => $submitted, 'indicators' => $score?->indicators,
                     'recommendation' => $score?->recommendation, 'notes' => $score?->notes, 'calculation' => $calculation];
-                if ($submitted) {
+                if ($calculation !== null) {
                     $averages[] = $calculation['average'];
                 }
             }
-            $participantAverage = count($averages) === $activity->examiners->count() && count($averages) > 0 ? array_sum($averages) / count($averages) : null;
+            $participantAverage = count($averages) > 0 ? array_sum($averages) / count($averages) : null;
             $participantComplete = $participantAverage !== null && $participant->kpi() !== null && $participant->assessment !== null;
-            $complete = $complete && $participantComplete;
+            $complete = $complete && $participantComplete && count(array_filter($details, fn ($detail) => $detail['submitted'])) === $activity->examiners->count();
             $rows[] = ['id' => $participant->id, 'name' => $participant->name, 'sap' => $participant->sap, 'internal_identity' => $participant->internal_identity,
                 'birth_date' => $participant->birth_date?->toDateString(), 'profile' => $participant->profile,
                 'kpi_year_1' => $participant->kpi_year_1, 'kpi_year_2' => $participant->kpi_year_2,
                 'kpi' => $participant->kpi(), 'assessment' => $participant->assessment, 'raw' => $participantAverage,
-                'submitted_count' => count($averages), 'details' => $details, 'complete' => $participantComplete];
+                'submitted_count' => count(array_filter($details, fn ($detail) => $detail['submitted'])), 'details' => $details, 'complete' => $participantComplete];
         }
         $maximumAverage = max(array_merge([0], array_column($rows, 'raw')));
         $complete = $complete && $maximumAverage > 0;
