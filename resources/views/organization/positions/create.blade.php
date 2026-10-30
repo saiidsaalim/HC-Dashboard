@@ -5,7 +5,7 @@
 @section('content')
     <div class="mx-auto max-w-2xl">
         <x-ui.page-header title="Tambah Position" eyebrow="Master organisasi"
-            description="Pilih Department, Unit, lalu Section sebagai induk Position."
+            description="Pilih Directorate, Department, Unit, lalu Section sebagai induk Position."
             :back-href="route('organization.positions.index')" back-label="Daftar Position" />
         @if ($units->isEmpty())
             <div class="mt-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">

@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Services\Employees\EmployeeImportStagingService;
 use App\Services\Employees\EmployeeOrganizationSyncService;
 use App\Services\Users\StaffUserProvisioningService;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -51,15 +52,32 @@ class EmployeeController extends Controller
 
         $search = trim((string) $request->input('search', ''));
         $validatedFilters = $request->validate([
+            'directorate_id' => ['nullable', 'integer', Rule::exists(Directorate::class, 'id')],
             'department_id' => ['nullable', 'integer', 'required_with:unit_id,position_id', Rule::exists(Department::class, 'id')],
             'unit_id' => ['nullable', 'integer', 'required_with:position_id', Rule::exists(Unit::class, 'id')],
             'position_id' => ['nullable', 'integer', Rule::exists(Position::class, 'id')],
+            'status' => ['nullable', 'string', 'max:255', Rule::exists(Employee::class, 'organic_status')],
+            'level' => ['nullable', 'string', 'max:255', Rule::exists(Employee::class, 'employee_subgroup')],
+            'gender' => ['nullable', 'string', 'max:255', Rule::exists(Employee::class, 'gender_key')],
             'sort_by' => ['nullable', 'string', Rule::in(['latest', 'organic_newest', 'organic_oldest'])],
         ]);
+        $directorateId = isset($validatedFilters['directorate_id']) ? (int) $validatedFilters['directorate_id'] : null;
         $departmentId = isset($validatedFilters['department_id']) ? (int) $validatedFilters['department_id'] : null;
         $unitId = isset($validatedFilters['unit_id']) ? (int) $validatedFilters['unit_id'] : null;
         $positionId = isset($validatedFilters['position_id']) ? (int) $validatedFilters['position_id'] : null;
+        $status = trim((string) ($validatedFilters['status'] ?? ''));
+        $level = trim((string) ($validatedFilters['level'] ?? ''));
+        $gender = trim((string) ($validatedFilters['gender'] ?? ''));
         $sortBy = $validatedFilters['sort_by'] ?? 'latest';
+
+        if ($directorateId !== null && $departmentId !== null && Department::query()
+            ->whereKey($departmentId)
+            ->where('directorate_id', $directorateId)
+            ->doesntExist()) {
+            throw ValidationException::withMessages([
+                'department_id' => 'Department yang dipilih tidak berada dalam Directorate tersebut.',
+            ]);
+        }
 
         if ($unitId !== null && Unit::query()
             ->whereKey($unitId)
@@ -79,14 +97,18 @@ class EmployeeController extends Controller
             ]);
         }
 
-        $employeeQuery = Employee::query()->with(['organizationDepartment', 'unit', 'organizationPosition']);
+        $employeeQuery = Employee::query()->with(['organizationDirectorate', 'organizationDepartment', 'unit', 'organizationPosition']);
 
         if ($search !== '') {
             $employeeQuery->where(function (Builder $query) use ($search): void {
-                foreach (['sap', 'personal_number', 'txt_dept', 'position', 'id_number', 'email'] as $column) {
+                foreach (['sap', 'name', 'personal_number', 'txt_dept', 'position', 'id_number', 'email'] as $column) {
                     $query->orWhere($column, 'like', "%{$search}%");
                 }
             });
+        }
+
+        if ($directorateId !== null) {
+            $employeeQuery->where('directorate_id', $directorateId);
         }
 
         if ($departmentId !== null) {
@@ -101,6 +123,18 @@ class EmployeeController extends Controller
             $employeeQuery->where('position_id', $positionId);
         }
 
+        if ($status !== '') {
+            $employeeQuery->where('organic_status', $status);
+        }
+
+        if ($level !== '') {
+            $employeeQuery->where('employee_subgroup', $level);
+        }
+
+        if ($gender !== '') {
+            $employeeQuery->where('gender_key', $gender);
+        }
+
         if ($sortBy === 'organic_newest' || $sortBy === 'organic_oldest') {
             $employeeQuery
                 ->orderByRaw('CASE WHEN organilk IS NULL THEN 1 ELSE 0 END')
@@ -111,35 +145,70 @@ class EmployeeController extends Controller
         }
 
         $employees = $employeeQuery->paginate(20)->withQueryString();
+        $directorateIds = $employees->pluck('directorate_id')->filter()->merge($directorateId !== null ? [$directorateId] : [])->unique();
         $departmentIds = $employees->pluck('department_id')->filter()->merge($departmentId !== null ? [$departmentId] : [])->unique()->all();
         $unitIds = $employees->pluck('unit_id')->filter()->merge($unitId !== null ? [$unitId] : [])->unique()->all();
+        $sectionIds = $employees->pluck('section_id')->filter()->unique();
         $positionIds = $employees->pluck('position_id')->filter()->merge($positionId !== null ? [$positionId] : [])->unique()->all();
-        $organizationDirectorates = Directorate::query()->where('active', true)->orderBy('name')->get();
         $organizationDepartments = Department::query()->where('active', true)->orWhereIn('id', $departmentIds)->orderBy('name')->get();
         $organizationUnits = Unit::query()->with('department')->where('active', true)->orWhereIn('id', $unitIds)->orderBy('name')->get();
-        $organizationSections = Section::query()->with('unit')->where('active', true)->orderBy('name')->get();
         $organizationPositions = Position::query()->with(['unit.department', 'section'])->where('active', true)->orWhereIn('id', $positionIds)->orderBy('name')->get();
+        $directorateIds = $directorateIds->merge($organizationDepartments->pluck('directorate_id'))->filter()->unique()->all();
+        $sectionIds = $sectionIds->merge($organizationPositions->pluck('section_id'))->filter()->unique()->all();
+        $organizationDirectorates = Directorate::query()->where('active', true)->orWhereIn('id', $directorateIds)->orderBy('name')->get();
+        $organizationSections = Section::query()->with('unit')->where('active', true)->orWhereIn('id', $sectionIds)->orderBy('name')->get();
+        $filterDepartments = $directorateId === null
+            ? $organizationDepartments
+            : $organizationDepartments->where('directorate_id', $directorateId)->values();
         $filterUnits = $departmentId === null
             ? collect()
             : $organizationUnits->where('department_id', $departmentId)->values();
         $filterPositions = $unitId === null
             ? collect()
             : $organizationPositions->where('unit_id', $unitId)->values();
+        $statusOptions = Employee::query()
+            ->whereNotNull('organic_status')
+            ->where('organic_status', '!=', '')
+            ->distinct()
+            ->orderBy('organic_status')
+            ->pluck('organic_status');
+        $employeeLevels = Employee::query()
+            ->whereNotNull('employee_subgroup')
+            ->where('employee_subgroup', '!=', '')
+            ->distinct()
+            ->orderBy('employee_subgroup')
+            ->pluck('employee_subgroup');
+        $genderOptions = Employee::query()
+            ->whereNotNull('gender_key')
+            ->where('gender_key', '!=', '')
+            ->distinct()
+            ->orderBy('gender_key')
+            ->pluck('gender_key');
 
         $viewData = [
             'employees' => $employees,
             'search' => $search,
+            'directorateId' => (string) ($directorateId ?? ''),
             'departmentId' => (string) ($departmentId ?? ''),
             'unitId' => (string) ($unitId ?? ''),
             'positionId' => (string) ($positionId ?? ''),
+            'status' => $status,
+            'level' => $level,
+            'gender' => $gender,
             'sortBy' => $sortBy,
             'organizationDirectorates' => $organizationDirectorates,
             'organizationDepartments' => $organizationDepartments,
             'organizationUnits' => $organizationUnits,
             'organizationSections' => $organizationSections,
             'organizationPositions' => $organizationPositions,
+            'filterDepartments' => $filterDepartments,
             'filterUnits' => $filterUnits,
             'filterPositions' => $filterPositions,
+            'statusOptions' => $statusOptions,
+            'employeeLevels' => $employeeLevels,
+            'genderOptions' => $genderOptions,
+            'employeeStatistics' => $this->employeeStatistics(),
+            'employeeCharts' => $this->employeeChartData(),
             'employeeIndexRoute' => $workspaceFeatureView === null ? 'data-pegawai' : $routeName,
         ];
 
@@ -345,14 +414,6 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
-
-    /**
      * Store a newly created resource in storage.
      */
     public function store(StoreEmployeeRequest $request): RedirectResponse
@@ -375,14 +436,6 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Employee $employee)
-    {
-        //
-    }
-
-    /**
      * Update the specified resource in storage.
      */
     public function update(
@@ -391,7 +444,7 @@ class EmployeeController extends Controller
         StaffUserProvisioningService $staffUserProvisioningService,
     ): RedirectResponse {
         DB::transaction(function () use ($request, $employee, $staffUserProvisioningService): void {
-            $employee->update($request->validated());
+            $employee->update($this->withSelectedOrganizationNames($request->validated()));
             $staffUserProvisioningService->synchronizeLinkedUser($employee);
         });
 
@@ -467,5 +520,80 @@ class EmployeeController extends Controller
         $data['position'] = Position::query()->findOrFail($data['position_id'])->name;
 
         return $data;
+    }
+
+    /**
+     * @return array{total: int, incomplete: int, retiring_this_year: int, retirement_age: int, average_tenure_years: float|null, tenure_sample_size: int}
+     */
+    private function employeeStatistics(): array
+    {
+        $today = CarbonImmutable::today();
+        $retirementAge = max(1, (int) config('workforce.retirement_age', 56));
+        $retirementBirthYear = $today->year - $retirementAge;
+        $incomplete = Employee::query()
+            ->where(function (Builder $query): void {
+                foreach (['personal_number', 'email', 'gender_key'] as $field) {
+                    $query->orWhereNull($field)->orWhereRaw("TRIM({$field}) = ''");
+                }
+
+                foreach (['birth_date', 'directorate_id', 'department_id', 'unit_id', 'section_id', 'position_id'] as $field) {
+                    $query->orWhereNull($field);
+                }
+            })
+            ->count();
+        $retiringThisYear = Employee::query()
+            ->whereBetween('birth_date', [
+                CarbonImmutable::create($retirementBirthYear, 1, 1)->startOfDay(),
+                CarbonImmutable::create($retirementBirthYear, 12, 31)->endOfDay(),
+            ])
+            ->count();
+        $tenureYears = Employee::query()
+            ->whereNotNull('hiring')
+            ->whereDate('hiring', '<=', $today)
+            ->pluck('hiring')
+            ->map(fn (mixed $hiringDate): float => CarbonImmutable::parse((string) $hiringDate)->diffInDays($today) / 365.2425);
+
+        return [
+            'total' => Employee::query()->count(),
+            'incomplete' => $incomplete,
+            'retiring_this_year' => $retiringThisYear,
+            'retirement_age' => $retirementAge,
+            'average_tenure_years' => $tenureYears->isEmpty() ? null : round((float) $tenureYears->average(), 1),
+            'tenure_sample_size' => $tenureYears->count(),
+        ];
+    }
+
+    /**
+     * @return array{
+     *     hiring: array{categories: array<int, string>, series: array<int, int>},
+     *     education: array{categories: array<int, string>, series: array<int, int>}
+     * }
+     */
+    private function employeeChartData(): array
+    {
+        $hiringCounts = Employee::query()
+            ->get(['hiring', 'hiring_date'])
+            ->map(fn (Employee $employee): mixed => $employee->hiring ?? $employee->hiring_date)
+            ->filter()
+            ->map(fn (mixed $hiringDate): string => (string) CarbonImmutable::parse((string) $hiringDate)->year)
+            ->countBy()
+            ->sortKeys();
+        $educationCounts = Employee::query()
+            ->get(['pendidikan', 'education'])
+            ->map(fn (Employee $employee): string => trim((string) ($employee->pendidikan ?? $employee->education ?? '')))
+            ->filter()
+            ->countBy()
+            ->sortDesc();
+
+        return [
+            'hiring' => [
+                'categories' => $hiringCounts->keys()->values()->all(),
+                'series' => $hiringCounts->values()->map(fn (mixed $count): int => (int) $count)->all(),
+            ],
+            'education' => [
+                'categories' => $educationCounts->keys()->values()->all(),
+                'series' => $educationCounts->values()->map(fn (mixed $count): int => (int) $count)->all(),
+            ],
+        ];
     }
 }

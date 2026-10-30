@@ -5,13 +5,19 @@
 
 <form method="POST" action="{{ $action }}"
     x-data="{
+        directorateId: @js((string) old('directorate_id', $assessment?->department?->directorate_id ?? '')),
         departmentId: @js((string) old('department_id', $assessment?->department_id ?? '')),
         unitId: @js((string) old('unit_id', $assessment?->unit_id ?? '')),
+        sectionId: @js((string) old('section_id', $assessment?->position?->section_id ?? '')),
         positionId: @js((string) old('position_id', $assessment?->position_id ?? '')),
+        departments: @js($departments->map(fn ($department) => ['id' => $department->id, 'directorate_id' => $department->directorate_id, 'label' => $department->name.($department->active ? '' : ' (Inactive)')])->values()),
         units: @js($units->map(fn ($unit) => ['id' => $unit->id, 'department_id' => $unit->department_id, 'label' => $unit->name.($unit->active ? '' : ' (Inactive)')])->values()),
-        positions: @js($positions->map(fn ($position) => ['id' => $position->id, 'unit_id' => $position->unit_id, 'label' => $position->name.($position->active ? '' : ' (Inactive)')])->values()),
-        resetDepartment() { this.unitId = ''; this.positionId = ''; },
-        resetUnit() { this.positionId = ''; },
+        sections: @js($sections->map(fn ($section) => ['id' => $section->id, 'unit_id' => $section->unit_id, 'label' => $section->name.($section->active ? '' : ' (Inactive)')])->values()),
+        positions: @js($positions->map(fn ($position) => ['id' => $position->id, 'unit_id' => $position->unit_id, 'section_id' => $position->section_id, 'label' => $position->name.($position->active ? '' : ' (Inactive)')])->values()),
+        resetDirectorate() { this.departmentId = ''; this.unitId = ''; this.sectionId = ''; this.positionId = ''; },
+        resetDepartment() { this.unitId = ''; this.sectionId = ''; this.positionId = ''; },
+        resetUnit() { this.sectionId = ''; this.positionId = ''; },
+        resetSection() { this.positionId = ''; },
     }"
     class="space-y-6">
     @csrf
@@ -34,12 +40,21 @@
                 <input type="number" name="period" value="{{ old('period', $assessment?->period) }}" required min="1900" max="2100" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
                 @error('period')<span class="mt-1 block text-xs text-red-600">{{ $message }}</span>@enderror
             </label>
+            <label class="block text-sm font-medium text-slate-700">Directorate
+                <select name="directorate_id" x-model="directorateId" @change="resetDirectorate()" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
+                    <option value="">Without Directorate (legacy data)</option>
+                    @foreach ($directorates as $directorate)
+                        <option value="{{ $directorate->id }}">{{ $directorate->name }}{{ $directorate->active ? '' : ' (Inactive)' }}</option>
+                    @endforeach
+                </select>
+                @error('directorate_id')<span class="mt-1 block text-xs text-red-600">{{ $message }}</span>@enderror
+            </label>
             <label class="block text-sm font-medium text-slate-700">Department
                 <select name="department_id" x-model="departmentId" @change="resetDepartment()" required class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
                     <option value="">Select Department</option>
-                    @foreach ($departments as $department)
-                        <option value="{{ $department->id }}">{{ $department->name }}{{ $department->active ? '' : ' (Inactive)' }}</option>
-                    @endforeach
+                    <template x-for="department in departments.filter(item => String(item.directorate_id ?? '') === String(directorateId))" :key="department.id">
+                        <option :value="String(department.id)" x-text="department.label"></option>
+                    </template>
                 </select>
                 @error('department_id')<span class="mt-1 block text-xs text-red-600">{{ $message }}</span>@enderror
             </label>
@@ -52,10 +67,19 @@
                 </select>
                 @error('unit_id')<span class="mt-1 block text-xs text-red-600">{{ $message }}</span>@enderror
             </label>
+            <label class="block text-sm font-medium text-slate-700">Section
+                <select name="section_id" x-model="sectionId" @change="resetSection()" :disabled="!unitId" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400 disabled:bg-slate-100">
+                    <option value="">Without Section (legacy data)</option>
+                    <template x-for="section in sections.filter(item => String(item.unit_id) === String(unitId))" :key="section.id">
+                        <option :value="String(section.id)" x-text="section.label"></option>
+                    </template>
+                </select>
+                @error('section_id')<span class="mt-1 block text-xs text-red-600">{{ $message }}</span>@enderror
+            </label>
             <label class="block text-sm font-medium text-slate-700">Position
                 <select name="position_id" x-model="positionId" :disabled="!unitId" required class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400 disabled:bg-slate-100">
                     <option value="">Select Position</option>
-                    <template x-for="position in positions.filter(item => String(item.unit_id) === String(unitId))" :key="position.id">
+                    <template x-for="position in positions.filter(item => String(item.unit_id) === String(unitId) && String(item.section_id ?? '') === String(sectionId))" :key="position.id">
                         <option :value="String(position.id)" x-text="position.label"></option>
                     </template>
                 </select>

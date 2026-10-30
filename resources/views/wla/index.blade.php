@@ -23,7 +23,7 @@
         <div class="overflow-x-auto">
             <table class="w-full min-w-[1280px] text-left text-sm">
                 <thead class="text-xs uppercase">
-                    <tr><th class="px-4 py-3">Assessment</th><th class="px-4 py-3">Period</th><th class="px-4 py-3">Department</th><th class="px-4 py-3">Unit</th><th class="px-4 py-3">Position</th><th class="px-4 py-3">Schedule</th><th class="px-4 py-3">Calendar</th><th class="px-4 py-3">Efficiency</th><th class="px-4 py-3">FTE</th><th class="px-4 py-3">Rekomendasi</th><th class="px-4 py-3">Status</th><th class="px-4 py-3 text-right">Action</th></tr>
+                    <tr><th class="px-4 py-3">Assessment</th><th class="px-4 py-3">Tanggal Assessment</th><th class="px-4 py-3">Department</th><th class="px-4 py-3">Unit</th><th class="px-4 py-3">Position</th><th class="px-4 py-3">Schedule</th><th class="px-4 py-3">Calendar</th><th class="px-4 py-3">Efficiency</th><th class="px-4 py-3">FTE</th><th class="px-4 py-3">Rekomendasi</th><th class="px-4 py-3">Status</th><th class="px-4 py-3 text-right">Action</th></tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     @forelse ($assessments as $wla)
@@ -31,7 +31,7 @@
                         @php($snapshot = $isFinal ? $wla->final_snapshot : null)
                         <tr>
                             <td class="px-4 py-3 font-semibold text-slate-800">{{ $isFinal ? data_get($snapshot, 'assessment_code', 'Snapshot tidak tersedia') : $wla->assessment_code }}</td>
-                            <td class="px-4 py-3 text-slate-600">{{ $isFinal ? data_get($snapshot, 'period', '—') : $wla->period }}</td>
+                            <td class="px-4 py-3 text-slate-600"><time datetime="{{ $wla->created_at->toDateString() }}">{{ $wla->created_at->format('d M Y') }}</time></td>
                             <td class="px-4 py-3 text-slate-600">{{ $isFinal ? data_get($snapshot, 'department.name', 'Snapshot tidak tersedia') : $wla->department->name }}</td>
                             <td class="px-4 py-3 text-slate-600">{{ $isFinal ? data_get($snapshot, 'unit.name', 'Snapshot tidak tersedia') : $wla->unit->name }}</td>
                             <td class="px-4 py-3 text-slate-600">{{ $isFinal ? data_get($snapshot, 'position.name', 'Snapshot tidak tersedia') : $wla->position->name }}</td>

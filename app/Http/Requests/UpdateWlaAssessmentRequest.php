@@ -22,15 +22,25 @@ class UpdateWlaAssessmentRequest extends FormRequest
     {
         $assessment = $this->route('wla');
         $assessment = $assessment instanceof WlaAssessment ? $assessment : null;
+        $assessment?->loadMissing(['department', 'position']);
 
         return [
             'period' => ['required', 'integer', 'min:1900', 'max:2100'],
+            'directorate_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('directorates', 'id')
+                    ->where(fn (Builder $query): Builder => $this->activeOrCurrent(
+                        $query,
+                        $assessment?->department?->directorate_id,
+                    )),
+            ],
             'department_id' => [
                 'required',
                 'integer',
                 Rule::exists('departments', 'id')
                     ->where(fn (Builder $query): Builder => $this->activeOrCurrent(
-                        $query,
+                        $query->where('directorate_id', $this->input('directorate_id')),
                         $assessment?->department_id,
                     )),
             ],
@@ -41,10 +51,19 @@ class UpdateWlaAssessmentRequest extends FormRequest
                     $assessment?->unit_id,
                 )),
             ],
+            'section_id' => [
+                'nullable', 'integer',
+                Rule::exists('sections', 'id')->where(fn (Builder $query): Builder => $this->activeOrCurrent(
+                    $query->where('unit_id', $this->input('unit_id')),
+                    $assessment?->position?->section_id,
+                )),
+            ],
             'position_id' => [
                 'required', 'integer',
                 Rule::exists('positions', 'id')->where(fn (Builder $query): Builder => $this->activeOrCurrent(
-                    $query->where('unit_id', $this->input('unit_id')),
+                    $query
+                        ->where('unit_id', $this->input('unit_id'))
+                        ->where('section_id', $this->input('section_id')),
                     $assessment?->position_id,
                 )),
             ],

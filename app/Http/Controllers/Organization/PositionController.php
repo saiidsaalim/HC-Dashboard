@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Organization;
 
 use App\Http\Controllers\Controller;
 use App\Models\Department;
+use App\Models\Directorate;
 use App\Models\Position;
 use App\Models\Section;
 use App\Models\Unit;
@@ -58,20 +59,40 @@ class PositionController extends Controller
     {
         Gate::authorize('create', Position::class);
 
-        $departments = Department::query()->where('active', true)->orderBy('name')->get();
+        $directorates = Directorate::query()->where('active', true)->orderBy('name')->get();
+        $departments = Department::query()
+            ->where('active', true)
+            ->where(fn (EloquentBuilder $query): EloquentBuilder => $query
+                ->whereNull('directorate_id')
+                ->orWhereHas('directorate', fn (EloquentBuilder $query): EloquentBuilder => $query->where('active', true)))
+            ->orderBy('name')
+            ->get();
         $units = Unit::query()
             ->with('department')
             ->where('active', true)
-            ->whereHas('department', fn (EloquentBuilder $query): EloquentBuilder => $query->where('active', true))
+            ->whereHas('department', fn (EloquentBuilder $query): EloquentBuilder => $query
+                ->where('active', true)
+                ->where(fn (EloquentBuilder $query): EloquentBuilder => $query
+                    ->whereNull('directorate_id')
+                    ->orWhereHas('directorate', fn (EloquentBuilder $query): EloquentBuilder => $query->where('active', true))))
             ->orderBy('name')
             ->get();
         $sections = Section::query()->with('unit')->where('active', true)
             ->whereHas('unit', fn (EloquentBuilder $query): EloquentBuilder => $query->where('active', true))
             ->orderBy('name')->get();
-        $requestedDepartmentId = $request->integer('department_id');
-        $selectedDepartmentId = $departments->contains('id', $requestedDepartmentId)
-            ? (string) $requestedDepartmentId
+        $requestedDirectorateId = $request->integer('directorate_id');
+        $selectedDirectorateId = $directorates->contains('id', $requestedDirectorateId)
+            ? (string) $requestedDirectorateId
             : '';
+        $requestedDepartmentId = $request->integer('department_id');
+        $requestedDepartment = $departments->firstWhere('id', $requestedDepartmentId);
+        if ($selectedDirectorateId === '' && $requestedDepartment?->directorate_id !== null) {
+            $selectedDirectorateId = (string) $requestedDepartment->directorate_id;
+        }
+        $selectedDepartmentId = $requestedDepartment !== null
+            && (string) ($requestedDepartment->directorate_id ?? '') === $selectedDirectorateId
+                ? (string) $requestedDepartmentId
+                : '';
         $requestedUnitId = $request->integer('unit_id');
         $selectedUnitId = $units->contains(
             fn (Unit $unit): bool => $unit->id === $requestedUnitId
@@ -84,9 +105,11 @@ class PositionController extends Controller
         ) ? (string) $requestedSectionId : '';
 
         return view('organization.positions.create', [
+            'directorates' => $directorates,
             'departments' => $departments,
             'units' => $units,
             'sections' => $sections,
+            'selectedDirectorateId' => $selectedDirectorateId,
             'selectedDepartmentId' => $selectedDepartmentId,
             'selectedUnitId' => $selectedUnitId,
             'selectedSectionId' => $selectedSectionId,
@@ -106,14 +129,27 @@ class PositionController extends Controller
     {
         Gate::authorize('update', $position);
 
-        $position->loadMissing(['unit.department', 'section']);
+        $position->loadMissing(['unit.department.directorate', 'section']);
+
+        $currentDepartment = $position->unit->department;
+        $currentDirectorateId = $currentDepartment->directorate_id;
 
         return view('organization.positions.edit', [
             'position' => $position,
-            'departments' => Department::query()
+            'directorates' => Directorate::query()
                 ->where(fn (EloquentBuilder $query): EloquentBuilder => $query
                     ->where('active', true)
-                    ->orWhere('id', $position->unit->department_id))
+                    ->when($currentDirectorateId !== null, fn (EloquentBuilder $query): EloquentBuilder => $query->orWhere('id', $currentDirectorateId)))
+                ->orderBy('name')
+                ->get(),
+            'departments' => Department::query()
+                ->where(fn (EloquentBuilder $query): EloquentBuilder => $query
+                    ->where(fn (EloquentBuilder $query): EloquentBuilder => $query
+                        ->where('active', true)
+                        ->where(fn (EloquentBuilder $query): EloquentBuilder => $query
+                            ->whereNull('directorate_id')
+                            ->orWhereHas('directorate', fn (EloquentBuilder $query): EloquentBuilder => $query->where('active', true))))
+                    ->orWhere('id', $currentDepartment->id))
                 ->orderBy('name')
                 ->get(),
             'units' => Unit::query()
@@ -130,6 +166,7 @@ class PositionController extends Controller
                     ->where('active', true)
                     ->when($position->section_id !== null, fn (EloquentBuilder $query): EloquentBuilder => $query->orWhere('id', $position->section_id)))
                 ->orderBy('name')->get(),
+            'selectedDirectorateId' => (string) ($currentDirectorateId ?? ''),
             'selectedDepartmentId' => (string) $position->unit->department_id,
             'selectedUnitId' => (string) $position->unit_id,
             'selectedSectionId' => (string) ($position->section_id ?? ''),
@@ -165,12 +202,20 @@ class PositionController extends Controller
     /** @return array{unit_id: int, section_id: ?int, code: string, name: string, active: bool} */
     private function validatedData(Request $request, ?Position $position = null): array
     {
-        $position?->loadMissing('unit');
+        $position?->loadMissing('unit.department');
         $currentDepartmentId = $position?->unit->department_id;
-        $departmentRule = Rule::exists('departments', 'id')->where(
+        $currentDirectorateId = $position?->unit->department->directorate_id;
+        $directorateRule = Rule::exists('directorates', 'id')->where(
             fn (QueryBuilder $query): QueryBuilder => $query
                 ->where('active', true)
-                ->when($currentDepartmentId !== null, fn (QueryBuilder $query): QueryBuilder => $query->orWhere('id', $currentDepartmentId)),
+                ->when($currentDirectorateId !== null, fn (QueryBuilder $query): QueryBuilder => $query->orWhere('id', $currentDirectorateId)),
+        );
+        $departmentRule = Rule::exists('departments', 'id')->where(
+            fn (QueryBuilder $query): QueryBuilder => $query
+                ->where('directorate_id', $request->input('directorate_id'))
+                ->where(fn (QueryBuilder $query): QueryBuilder => $query
+                    ->where('active', true)
+                    ->when($currentDepartmentId !== null, fn (QueryBuilder $query): QueryBuilder => $query->orWhere('id', $currentDepartmentId))),
         );
         $unitRule = Rule::exists('units', 'id')
             ->where('department_id', $request->input('department_id'))
@@ -189,6 +234,7 @@ class PositionController extends Controller
                 ->when($position?->section_id !== null, fn (QueryBuilder $query): QueryBuilder => $query->orWhere('id', $position->section_id)));
 
         $validated = $request->validate([
+            'directorate_id' => ['nullable', 'integer', $directorateRule],
             'department_id' => ['required', 'integer', $departmentRule],
             'unit_id' => ['required', 'integer', $unitRule],
             'section_id' => ['nullable', 'integer', $sectionRule],
@@ -199,9 +245,11 @@ class PositionController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'active' => ['required', 'boolean'],
         ], [
+            'directorate_id.integer' => 'Directorate yang dipilih tidak valid.',
+            'directorate_id.exists' => 'Directorate yang dipilih tidak tersedia atau tidak aktif.',
             'department_id.required' => 'Pilih Department untuk Position ini.',
             'department_id.integer' => 'Department yang dipilih tidak valid.',
-            'department_id.exists' => 'Department yang dipilih tidak tersedia atau tidak aktif.',
+            'department_id.exists' => 'Department yang dipilih tidak aktif atau tidak berada pada Directorate terpilih.',
             'unit_id.required' => 'Pilih Unit untuk Position ini.',
             'unit_id.integer' => 'Unit yang dipilih tidak valid.',
             'unit_id.exists' => 'Unit yang dipilih tidak aktif atau tidak berada pada Department terpilih.',
@@ -214,7 +262,7 @@ class PositionController extends Controller
             'active.boolean' => 'Status Position tidak valid.',
         ]);
 
-        unset($validated['department_id']);
+        unset($validated['directorate_id'], $validated['department_id']);
 
         return $validated;
     }

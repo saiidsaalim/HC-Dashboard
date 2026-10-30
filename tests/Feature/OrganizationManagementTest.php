@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\UserRole;
 use App\Models\Department;
+use App\Models\Directorate;
 use App\Models\Employee;
 use App\Models\Unit;
 use App\Models\User;
@@ -201,6 +202,80 @@ class OrganizationManagementTest extends TestCase
             'code' => 'P01',
             'name' => 'Analyst',
         ]);
+    }
+
+    public function test_position_creation_filters_and_validates_department_by_directorate(): void
+    {
+        $commercialDirectorate = Directorate::create([
+            'code' => 'DIR-COM',
+            'name' => 'Commercial Directorate',
+            'active' => true,
+        ]);
+        $operationsDirectorate = Directorate::create([
+            'code' => 'DIR-OPS',
+            'name' => 'Operations Directorate',
+            'active' => true,
+        ]);
+        $commercialDepartment = $commercialDirectorate->departments()->create([
+            'code' => 'D-COM',
+            'name' => 'Commercial Department',
+            'active' => true,
+        ]);
+        $operationsDepartment = $operationsDirectorate->departments()->create([
+            'code' => 'D-OPS',
+            'name' => 'Operations Department',
+            'active' => true,
+        ]);
+        $commercialUnit = $commercialDepartment->units()->create([
+            'code' => 'U-COM',
+            'name' => 'Commercial Unit',
+            'active' => true,
+        ]);
+        $operationsUnit = $operationsDepartment->units()->create([
+            'code' => 'U-OPS',
+            'name' => 'Operations Unit',
+            'active' => true,
+        ]);
+        $this->actingAs($this->superAdmin());
+
+        $this->get(route('organization.positions.create', [
+            'department_id' => $commercialDepartment->id,
+            'unit_id' => $commercialUnit->id,
+        ]))
+            ->assertOk()
+            ->assertSee('name="directorate_id"', false)
+            ->assertSee("directorateId: '".$commercialDirectorate->id."'", false)
+            ->assertSee("departmentId: '".$commercialDepartment->id."'", false)
+            ->assertSee("unitId: '".$commercialUnit->id."'", false)
+            ->assertSee("departments.filter(item => String(item.directorate_id ?? '') === String(directorateId))", false);
+
+        $this->from(route('organization.positions.create'))
+            ->post(route('organization.positions.store'), [
+                'directorate_id' => $commercialDirectorate->id,
+                'department_id' => $operationsDepartment->id,
+                'unit_id' => $operationsUnit->id,
+                'code' => 'P-WRONG-DIR',
+                'name' => 'Wrong Directorate',
+                'active' => '1',
+            ])
+            ->assertSessionHasErrors([
+                'department_id' => 'Department yang dipilih tidak aktif atau tidak berada pada Directorate terpilih.',
+            ]);
+
+        $this->post(route('organization.positions.store'), [
+            'directorate_id' => $operationsDirectorate->id,
+            'department_id' => $operationsDepartment->id,
+            'unit_id' => $operationsUnit->id,
+            'code' => 'P-OPS',
+            'name' => 'Operations Position',
+            'active' => '1',
+        ])->assertRedirect(route('organization.positions.index'));
+
+        $this->assertDatabaseHas('positions', [
+            'unit_id' => $operationsUnit->id,
+            'code' => 'P-OPS',
+        ]);
+        $this->assertDatabaseMissing('positions', ['code' => 'P-WRONG-DIR']);
     }
 
     public function test_position_creation_enforces_active_parent_hierarchy(): void

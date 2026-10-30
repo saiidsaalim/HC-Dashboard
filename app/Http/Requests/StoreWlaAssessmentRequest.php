@@ -19,11 +19,19 @@ class StoreWlaAssessmentRequest extends FormRequest
     {
         return [
             'period' => ['required', 'integer', 'min:1900', 'max:2100'],
+            'directorate_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('directorates', 'id')
+                    ->where(fn (Builder $query): Builder => $query->where('active', true)),
+            ],
             'department_id' => [
                 'required',
                 'integer',
                 Rule::exists('departments', 'id')
-                    ->where(fn (Builder $query): Builder => $query->where('active', true)),
+                    ->where(fn (Builder $query): Builder => $query
+                        ->where('directorate_id', $this->input('directorate_id'))
+                        ->where('active', true)),
             ],
             'unit_id' => [
                 'required', 'integer',
@@ -31,10 +39,17 @@ class StoreWlaAssessmentRequest extends FormRequest
                     ->where('department_id', $this->input('department_id'))
                     ->where('active', true)),
             ],
+            'section_id' => [
+                'nullable', 'integer',
+                Rule::exists('sections', 'id')->where(fn (Builder $query): Builder => $query
+                    ->where('unit_id', $this->input('unit_id'))
+                    ->where('active', true)),
+            ],
             'position_id' => [
                 'required', 'integer',
                 Rule::exists('positions', 'id')->where(fn (Builder $query): Builder => $query
                     ->where('unit_id', $this->input('unit_id'))
+                    ->where('section_id', $this->input('section_id'))
                     ->where('active', true)),
             ],
             'work_schedule_id' => [

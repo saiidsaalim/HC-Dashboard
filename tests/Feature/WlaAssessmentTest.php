@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Enums\WlaAssessmentStatus;
 use App\Enums\WorkScheduleCalculationType;
 use App\Models\Department;
+use App\Models\Directorate;
 use App\Models\Position;
 use App\Models\Unit;
 use App\Models\User;
@@ -63,8 +64,14 @@ class WlaAssessmentTest extends TestCase
     {
         $data = $this->context();
         $assessment = $this->createAssessment($data);
+        $assessment->forceFill(['created_at' => '2026-10-29 08:15:00'])->save();
 
-        $this->actingAs($data['user'])->get(route('wla'))->assertOk();
+        $this->actingAs($data['user'])->get(route('wla'))
+            ->assertOk()
+            ->assertSee('Tanggal Assessment')
+            ->assertSee('datetime="2026-10-29"', false)
+            ->assertSee('29 Oct 2026');
+        $this->assertSame(2026, $assessment->fresh()->period);
         $this->get(route('wla.create'))
             ->assertOk()
             ->assertSee('resetDepartment()')
@@ -73,6 +80,81 @@ class WlaAssessmentTest extends TestCase
             ->assertSee('bukan sumber formula WLA');
         $this->get(route('wla.show', $assessment))->assertOk()->assertSee($assessment->assessment_code);
         $this->get(route('wla.edit', $assessment))->assertOk()->assertSee('Efficiency Factor');
+    }
+
+    public function test_assessment_uses_directorate_and_section_to_scope_organization_choices(): void
+    {
+        $data = $this->context();
+        $directorate = Directorate::create([
+            'code' => 'DIR-OPS',
+            'name' => 'Operations Directorate',
+            'active' => true,
+        ]);
+        $otherDirectorate = Directorate::create([
+            'code' => 'DIR-COM',
+            'name' => 'Commercial Directorate',
+            'active' => true,
+        ]);
+        $data['department']->update(['directorate_id' => $directorate->id]);
+        $section = $data['unit']->sections()->create([
+            'code' => 'SEC-PROD',
+            'name' => 'Production Section',
+            'active' => true,
+        ]);
+        $otherSection = $data['unit']->sections()->create([
+            'code' => 'SEC-PLAN',
+            'name' => 'Planning Section',
+            'active' => true,
+        ]);
+        $data['position']->update(['section_id' => $section->id]);
+        $otherPosition = $data['unit']->positions()->create([
+            'section_id' => $otherSection->id,
+            'code' => 'P-PLAN',
+            'name' => 'Planner',
+            'active' => true,
+        ]);
+        $this->actingAs($data['user']);
+
+        $this->get(route('wla.create'))
+            ->assertOk()
+            ->assertSee('name="directorate_id"', false)
+            ->assertSee('name="section_id"', false)
+            ->assertSee('Operations Directorate')
+            ->assertSee('Production Section')
+            ->assertSee("departments.filter(item => String(item.directorate_id ?? '') === String(directorateId))", false)
+            ->assertSee("positions.filter(item => String(item.unit_id) === String(unitId) && String(item.section_id ?? '') === String(sectionId))", false);
+
+        $this->from(route('wla.create'))
+            ->post(route('wla.store'), $this->payload($data, [
+                'directorate_id' => $otherDirectorate->id,
+                'section_id' => $section->id,
+            ]))
+            ->assertSessionHasErrors('department_id');
+
+        $this->from(route('wla.create'))
+            ->post(route('wla.store'), $this->payload($data, [
+                'directorate_id' => $directorate->id,
+                'section_id' => $section->id,
+                'position_id' => $otherPosition->id,
+            ]))
+            ->assertSessionHasErrors('position_id');
+
+        $this->post(route('wla.store'), $this->payload($data, [
+            'directorate_id' => $directorate->id,
+            'section_id' => $section->id,
+        ]))->assertRedirect();
+
+        $assessment = WlaAssessment::query()->sole();
+        $this->assertSame($data['department']->id, $assessment->department_id);
+        $this->assertSame($data['position']->id, $assessment->position_id);
+
+        $this->put(route('wla.update', $assessment), $this->payload($data, [
+            'directorate_id' => $directorate->id,
+            'section_id' => $otherSection->id,
+            'position_id' => $otherPosition->id,
+        ]))->assertRedirect(route('wla.show', $assessment));
+
+        $this->assertSame($otherPosition->id, $assessment->fresh()->position_id);
     }
 
     public function test_foundation_preview_uses_calendar_service_for_an_unsnapshotted_legacy_record(): void

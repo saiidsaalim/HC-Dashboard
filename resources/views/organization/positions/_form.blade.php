@@ -1,8 +1,14 @@
 <form method="POST" action="{{ $action }}"
     x-data="{
+        directorateId: @js((string) old('directorate_id', $selectedDirectorateId)),
         departmentId: @js((string) old('department_id', $selectedDepartmentId)),
         unitId: @js((string) old('unit_id', $selectedUnitId)),
         sectionId: @js((string) old('section_id', $selectedSectionId)),
+        departments: @js($departments->map(fn ($department) => [
+            'id' => $department->id,
+            'directorate_id' => $department->directorate_id,
+            'label' => $department->name.($department->active ? '' : ' (Nonaktif)'),
+        ])->values()),
         units: @js($units->map(fn ($unit) => [
             'id' => $unit->id,
             'department_id' => $unit->department_id,
@@ -21,15 +27,29 @@
     @endif
 
     <div>
+        <label for="directorate_id" class="text-sm font-semibold text-slate-700">Directorate</label>
+        <select id="directorate_id" name="directorate_id" x-model="directorateId" x-on:change="departmentId = ''; unitId = ''; sectionId = ''"
+            class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
+            <option value="">Tanpa Directorate (data lama)</option>
+            @foreach ($directorates as $directorate)
+                <option value="{{ $directorate->id }}">
+                    {{ $directorate->name }}{{ $directorate->active ? '' : ' (Nonaktif)' }}
+                </option>
+            @endforeach
+        </select>
+        @error('directorate_id')
+            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+        @enderror
+    </div>
+
+    <div>
         <label for="department_id" class="text-sm font-semibold text-slate-700">Department <span class="text-red-500" aria-hidden="true">*</span></label>
         <select id="department_id" name="department_id" x-model="departmentId" x-on:change="unitId = ''; sectionId = ''" required
             class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
             <option value="">Pilih Department</option>
-            @foreach ($departments as $department)
-                <option value="{{ $department->id }}">
-                    {{ $department->name }}{{ $department->active ? '' : ' (Nonaktif)' }}
-                </option>
-            @endforeach
+            <template x-for="department in departments.filter(item => String(item.directorate_id ?? '') === String(directorateId))" :key="department.id">
+                <option :value="String(department.id)" x-text="department.label"></option>
+            </template>
         </select>
         @error('department_id')
             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>

@@ -211,7 +211,7 @@ class EmployeeImportStagingTest extends TestCase
         $this->assertSame('2025-12-01', $employee->masa_kontrak->toDateString());
         $this->assertSame('CTR-RAW', $employee->cost_ctr);
         $this->assertSame('Cost Center Source', $employee->cost_center);
-        $this->assertSame(34, $employee->usia);
+        $this->assertSame($employee->birth_date->age, $employee->usia);
         $this->assertSame('2018-04-01', $employee->hiring->toDateString());
         $this->assertSame('1990-05-21', $employee->birth_date->toDateString());
     }
@@ -303,7 +303,7 @@ class EmployeeImportStagingTest extends TestCase
             'cost_center' => 'Cost Center Source',
             'email' => 'source@example.test',
             'religious' => 'Religion Source',
-            'usia' => 36,
+            'usia' => Employee::query()->where('sap', 'SAP-E2E-CREATE')->firstOrFail()->birth_date->age,
             'tempat_lahir' => 'Bandung',
             'pendidikan' => 'S1',
             'alamat' => 'Alamat Source',

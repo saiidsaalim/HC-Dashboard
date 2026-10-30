@@ -65,6 +65,293 @@ function initializeDashboardAnimations() {
 
 document.addEventListener('DOMContentLoaded', initializeDashboardAnimations);
 
+async function initializeEmployeeDashboardAnimations() {
+    const dashboard = document.querySelector('[data-employee-dashboard]');
+
+    if (!(dashboard instanceof HTMLElement) || dashboard.dataset.gsapInitialized === 'true') {
+        return;
+    }
+
+    dashboard.dataset.gsapInitialized = 'true';
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const counters = [...dashboard.querySelectorAll('[data-employee-counter]')];
+    const chartInstances = [];
+    const renderCounter = (counter, value) => {
+        const decimals = Number(counter.dataset.counterDecimals ?? 0);
+        const suffix = counter.dataset.counterSuffix ?? '';
+        const formatter = new Intl.NumberFormat('id-ID', {
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals,
+        });
+
+        counter.textContent = `${formatter.format(value)}${suffix}`;
+    };
+
+    counters.forEach((counter) => {
+        const finalValue = Number(counter.dataset.employeeCounter);
+
+        if (Number.isFinite(finalValue)) {
+            renderCounter(counter, finalValue);
+        }
+    });
+
+    const employeeSearch = dashboard.querySelector('[data-employee-search]');
+    const focusEmployeeSearch = (event) => {
+        if (!(employeeSearch instanceof HTMLInputElement) || event.key.toLowerCase() !== 'k' || (!event.ctrlKey && !event.metaKey)) {
+            return;
+        }
+
+        event.preventDefault();
+        employeeSearch.focus();
+        employeeSearch.select();
+    };
+
+    document.addEventListener('keydown', focusEmployeeSearch);
+    window.addEventListener('pagehide', () => document.removeEventListener('keydown', focusEmployeeSearch), { once: true });
+
+    const parseChartData = (element) => {
+        try {
+            return JSON.parse(element.dataset.chart ?? '{}');
+        } catch {
+            return { categories: [], series: [] };
+        }
+    };
+    const baseChartOptions = {
+        chart: {
+            height: 320,
+            fontFamily: 'inherit',
+            parentHeightOffset: 0,
+            toolbar: { show: false },
+            animations: {
+                enabled: !reduceMotion,
+                speed: 1800,
+                animateGradually: { enabled: true, delay: 160 },
+            },
+        },
+        dataLabels: { enabled: false },
+        legend: { show: false },
+        grid: {
+            borderColor: '#cbd5e1',
+            strokeDashArray: 4,
+        },
+        noData: {
+            text: 'Data belum tersedia',
+            align: 'center',
+            verticalAlign: 'middle',
+            style: { color: '#64748b', fontSize: '13px' },
+        },
+        tooltip: { theme: 'light' },
+    };
+    const hiringChartElement = dashboard.querySelector('[data-employee-hiring-chart]');
+    const educationChartElement = dashboard.querySelector('[data-employee-education-chart]');
+    const ApexCharts = hiringChartElement instanceof HTMLElement || educationChartElement instanceof HTMLElement
+        ? (await import('apexcharts')).default
+        : null;
+    if (hiringChartElement instanceof HTMLElement && ApexCharts !== null) {
+        const data = parseChartData(hiringChartElement);
+        const hiringChart = new ApexCharts(hiringChartElement, {
+            ...baseChartOptions,
+            chart: { ...baseChartOptions.chart, type: 'line' },
+            series: [{ name: 'Jumlah Hiring', data: data.series ?? [] }],
+            colors: ['#2563eb'],
+            stroke: { curve: 'straight', width: 3 },
+            markers: {
+                size: 4,
+                strokeWidth: 2,
+                hover: { sizeOffset: 3 },
+            },
+            xaxis: {
+                categories: data.categories ?? [],
+                axisBorder: { color: '#cbd5e1' },
+                axisTicks: { color: '#cbd5e1' },
+                labels: {
+                    rotate: -35,
+                    hideOverlappingLabels: true,
+                    style: { colors: '#64748b', fontSize: '11px' },
+                },
+            },
+            yaxis: {
+                min: 0,
+                forceNiceScale: true,
+                labels: {
+                    formatter: (value) => Math.round(value).toLocaleString('id-ID'),
+                    style: { colors: '#64748b', fontSize: '11px' },
+                },
+            },
+        });
+        chartInstances.push(hiringChart);
+        void hiringChart.render();
+    }
+
+    if (educationChartElement instanceof HTMLElement && ApexCharts !== null) {
+        const data = parseChartData(educationChartElement);
+        const educationChart = new ApexCharts(educationChartElement, {
+            ...baseChartOptions,
+            chart: { ...baseChartOptions.chart, type: 'bar' },
+            series: [{ name: 'Pegawai', data: data.series ?? [] }],
+            colors: ['#0f766e'],
+            plotOptions: {
+                bar: {
+                    horizontal: true,
+                    borderRadius: 4,
+                    barHeight: '55%',
+                },
+            },
+            xaxis: {
+                categories: data.categories ?? [],
+                min: 0,
+                labels: {
+                    formatter: (value) => Math.round(value).toLocaleString('id-ID'),
+                    style: { colors: '#64748b', fontSize: '11px' },
+                },
+            },
+            yaxis: {
+                labels: {
+                    maxWidth: 160,
+                    style: { colors: '#475569', fontSize: '11px' },
+                },
+            },
+        });
+        chartInstances.push(educationChart);
+        void educationChart.render();
+    }
+
+    if (reduceMotion) {
+        return;
+    }
+
+    const animationContext = gsap.context(() => {
+        gsap.from('[data-employee-stat-card]', {
+            opacity: 0,
+            y: 22,
+            duration: 0.55,
+            delay: 0.12,
+            stagger: 0.1,
+            ease: 'power3.out',
+            clearProps: 'transform,opacity',
+        });
+
+        gsap.from('[data-employee-toolbar]', {
+            opacity: 0,
+            y: 14,
+            duration: 0.45,
+            delay: 0.28,
+            ease: 'power2.out',
+            clearProps: 'transform,opacity',
+        });
+
+        gsap.from('[data-employee-chart-card]', {
+            opacity: 0,
+            y: 18,
+            duration: 0.9,
+            delay: 0.32,
+            stagger: 0.18,
+            ease: 'power3.out',
+            clearProps: 'transform,opacity',
+        });
+
+        gsap.from('[data-employee-table]', {
+            opacity: 0,
+            y: 18,
+            duration: 0.5,
+            delay: 0.34,
+            ease: 'power2.out',
+            clearProps: 'transform,opacity',
+        });
+
+        gsap.from('[data-employee-row]', {
+            opacity: 0,
+            y: 10,
+            duration: 0.35,
+            delay: 0.42,
+            stagger: 0.035,
+            ease: 'power2.out',
+            clearProps: 'transform,opacity',
+        });
+
+        counters.forEach((counter, index) => {
+            const finalValue = Number(counter.dataset.employeeCounter);
+
+            if (!Number.isFinite(finalValue)) {
+                return;
+            }
+
+            const counterState = { value: 0 };
+
+            gsap.to(counterState, {
+                value: finalValue,
+                duration: 0.8,
+                delay: 0.22 + (index * 0.1),
+                ease: 'power2.out',
+                onUpdate: () => renderCounter(counter, counterState.value),
+                onComplete: () => renderCounter(counter, finalValue),
+            });
+        });
+    }, dashboard);
+
+    const panelTriggers = [
+        ...dashboard.querySelectorAll('[data-employee-import-trigger]'),
+        ...dashboard.querySelectorAll('[data-employee-modal-trigger]'),
+        ...dashboard.querySelectorAll('[data-filter-trigger]'),
+    ];
+    const animateOpenedPanel = (trigger) => {
+        window.requestAnimationFrame(() => {
+            let panel;
+
+            if (trigger.matches('[data-employee-import-trigger]')) {
+                panel = dashboard.querySelector('[data-employee-import-panel]');
+            } else if (trigger.matches('[data-employee-modal-trigger]')) {
+                panel = dashboard.querySelector('[data-employee-create-panel]');
+            } else {
+                panel = document.getElementById(trigger.getAttribute('aria-controls'));
+            }
+
+            if (!(panel instanceof HTMLElement)) {
+                return;
+            }
+
+            const animationTarget = trigger.matches('[data-filter-trigger]')
+                ? panel.querySelector('[data-filter-form]')
+                : panel;
+
+            if (!(animationTarget instanceof HTMLElement)) {
+                return;
+            }
+
+            gsap.fromTo(animationTarget, {
+                opacity: 0,
+                y: 16,
+                scale: 0.985,
+            }, {
+                opacity: 1,
+                y: 0,
+                scale: 1,
+                duration: 0.28,
+                ease: 'power2.out',
+                clearProps: 'transform,opacity',
+            });
+        });
+    };
+    const triggerListeners = panelTriggers.map((trigger) => {
+        const listener = () => animateOpenedPanel(trigger);
+        trigger.addEventListener('click', listener);
+
+        return [trigger, listener];
+    });
+    const cleanup = () => {
+        triggerListeners.forEach(([trigger, listener]) => trigger.removeEventListener('click', listener));
+        chartInstances.forEach((chart) => chart.destroy());
+        animationContext.revert();
+    };
+
+    window.addEventListener('pagehide', cleanup, { once: true });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    void initializeEmployeeDashboardAnimations();
+});
+
 async function confirmFormAction(form) {
     if (form.dataset.confirmPending === 'true' || form.dataset.confirmSubmitting === 'true') {
         return false;

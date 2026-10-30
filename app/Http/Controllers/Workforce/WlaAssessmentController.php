@@ -10,8 +10,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreWlaAssessmentRequest;
 use App\Http\Requests\UpdateWlaAssessmentRequest;
 use App\Models\Department;
+use App\Models\Directorate;
 use App\Models\Employee;
 use App\Models\Position;
+use App\Models\Section;
 use App\Models\Unit;
 use App\Models\WlaAssessment;
 use App\Models\WlaParticipant;
@@ -62,6 +64,7 @@ class WlaAssessmentController extends Controller
     public function store(StoreWlaAssessmentRequest $request): RedirectResponse
     {
         $data = $request->validated();
+        unset($data['directorate_id'], $data['section_id']);
 
         $assessment = DB::transaction(function () use ($data, $request): WlaAssessment {
             $assessment = WlaAssessment::query()->create([
@@ -139,8 +142,10 @@ class WlaAssessmentController extends Controller
     {
         DB::transaction(function () use ($request, $wla): void {
             $lockedAssessment = $this->lockAuthorizedAssessment($wla, 'update');
+            $data = $request->validated();
+            unset($data['directorate_id'], $data['section_id']);
             $lockedAssessment->update([
-                ...$request->validated(),
+                ...$data,
                 'updated_by' => $request->user()->id,
             ]);
 
@@ -185,23 +190,33 @@ class WlaAssessmentController extends Controller
         return $this->wlaFinalSpreadsheet->download($wla);
     }
 
-    /** @return array{departments: Collection, units: Collection, positions: Collection, workSchedules: Collection, workCalendars: Collection, periodUnits: array, assessment: WlaAssessment|null} */
+    /** @return array{directorates: Collection, departments: Collection, units: Collection, sections: Collection, positions: Collection, workSchedules: Collection, workCalendars: Collection, periodUnits: array, assessment: WlaAssessment|null} */
     private function formData(?WlaAssessment $assessment = null): array
     {
+        $assessment?->loadMissing(['department', 'position']);
+
         return [
             'assessment' => $assessment,
+            'directorates' => $this->activeOrCurrent(
+                Directorate::query(),
+                $assessment?->department?->directorate_id,
+            )->orderBy('name')->get(),
             'departments' => $this->activeOrCurrent(
                 Department::query(),
                 $assessment?->department_id,
-            )->orderBy('name')->get(),
+            )->with('directorate')->orderBy('name')->get(),
             'units' => $this->activeOrCurrent(
                 Unit::query(),
                 $assessment?->unit_id,
             )->with('department')->orderBy('name')->get(),
+            'sections' => $this->activeOrCurrent(
+                Section::query(),
+                $assessment?->position?->section_id,
+            )->with('unit')->orderBy('name')->get(),
             'positions' => $this->activeOrCurrent(
                 Position::query(),
                 $assessment?->position_id,
-            )->with('unit')->orderBy('name')->get(),
+            )->with(['unit', 'section'])->orderBy('name')->get(),
             'workSchedules' => $this->activeOrCurrent(
                 WorkSchedule::query(),
                 $assessment?->work_schedule_id,

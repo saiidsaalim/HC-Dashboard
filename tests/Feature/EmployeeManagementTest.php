@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\EmployeeImportRow;
 use App\Models\Section;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -115,6 +116,165 @@ class EmployeeManagementTest extends TestCase
         );
     }
 
+    public function test_employee_list_can_filter_by_directorate_and_actual_status(): void
+    {
+        $user = User::factory()->create();
+        $operationsDirectorate = Directorate::create(['code' => 'DIR-OPS-FILTER', 'name' => 'Operations Directorate', 'active' => true]);
+        $financeDirectorate = Directorate::create(['code' => 'DIR-FIN-FILTER', 'name' => 'Finance Directorate', 'active' => true]);
+        Employee::create($this->employeeAttributes('SAP-DIR-ACTIVE', [
+            'directorate_id' => $operationsDirectorate->id,
+            'organic_status' => 'Aktif',
+        ]));
+        Employee::create($this->employeeAttributes('SAP-DIR-INACTIVE', [
+            'directorate_id' => $operationsDirectorate->id,
+            'organic_status' => 'Nonaktif',
+        ]));
+        Employee::create($this->employeeAttributes('SAP-OTHER-DIR', [
+            'directorate_id' => $financeDirectorate->id,
+            'organic_status' => 'Aktif',
+        ]));
+
+        $this->actingAs($user)->get(route('data-pegawai', [
+            'directorate_id' => $operationsDirectorate->id,
+            'status' => 'Aktif',
+        ]))->assertOk()
+            ->assertViewHas('directorateId', (string) $operationsDirectorate->id)
+            ->assertViewHas('status', 'Aktif')
+            ->assertSee('SAP-DIR-ACTIVE')
+            ->assertDontSee('SAP-DIR-INACTIVE')
+            ->assertDontSee('SAP-OTHER-DIR');
+    }
+
+    public function test_employee_list_can_filter_by_level_and_gender(): void
+    {
+        $user = User::factory()->create();
+        Employee::create($this->employeeAttributes('SAP-LEVEL-MALE', [
+            'employee_subgroup' => 'Band 1',
+            'gender_key' => 'M',
+        ]));
+        Employee::create($this->employeeAttributes('SAP-LEVEL-FEMALE', [
+            'employee_subgroup' => 'Band 1',
+            'gender_key' => 'F',
+        ]));
+        Employee::create($this->employeeAttributes('SAP-OTHER-LEVEL', [
+            'employee_subgroup' => 'Band 2',
+            'gender_key' => 'M',
+        ]));
+
+        $this->actingAs($user)->get(route('data-pegawai', [
+            'level' => 'Band 1',
+            'gender' => 'M',
+        ]))->assertOk()
+            ->assertViewHas('level', 'Band 1')
+            ->assertViewHas('gender', 'M')
+            ->assertSee('SAP-LEVEL-MALE')
+            ->assertDontSee('SAP-LEVEL-FEMALE')
+            ->assertDontSee('SAP-OTHER-LEVEL')
+            ->assertSee('<select name="level" onchange="this.form.submit()"', false)
+            ->assertSee('id="employee-status-filter" name="status"', false)
+            ->assertSee('<option value="Band 1" selected>Band 1</option>', false)
+            ->assertSee('<option value="M" selected>M</option>', false);
+    }
+
+    public function test_employee_list_shows_incomplete_and_retiring_this_year_statistics(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-29 12:00:00', config('app.timezone')));
+
+        try {
+            config(['workforce.retirement_age' => 56]);
+            $user = User::factory()->create();
+            $directorate = Directorate::create(['code' => 'DIR-STATS', 'name' => 'Stats Directorate', 'active' => true]);
+            $department = $directorate->departments()->create(['code' => 'DPT-STATS', 'name' => 'Stats Department', 'active' => true]);
+            $unit = $department->units()->create(['code' => 'UNT-STATS', 'name' => 'Stats Unit', 'active' => true]);
+            $section = $unit->sections()->create(['code' => 'SCT-STATS', 'name' => 'Stats Section', 'active' => true]);
+            $position = $unit->positions()->create(['section_id' => $section->id, 'code' => 'POS-STATS', 'name' => 'Stats Position', 'active' => true]);
+
+            Employee::create($this->employeeAttributes('SAP-STATS-COMPLETE', [
+                'personal_number' => 'PN-STATS-COMPLETE',
+                'email' => 'complete@example.test',
+                'gender_key' => 'M',
+                'birth_date' => '1970-04-15',
+                'hiring' => today()->subYears(2),
+                'directorate_id' => $directorate->id,
+                'department_id' => $department->id,
+                'unit_id' => $unit->id,
+                'section_id' => $section->id,
+                'position_id' => $position->id,
+            ]));
+            Employee::create($this->employeeAttributes('SAP-STATS-INCOMPLETE', [
+                'hiring' => today()->subYear(),
+            ]));
+
+            $response = $this->actingAs($user)->get(route('data-pegawai'))->assertOk();
+            $statistics = $response->viewData('employeeStatistics');
+
+            $this->assertSame(2, $statistics['total']);
+            $this->assertSame(1, $statistics['incomplete']);
+            $this->assertSame(1, $statistics['retiring_this_year']);
+            $this->assertSame(56, $statistics['retirement_age']);
+            $this->assertSame(2, $statistics['tenure_sample_size']);
+            $this->assertEqualsWithDelta(1.5, $statistics['average_tenure_years'], 0.1);
+            $response
+                ->assertSee('Data Pegawai Belum Lengkap')
+                ->assertSee('Pensiun Tahun Ini')
+                ->assertSee('Usia pensiun 56 tahun')
+                ->assertDontSee('Status belum terklasifikasi');
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_employee_levels_receive_distinct_bright_badge_colors(): void
+    {
+        $user = User::factory()->create();
+        Employee::create($this->employeeAttributes('SAP-LEVEL-NAVY', ['employee_subgroup' => 'Level Navy']));
+        Employee::create($this->employeeAttributes('SAP-LEVEL-BLUE', ['employee_subgroup' => 'Level Blue']));
+
+        $response = $this->actingAs($user)->get(route('data-pegawai'))->assertOk();
+        $employeeLevels = $response->viewData('employeeLevels');
+
+        $this->assertSame(['Level Blue', 'Level Navy'], $employeeLevels->all());
+        $response
+            ->assertSee('border-rose-300 bg-rose-100 text-rose-800', false)
+            ->assertSee('border-orange-300 bg-orange-100 text-orange-800', false);
+    }
+
+    public function test_employee_page_builds_hiring_and_education_chart_data(): void
+    {
+        $user = User::factory()->create();
+        Employee::create($this->employeeAttributes('SAP-CHART-1', [
+            'hiring' => '2022-01-10',
+            'pendidikan' => 'Strata 1',
+        ]));
+        Employee::create($this->employeeAttributes('SAP-CHART-2', [
+            'hiring' => '2022-08-20',
+            'pendidikan' => 'Strata 1',
+        ]));
+        Employee::create($this->employeeAttributes('SAP-CHART-3', [
+            'hiring' => '2024-03-15',
+            'pendidikan' => 'Diploma 3',
+        ]));
+        Employee::create($this->employeeAttributes('SAP-CHART-EMPTY'));
+
+        $response = $this->actingAs($user)->get(route('data-pegawai'))->assertOk();
+
+        $response
+            ->assertViewHas('employeeCharts', [
+                'hiring' => [
+                    'categories' => ['2022', '2024'],
+                    'series' => [2, 1],
+                ],
+                'education' => [
+                    'categories' => ['Strata 1', 'Diploma 3'],
+                    'series' => [2, 1],
+                ],
+            ])
+            ->assertSee('Jumlah Hiring per Tahun')
+            ->assertSee('Tingkat Pendidikan')
+            ->assertSee('data-employee-hiring-chart', false)
+            ->assertSee('data-employee-education-chart', false);
+    }
+
     public function test_employee_list_uses_workbook_columns_and_keeps_all_workbook_fields_in_detail(): void
     {
         $user = User::factory()->create();
@@ -162,11 +322,19 @@ class EmployeeManagementTest extends TestCase
         preg_match('/<table\\b.*?<\\/table>/s', $listResponse->getContent(), $tableMatch);
         $this->assertNotEmpty($tableMatch);
         preg_match_all('/<th\\b/', $tableMatch[0], $headers);
-        $this->assertCount(6, $headers[0]);
-        $this->assertStringContainsString('Personal Number</th>', $tableMatch[0]);
+        $this->assertCount(8, $headers[0]);
+        $this->assertStringContainsString('Identitas Pegawai</th>', $tableMatch[0]);
+        $this->assertStringContainsString('SAP</th>', $tableMatch[0]);
         $this->assertStringContainsString('Department</th>', $tableMatch[0]);
+        $this->assertStringContainsString('Unit</th>', $tableMatch[0]);
         $this->assertStringContainsString('Position</th>', $tableMatch[0]);
         $this->assertStringContainsString('Level</th>', $tableMatch[0]);
+        $this->assertStringContainsString('data-employee-sap-column style="width: 6%"', $tableMatch[0]);
+        $this->assertStringContainsString('data-employee-position-column style="width: 15%"', $tableMatch[0]);
+        $this->assertStringContainsString('data-employee-actions-column style="width: 13%"', $tableMatch[0]);
+        $this->assertStringContainsString('data-employee-action-buttons class="flex flex-nowrap', $tableMatch[0]);
+        $this->assertStringNotContainsString('Foto</th>', $tableMatch[0]);
+        $this->assertStringNotContainsString('Status</th>', $tableMatch[0]);
         $this->assertStringNotContainsString('TXT_DEPT</th>', $tableMatch[0]);
         $this->assertStringContainsString('PN-DETAIL', $tableMatch[0]);
         $this->assertStringContainsString('Department Detail', $tableMatch[0]);
@@ -205,7 +373,7 @@ class EmployeeManagementTest extends TestCase
         $this->assertStringNotContainsString('Hiring', $contactSection[1]);
     }
 
-    public function test_employee_list_displays_a_dash_when_employee_subgroup_is_empty(): void
+    public function test_employee_list_displays_a_clear_fallback_when_employee_subgroup_is_empty(): void
     {
         $user = User::factory()->create();
         Employee::create($this->employeeAttributes('SAP-NO-LEVEL', [
@@ -220,10 +388,45 @@ class EmployeeManagementTest extends TestCase
         preg_match('/<tr[^>]*>.*?SAP-NO-LEVEL.*?<\/tr>/s', $response->getContent(), $rowMatch);
 
         $this->assertNotEmpty($rowMatch);
-        $this->assertMatchesRegularExpression(
-            '/Position without Level<\/td>\s*<td[^>]*>-<\/td>/',
-            $rowMatch[0],
-        );
+        $this->assertStringContainsString('Position without Level', $rowMatch[0]);
+        $this->assertStringContainsString('Belum tersedia', $rowMatch[0]);
+    }
+
+    public function test_employee_age_is_calculated_from_birth_date_using_the_system_date(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-28 12:00:00', config('app.timezone')));
+
+        try {
+            $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+            $beforeBirthday = Employee::create($this->employeeAttributes('SAP-AGE-BEFORE', [
+                'birth_date' => '2000-10-29',
+                'usia' => 99,
+            ]));
+            $onBirthday = Employee::create($this->employeeAttributes('SAP-AGE-TODAY', [
+                'birth_date' => '2000-10-28',
+                'usia' => 99,
+            ]));
+            $withoutBirthDate = Employee::create($this->employeeAttributes('SAP-AGE-UNKNOWN', [
+                'usia' => 99,
+            ]));
+
+            $this->assertSame(25, $beforeBirthday->usia);
+            $this->assertSame(26, $onBirthday->usia);
+            $this->assertNull($withoutBirthDate->usia);
+
+            $this->actingAs($superAdmin)->get(route('data-pegawai'))
+                ->assertOk()
+                ->assertDontSee('name="usia"', false)
+                ->assertSee('Dihitung otomatis dari tanggal lahir hingga tanggal sistem.');
+
+            $this->post(route('data-pegawai.store'), [
+                ...$this->employeeAttributes('SAP-AGE-FUTURE'),
+                'birth_date' => '2026-10-29',
+                'usia' => 1,
+            ])->assertSessionHasErrors('birth_date');
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_authenticated_user_can_print_all_employees_across_pages(): void
@@ -440,7 +643,7 @@ class EmployeeManagementTest extends TestCase
             'cost_center' => 'Cost Center Name',
             'email' => 'employee@example.test',
             'religious' => 'Religion',
-            'usia' => 34,
+            'usia' => Carbon::parse('1990-02-01')->age,
             'tempat_lahir' => 'Bandung',
             'pendidikan' => 'S1',
             'alamat' => 'Jalan Excel',
@@ -454,7 +657,7 @@ class EmployeeManagementTest extends TestCase
         $this->assertSame('2018-04-01', $employee->hiring->toDateString());
     }
 
-    public function test_staging_requires_sap_and_reports_invalid_source_values_without_discarding_them(): void
+    public function test_staging_ignores_source_age_and_preserves_the_original_value_for_review(): void
     {
         $user = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
         $file = $this->employeeImportXlsx([[
@@ -471,10 +674,10 @@ class EmployeeManagementTest extends TestCase
 
         $this->actingAs($user)->post(route('data-pegawai.import'), ['file' => $file])
             ->assertRedirect(route('data-pegawai'))
-            ->assertSessionHas('status', 'File disimpan untuk review. Batch #1: 1 baris, 1 invalid.');
+            ->assertSessionHas('status', 'File disimpan untuk review. Batch #1: 1 baris, 0 invalid.');
         $row = EmployeeImportRow::query()->firstOrFail();
-        $this->assertSame('INVALID', $row->validation_status);
-        $this->assertContains('usia must be a non-negative integer.', $row->validation_errors);
+        $this->assertSame('VALID', $row->validation_status);
+        $this->assertNull($row->normalized_payload['usia']);
         $this->assertSame('#VALUE!', $row->source_payload['Usia']);
         $this->assertSame('50007184', $row->normalized_payload['position_id_source']);
         $this->assertDatabaseCount('employees', 0);
@@ -774,6 +977,112 @@ class EmployeeManagementTest extends TestCase
         ]);
     }
 
+    public function test_employee_edit_uses_full_organization_hierarchy_and_refreshes_sap_text_fields(): void
+    {
+        $user = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        $sourceDirectorate = Directorate::query()->create(['code' => 'DIR-EDIT-A', 'name' => 'Source Directorate', 'active' => true]);
+        $sourceDepartment = $sourceDirectorate->departments()->create(['code' => 'DPT-EDIT-A', 'name' => 'Source Department', 'active' => true]);
+        $sourceUnit = $sourceDepartment->units()->create(['code' => 'UNT-EDIT-A', 'name' => 'Source Unit', 'active' => true]);
+        $sourceSection = Section::query()->create(['unit_id' => $sourceUnit->id, 'code' => 'SCT-EDIT-A', 'name' => 'Source Section', 'active' => true]);
+        $sourcePosition = $sourceUnit->positions()->create(['section_id' => $sourceSection->id, 'code' => 'POS-EDIT-A', 'name' => 'Source Position', 'active' => true]);
+        $targetDirectorate = Directorate::query()->create(['code' => 'DIR-EDIT-B', 'name' => 'Target Directorate', 'active' => true]);
+        $targetDepartment = $targetDirectorate->departments()->create(['code' => 'DPT-EDIT-B', 'name' => 'Target Department', 'active' => true]);
+        $targetUnit = $targetDepartment->units()->create(['code' => 'UNT-EDIT-B', 'name' => 'Target Unit', 'active' => true]);
+        $targetSection = Section::query()->create(['unit_id' => $targetUnit->id, 'code' => 'SCT-EDIT-B', 'name' => 'Target Section', 'active' => true]);
+        $targetPosition = $targetUnit->positions()->create(['section_id' => $targetSection->id, 'code' => 'POS-EDIT-B', 'name' => 'Target Position', 'active' => true]);
+        $employee = Employee::query()->create([
+            ...$this->employeeAttributes('SAP-EDIT-FULL-ORG'),
+            'directorate_id' => $sourceDirectorate->id,
+            'department_id' => $sourceDepartment->id,
+            'unit_id' => $sourceUnit->id,
+            'section_id' => $sourceSection->id,
+            'position_id' => $sourcePosition->id,
+        ]);
+
+        $this->actingAs($user)->get(route('data-pegawai'))
+            ->assertOk()
+            ->assertSee('id="edit-directorate-id-'.$employee->id.'"', false)
+            ->assertSee('id="edit-section-id-'.$employee->id.'"', false)
+            ->assertSee('id="edit-employee-organization-'.$employee->id.'"', false)
+            ->assertSee('name="_employee_id" value="'.$employee->id.'"', false);
+
+        $this->put(route('data-pegawai.update', $employee), [
+            ...$this->employeeAttributes('SAP-EDIT-FULL-ORG'),
+            'directorate_id' => $targetDirectorate->id,
+            'department_id' => $targetDepartment->id,
+            'unit_id' => $targetUnit->id,
+            'section_id' => $targetSection->id,
+            'position_id' => $targetPosition->id,
+            'txt_dir' => 'Wrong Directorate',
+            'txt_dept' => 'Wrong Department',
+            'txt_biro' => 'Wrong Unit',
+            'txt_sect' => 'Wrong Section',
+            'position' => 'Wrong Position',
+        ])->assertRedirect(route('data-pegawai'));
+
+        $this->assertDatabaseHas('employees', [
+            'id' => $employee->id,
+            'directorate_id' => $targetDirectorate->id,
+            'department_id' => $targetDepartment->id,
+            'unit_id' => $targetUnit->id,
+            'section_id' => $targetSection->id,
+            'position_id' => $targetPosition->id,
+            'txt_dir' => 'Target Directorate',
+            'txt_dept' => 'Target Department',
+            'txt_biro' => 'Target Unit',
+            'txt_sect' => 'Target Section',
+            'position' => 'Target Position',
+        ]);
+    }
+
+    public function test_employee_edit_keeps_inactive_current_organization_options_available(): void
+    {
+        $user = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        $directorate = Directorate::query()->create(['code' => 'DIR-OLD-EDIT', 'name' => 'Inactive Directorate', 'active' => false]);
+        $department = $directorate->departments()->create(['code' => 'DPT-OLD-EDIT', 'name' => 'Inactive Department', 'active' => false]);
+        $unit = $department->units()->create(['code' => 'UNT-OLD-EDIT', 'name' => 'Inactive Unit', 'active' => false]);
+        $section = Section::query()->create(['unit_id' => $unit->id, 'code' => 'SCT-OLD-EDIT', 'name' => 'Inactive Section', 'active' => false]);
+        $position = $unit->positions()->create(['section_id' => $section->id, 'code' => 'POS-OLD-EDIT', 'name' => 'Inactive Position', 'active' => false]);
+        Employee::query()->create([
+            ...$this->employeeAttributes('SAP-INACTIVE-ORG'),
+            'directorate_id' => $directorate->id,
+            'department_id' => $department->id,
+            'unit_id' => $unit->id,
+            'section_id' => $section->id,
+            'position_id' => $position->id,
+        ]);
+
+        $this->actingAs($user)->get(route('data-pegawai'))
+            ->assertOk()
+            ->assertViewHas('organizationDirectorates', fn ($directorates): bool => $directorates->contains($directorate))
+            ->assertViewHas('organizationDepartments', fn ($departments): bool => $departments->contains($department))
+            ->assertViewHas('organizationUnits', fn ($units): bool => $units->contains($unit))
+            ->assertViewHas('organizationSections', fn ($sections): bool => $sections->contains($section))
+            ->assertViewHas('organizationPositions', fn ($positions): bool => $positions->contains($position));
+    }
+
+    public function test_failed_employee_edit_reopens_the_correct_dialog_with_validation_errors(): void
+    {
+        $user = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        $employee = Employee::query()->create($this->employeeAttributes('SAP-EDIT-ERROR'));
+        Employee::query()->create($this->employeeAttributes('SAP-OTHER-EDIT'));
+
+        $this->actingAs($user)->from(route('data-pegawai'))->put(route('data-pegawai.update', $employee), [
+            ...$this->employeeAttributes('SAP-EDIT-ERROR'),
+            '_form' => 'edit',
+            '_employee_id' => $employee->id,
+            'email' => 'invalid-email',
+        ])->assertRedirect(route('data-pegawai'))
+            ->assertSessionHasErrors('email')
+            ->assertSessionHasInput('_employee_id', $employee->id);
+
+        $this->get(route('data-pegawai'))
+            ->assertOk()
+            ->assertSee('id="edit-employee-'.$employee->id.'"', false)
+            ->assertSee('x-init="$nextTick(() => $el.showModal())"', false)
+            ->assertSee('Periksa kembali data berikut:');
+    }
+
     public function test_employee_create_rejects_department_and_section_outside_selected_hierarchy(): void
     {
         $user = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
@@ -885,6 +1194,8 @@ class EmployeeManagementTest extends TestCase
                 'department_id' => $department->id,
                 'unit_id' => $unit->id,
                 'position_id' => $position->id,
+                'employee_subgroup' => 'Band1',
+                'gender_key' => 'M',
             ]));
         }
 
@@ -893,6 +1204,8 @@ class EmployeeManagementTest extends TestCase
             'department_id' => $department->id,
             'unit_id' => $unit->id,
             'position_id' => $position->id,
+            'level' => 'Band1',
+            'gender' => 'M',
             'sort_by' => 'organic_oldest',
         ];
 
@@ -907,6 +1220,8 @@ class EmployeeManagementTest extends TestCase
             ->assertSee('department_id='.$department->id, false)
             ->assertSee('unit_id='.$unit->id, false)
             ->assertSee('position_id='.$position->id, false)
+            ->assertSee('level=Band1', false)
+            ->assertSee('gender=M', false)
             ->assertSee('sort_by=organic_oldest', false)
             ->assertSee('page=2', false);
 
@@ -921,6 +1236,8 @@ class EmployeeManagementTest extends TestCase
             ->assertSee('department_id='.$department->id, false)
             ->assertSee('unit_id='.$unit->id, false)
             ->assertSee('position_id='.$position->id, false)
+            ->assertSee('level=Band1', false)
+            ->assertSee('gender=M', false)
             ->assertSee('sort_by=organic_oldest', false);
     }
 
@@ -986,7 +1303,7 @@ class EmployeeManagementTest extends TestCase
             ->assertViewHas('departmentId', '')
             ->assertViewHas('unitId', '')
             ->assertViewHas('positionId', '');
-        $initialResponse->assertSee('Semua Department');
+        $initialResponse->assertSee('<option value="">Semua</option>', false);
 
         $departmentResponse = $this->get(route('data-pegawai', [
             'department_id' => $department->id,

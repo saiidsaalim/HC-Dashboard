@@ -329,6 +329,8 @@ class EmployeeImportStagingService
                 $validationErrors[] = 'E-mail is not a valid email address.';
             }
 
+            $birthDate = null;
+
             foreach (['birth_date', 'hiring', 'masa_kontrak', 'organilk'] as $dateField) {
                 if ($normalized[$dateField] === null) {
                     continue;
@@ -336,19 +338,21 @@ class EmployeeImportStagingService
 
                 try {
                     $normalized[$dateField] = $this->parseDate($normalized[$dateField]);
+
+                    if ($dateField === 'birth_date') {
+                        $birthDate = Carbon::createFromFormat('Y-m-d', $normalized[$dateField])->startOfDay();
+
+                        if ($birthDate->isFuture()) {
+                            $validationErrors[] = 'birth_date must not be in the future.';
+                            $birthDate = null;
+                        }
+                    }
                 } catch (InvalidArgumentException) {
                     $validationErrors[] = "{$dateField} is not a valid date.";
                 }
             }
 
-            if ($normalized['usia'] !== null) {
-                $age = filter_var($normalized['usia'], FILTER_VALIDATE_INT);
-                if ($age === false || $age < 0) {
-                    $validationErrors[] = 'usia must be a non-negative integer.';
-                } else {
-                    $normalized['usia'] = $age;
-                }
-            }
+            $normalized['usia'] = $birthDate?->age;
 
             $employeeExists = $sap !== '' && Employee::query()->where('sap', $sap)->exists();
             $operation = $employeeExists ? 'UPDATE' : 'CREATE';
