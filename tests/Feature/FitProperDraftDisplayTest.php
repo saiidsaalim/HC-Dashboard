@@ -77,12 +77,12 @@ class FitProperDraftDisplayTest extends TestCase
         $this->assertStringContainsString('data-fp-assessment', $response->getContent());
     }
 
-    public function test_partial_zero_draft_reopens_and_updates_same_record_without_trusting_identity_input(): void
+    public function test_partial_draft_reopens_and_updates_same_record_without_trusting_identity_input(): void
     {
         [$activity,$first,$second,$link] = $this->context();
         $participant = $activity->participants()->first();
         $payload = ['intent' => 'draft', 'examiner_id' => $second->id, '_fit_proper_examiner_id' => $second->id,
-            'scores' => [$participant->id => ['adaptability' => 0, 'authenticity' => 2.5, 'notes' => 'Catatan draft saya', 'recommendation' => 'Rekomendasi saya']]];
+            'scores' => [$participant->id => ['adaptability' => 1, 'authenticity' => 2.5, 'notes' => 'Catatan draft saya', 'recommendation' => 'Rekomendasi saya']]];
         $this->postJson($link, $payload)->assertOk()->assertJsonPath('assessment_saved', true)->assertJsonPath('submitted', false);
         $record = FitProperScore::where('examiner_id', $first->id)->where('participant_id', $participant->id)->sole();
         $recordId = $record->id;
@@ -90,7 +90,7 @@ class FitProperDraftDisplayTest extends TestCase
         $response = $this->get($link)->assertOk();
         $fields = $this->fields($response->getContent());
         $prefix = 'scores['.$participant->id.']';
-        $this->assertSame('0', $fields[$prefix.'[adaptability]']);
+        $this->assertSame('1', $fields[$prefix.'[adaptability]']);
         $this->assertSame('2.5', $fields[$prefix.'[authenticity]']);
         $this->assertSame('', $fields[$prefix.'[diversity]']);
         $this->assertSame('Catatan draft saya', $fields[$prefix.'[notes]']);
@@ -106,14 +106,14 @@ class FitProperDraftDisplayTest extends TestCase
     {
         [$activity,$first,$second,$firstLink,$secondLink] = $this->context();
         $participant = $activity->participants()->first();
-        $this->postJson($firstLink, ['intent' => 'draft', 'scores' => [$participant->id => ['adaptability' => 0, 'notes' => 'Rahasia penguji pertama']]])->assertOk();
+        $this->postJson($firstLink, ['intent' => 'draft', 'scores' => [$participant->id => ['adaptability' => 1, 'notes' => 'Rahasia penguji pertama']]])->assertOk();
         $this->postJson($secondLink, ['intent' => 'draft', 'scores' => [$participant->id => ['adaptability' => 5, 'notes' => 'Catatan penguji kedua']]])->assertOk();
         $response = $this->withSession(['_old_input' => ['_fit_proper_examiner_id' => $first->id, 'scores' => [$participant->id => ['adaptability' => 1, 'notes' => 'Input gagal penguji pertama']]]])
             ->get($secondLink)->assertOk()->assertDontSee('Rahasia penguji pertama')->assertDontSee('Input gagal penguji pertama');
         $fields = $this->fields($response->getContent());
         $this->assertSame('5', $fields['scores['.$participant->id.'][adaptability]']);
         $this->assertSame('Catatan penguji kedua', $fields['scores['.$participant->id.'][notes]']);
-        $this->from($firstLink)->post($firstLink, ['intent' => 'submit', '_fit_proper_examiner_id' => $second->id, 'scores' => [$participant->id => ['adaptability' => 0, 'notes' => 'Input gagal penguji pertama']]])->assertSessionHasErrors();
+        $this->from($firstLink)->post($firstLink, ['intent' => 'submit', '_fit_proper_examiner_id' => $second->id, 'scores' => [$participant->id => ['adaptability' => 1, 'notes' => 'Input gagal penguji pertama']]])->assertSessionHasErrors();
         $this->get($firstLink)->assertOk()->assertSee('Input gagal penguji pertama');
         $this->get($secondLink)->assertOk()->assertDontSee('Input gagal penguji pertama');
     }
@@ -147,7 +147,7 @@ class FitProperDraftDisplayTest extends TestCase
         $failing->shouldReceive('history')->once()->andThrow(new \RuntimeException('Simulasi kegagalan simpan'));
         $this->app->instance(FitProperService::class, $failing);
         Log::spy();
-        $this->postJson($link, ['intent' => 'draft', 'scores' => [$participant->id => ['adaptability' => 0]]])->assertStatus(500)->assertJsonMissing(['assessment_saved' => true]);
+        $this->postJson($link, ['intent' => 'draft', 'scores' => [$participant->id => ['adaptability' => 1]]])->assertStatus(500)->assertJsonMissing(['assessment_saved' => true]);
         $this->assertSame(0, FitProperScore::count());
         $this->app->instance(FitProperService::class, $service);
         $this->app['router']->getRoutes()->getByName('fit-proper.link.submit')->flushController();
@@ -162,8 +162,8 @@ class FitProperDraftDisplayTest extends TestCase
         $this->assertTrue($document->getElementsByTagName('fieldset')->item(0)->hasAttribute('disabled'));
         $this->postJson($link, ['intent' => 'draft', 'scores' => $complete])->assertUnprocessable();
         $service->saveScores($second, ['scores' => $complete], true);
-        $service->transition($activity,'Selesai');
+        $service->transition($activity, 'Selesai');
         $this->get($link)->assertNotFound()->assertSee('Kegiatan sudah selesai');
-        $this->postJson($link,['intent' => 'draft', 'scores' => $complete])->assertNotFound();
+        $this->postJson($link, ['intent' => 'draft', 'scores' => $complete])->assertNotFound();
     }
 }

@@ -65,7 +65,7 @@ class FitProperDemo extends Command
                     foreach ($examiners as $j => $examinerRecord) {
                         $scores = [];
                         foreach ($participants as $i => $participantRecord) {
-                            $value = max(0, 4.8 - $i * 0.9 - $j * 0.1);
+                            $value = max(1, 4.8 - $i * 0.9 - $j * 0.1);
                             $scores[$participantRecord->id] = array_fill_keys(array_keys(FitProperCalculationService::INDICATORS), $value) +
                                 ['notes' => 'Catatan fiktif', 'recommendation' => 'Rekomendasi simulasi'];
                         }

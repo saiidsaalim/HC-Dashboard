@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('page-title','Peserta Fit & Proper')
 @section('content')
-<div class="mx-auto max-w-5xl space-y-5">
+<div data-fp-root class="mx-auto max-w-5xl space-y-5">
 <x-ui.page-header title="Peserta Fit & Proper" :description="$activity->name" :back-href="route('fit-proper.show',$activity)" back-label="Kembali ke kegiatan" />
 @include('fit-proper._messages')
 <form enctype="multipart/form-data" method="POST" action="{{ $participant ? route('fit-proper.participants.update',[$activity,$participant]) : route('fit-proper.participants.store',$activity) }}" class="space-y-5 rounded-xl border border-slate-200 bg-white p-5">

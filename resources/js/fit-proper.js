@@ -231,3 +231,38 @@ document.addEventListener('click', async event => {
     }
 });
 
+
+// Preview partial input only; final completeness and calculations remain server-side.
+function previewFitProper(article) {
+    const fields = Array.from(article.querySelectorAll('[data-fp-indicator]'));
+    const values = Object.fromEntries(fields.map(field => {
+        const value = field.value.trim() === '' ? null : Number(field.value);
+        return [field.dataset.fpIndicator, value !== null && Number.isFinite(value) && value >= 1 && value <= 5 && field.validity.valid ? value : null];
+    }));
+    const mean = entries => {
+        const filled = entries.filter(value => value !== null && value !== undefined);
+        return filled.length ? filled.reduce((sum, value) => sum + value, 0) / filled.length : null;
+    };
+    const core = mean(['adaptability', 'authenticity', 'contributing', 'learning', 'diversity'].map(key => values[key]));
+    const eligibility = mean(['anti_bribery', 'anti_gratuity', 'conflict'].map(key => values[key]));
+    const average = mean([core, values.job_mastery, values.improvement, eligibility]);
+    for (const [key, value] of Object.entries({ core, eligibility, average })) {
+        article.querySelector(`[data-fp-result="${key}"]`).value = value === null ? '-' : value.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    }
+}
+
+function initializeFitProperPreviews() {
+    document.querySelectorAll('[data-fp-candidates] [data-participant-id]').forEach(previewFitProper);
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeFitProperPreviews, { once: true });
+} else {
+    initializeFitProperPreviews();
+}
+
+document.addEventListener('input', event => {
+    if (!event.target.matches('[data-fp-indicator]')) return;
+    const article = event.target.closest('[data-fp-candidates] [data-participant-id]');
+    if (article) previewFitProper(article);
+});

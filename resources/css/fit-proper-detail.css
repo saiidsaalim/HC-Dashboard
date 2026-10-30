@@ -135,3 +135,162 @@
     .fp-detail .fp-history-chevron { transition: none; }
     .fp-detail .fp-history[open] .fp-history-content { animation: none; }
 }
+
+/* Shared Fit & Proper presentation. No selectors target other workspaces. */
+[data-fp-root] {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
+[data-fp-root] :is(section, article, form, fieldset, label, .grid > *, .flex > *) {
+    min-width: 0;
+}
+
+[data-fp-root] :is(input:not([type='checkbox']):not([type='hidden']), select, textarea) {
+    max-width: 100%;
+    min-height: 2.75rem;
+}
+
+[data-fp-root] textarea {
+    resize: vertical;
+}
+
+[data-fp-root] :is(button, a.rounded-lg) {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+[data-fp-root] :is(button.rounded-lg, a.rounded-lg) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.75rem;
+    text-align: center;
+}
+
+[data-fp-root] .overflow-x-auto,
+[data-fp-candidates] {
+    max-width: 100%;
+    overscroll-behavior-x: contain;
+    scrollbar-gutter: stable;
+}
+
+[data-fp-root] table {
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+[data-fp-root] :is(th, td) {
+    vertical-align: top;
+    line-height: 1.5;
+}
+
+[data-fp-root] th {
+    background: var(--hc-canvas);
+    color: var(--hc-secondary);
+    font-weight: 600;
+}
+
+[data-fp-root] .fp-activity-table {
+    min-width: 42rem;
+}
+
+[data-fp-root] .fp-activity-table th:first-child {
+    width: 40%;
+}
+
+[data-fp-root] .fp-activity-table :is(th, td):nth-child(n+4) {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+[data-fp-root] .fp-recap-table {
+    min-width: 66rem;
+}
+
+[data-fp-root] .fp-recap-table :is(th, td):not(:first-child):not(:last-child),
+[data-fp-root] .fp-raw-table :is(th, td):nth-child(n+2):nth-child(-n+14) {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+[data-fp-root] .fp-recap-table :is(th, td):first-child {
+    min-width: 12rem;
+}
+
+[data-fp-root] .fp-raw-table {
+    min-width: 94rem;
+}
+
+[data-fp-root] .fp-raw-table :is(th, td):first-child {
+    min-width: 10rem;
+}
+
+[data-fp-root] .fp-raw-table :is(th, td):last-child {
+    min-width: 18rem;
+    max-width: 26rem;
+}
+
+[data-fp-root] :is(.fp-recap-table, .fp-raw-table) tbody tr:hover {
+    background: var(--hc-canvas);
+}
+
+[data-fp-root] .fp-filters > input {
+    flex-basis: 16rem;
+}
+
+[data-fp-candidates] {
+    align-items: flex-start;
+    scroll-padding-inline: 0.25rem;
+}
+
+[data-fp-candidates] > article {
+    width: min(90vw, 25rem);
+    max-width: 100%;
+}
+
+[data-fp-root] .fp-score-summary output {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--hc-primary);
+}
+
+[data-fp-root] [data-fp-assessment-fields] > .sticky {
+    z-index: 10;
+    box-shadow: 0 4px 16px rgb(15 23 42 / 0.08);
+}
+
+@media (max-width: 639px) {
+    [data-fp-root] .fp-filters > :is(select, button) {
+        flex: 1 1 100%;
+        width: 100%;
+    }
+
+    [data-fp-root] [data-fp-assessment-fields] > .sticky {
+        position: static;
+    }
+
+    [data-fp-root] [data-fp-assessment-fields] > .sticky > button {
+        flex: 1 1 100%;
+    }
+
+    [data-fp-root] .fp-detail-metrics dd {
+        font-size: 1.25rem;
+    }
+}
+
+@media print {
+    [data-fp-root] :is(.fp-raw-table, .fp-recap-table) {
+        min-width: 0;
+        table-layout: fixed;
+        width: 100%;
+    }
+
+    [data-fp-root] :is(.fp-raw-table, .fp-recap-table) :is(th, td) {
+        min-width: 0;
+        max-width: none;
+        overflow-wrap: anywhere;
+    }
+}

@@ -179,25 +179,24 @@ class FitProperTest extends TestCase
         $p = $this->participant($a);
         $e = $this->service()->examiner($a, ['name' => 'Penguji']);
         $this->service()->transition($a, 'Berjalan');
-        $this->service()->saveScores($e, ['scores' => [$p->id => ['adaptability' => 0]]], false);
-        $this->expectValidation(fn () => $this->service()->saveScores($e, ['scores' => [$p->id => ['adaptability' => 0]]], true));
+        $this->service()->saveScores($e, ['scores' => [$p->id => ['adaptability' => 1]]], false);
+        $this->expectValidation(fn () => $this->service()->saveScores($e, ['scores' => [$p->id => ['adaptability' => 1]]], true));
         $this->assertNull($e->fresh()->submitted_at);
-        foreach ([-1, 5.1, 'abc'] as $invalid) {
+        foreach ([0, -1, 5.1, 'abc'] as $invalid) {
             $data = $this->scores($a);
             $data['scores'][$p->id]['conflict'] = $invalid;
             $this->expectValidation(fn () => $this->service()->saveScores($e, $data, false));
         }
-        $data = $this->scores($a, 0);
+        $data = $this->scores($a, 1);
         $data['scores'][99999] = [];
         $this->expectValidation(fn () => $this->service()->saveScores($e, $data, true));
-        $this->service()->saveScores($e, $this->scores($a, 0), true);
+        $this->service()->saveScores($e, $this->scores($a, 1), true);
         $this->assertNotNull($e->fresh()->submitted_at);
         $this->expectValidation(fn () => $this->service()->saveScores($e, $this->scores($a, 5), true));
         $recap = $this->service()->calculation->recap($a);
-        $this->assertTrue($recap['zero_max']);
-        $this->assertFalse($recap['complete']);
-        $this->assertNull($recap['rows'][0]['total']);
-        $this->expectValidation(fn () => $this->service()->transition($a, 'Selesai'));
+        $this->assertFalse($recap['zero_max']);
+        $this->assertTrue($recap['complete']);
+        $this->assertSame(1.0, $recap['rows'][0]['raw']);
     }
 
     public function test_formula_matches_manual_example_and_guidance_boundaries(): void
@@ -225,7 +224,7 @@ class FitProperTest extends TestCase
         $this->service()->saveScores($e, $data, true);
         $temporary = $calc->recap($a);
         $this->assertFalse($temporary['complete']);
-        $this->assertNull($temporary['rows'][0]['raw']);
+        $this->assertSame(4.0, collect($temporary['rows'])->keyBy('id')[$p->id]['raw']);
         $this->assertNull($temporary['rows'][0]['rank_total']);
         $this->service()->saveScores($e2, $data, true);
         $recap = $calc->recap($a);
@@ -444,5 +443,100 @@ class FitProperTest extends TestCase
         $this->get(route('dashboard'))->assertViewHas('stats', fn ($stats) => $stats[0]['value'] === 1);
         $this->get(route('fit-proper.print', $a))->assertSee('Data Simulasi');
         $this->get(route('fit-proper', ['simulation' => '0']))->assertDontSee('SIMULASI FIKTIF');
+    }
+
+    public function test_bulk_drafts_skip_empty_rows_preserve_omitted_participants_and_ignore_browser_results(): void
+    {
+        $a = $this->activity();
+        $first = $this->participant($a, 'Pertama');
+        $second = $this->participant($a, 'Kedua');
+        $examiner = $this->service()->examiner($a, ['name' => 'Penguji']);
+        $this->service()->transition($a, 'Berjalan');
+        $this->service()->saveScores($examiner, ['scores' => [$first->id => ['adaptability' => 2], $second->id => ['adaptability' => null]]], false);
+        $this->assertSame(1, FitProperScore::count());
+        $this->assertNull($this->service()->calculation->recap($a)['rows'][0]['raw']);
+        $data = $this->scores($a, 4);
+        $data['scores'][$first->id]['core'] = 999;
+        $data['scores'][$first->id]['average'] = 999;
+        $this->service()->saveScores($examiner, $data, false);
+        $this->assertSame(2, FitProperScore::count());
+        $this->assertSame(4.0, $this->service()->calculation->recap($a)['rows'][0]['raw']);
+        $this->service()->saveScores($examiner, ['scores' => [$second->id => ['adaptability' => 3]]], false);
+        $this->assertSame(4, FitProperScore::where('participant_id', $first->id)->sole()->indicators['adaptability']);
+        $this->assertSame(2, FitProperScore::count());
+    }
+
+    public function test_recap_averages_flexible_complete_examiners_and_excludes_incomplete_rows(): void
+    {
+        $a = $this->activity();
+        $first = $this->participant($a, 'Pertama');
+        $second = $this->participant($a, 'Kedua');
+        $examiners = [];
+        foreach (range(1, 4) as $index) {
+            $examiners[] = $this->service()->examiner($a, ['name' => 'Penguji '.$index]);
+        }
+        $this->service()->transition($a, 'Berjalan');
+        foreach ([2, 4, 3] as $index => $value) {
+            $data = $this->scores($a, $value);
+            $data['scores'][$second->id] = array_fill_keys(array_keys(FitProperCalculationService::INDICATORS), 1);
+            $this->service()->saveScores($examiners[$index], $data, false);
+        }
+        $this->service()->saveScores($examiners[3], ['scores' => [$first->id => ['adaptability' => 5]]], false);
+        $recap = $this->service()->calculation->recap($a);
+        $rows = collect($recap['rows'])->keyBy('id');
+        $this->assertSame(3.0, $rows[$first->id]['raw']);
+        $this->assertSame(0, $rows[$first->id]['submitted_count']);
+        $this->assertSame(1.0, $rows[$first->id]['fp']);
+        $this->assertEqualsWithDelta(1 / 3, $rows[$second->id]['fp'], 0.00000001);
+        $this->assertFalse($recap['complete']);
+    }
+
+    public function test_second_participant_write_failure_rolls_back_first_write(): void
+    {
+        $a = $this->activity();
+        $this->participant($a, 'Pertama');
+        $second = $this->participant($a, 'Kedua');
+        $examiner = $this->service()->examiner($a, ['name' => 'Penguji']);
+        $this->service()->transition($a, 'Berjalan');
+        FitProperScore::creating(function (FitProperScore $score) use ($second): void {
+            if ($score->participant_id === $second->id) {
+                throw new \RuntimeException('Gagal peserta kedua');
+            }
+        });
+        try {
+            $this->service()->saveScores($examiner, $this->scores($a), true);
+            $this->fail('Expected write failure');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('Gagal peserta kedua', $exception->getMessage());
+        } finally {
+            FitProperScore::flushEventListeners();
+        }
+        $this->assertSame(0, FitProperScore::count());
+        $this->assertNull($examiner->fresh()->submitted_at);
+    }
+
+    public function test_ui_formats_one_decimal_without_mutating_raw_values_or_results(): void
+    {
+        $admin = $this->admin();
+        $activity = $this->activity($admin);
+        $participant = $this->participant($activity, 'Peserta Presisi', 4.25, 3.67);
+        $participant->update(['sap' => '00123456']);
+        $other = $this->participant($activity, 'Peserta Pembanding');
+        $examiner = $this->service()->examiner($activity, ['name' => 'Penguji Presisi']);
+        $this->service()->transition($activity, 'Berjalan');
+        $data = $this->scores($activity, 4.25);
+        $data['scores'][$other->id] = array_fill_keys(array_keys(FitProperCalculationService::INDICATORS), 3.7778);
+        $this->service()->saveScores($examiner, $data, true);
+        $before = $this->service()->calculation->recap($activity);
+        $rawBefore = FitProperScore::orderBy('id')->get()->toArray();
+        $this->actingAs($admin)->get(route('fit-proper.show', $activity))->assertOk()
+            ->assertSee('4,3')->assertSee('3,7')->assertSee('0,9')->assertSee('75,0')->assertSee('00123456');
+        $this->get(route('fit-proper.print', $activity))->assertOk()->assertSee('4,3')->assertSee('10,0%');
+        $this->get(route('fit-proper.participants.edit', [$activity, $participant]))->assertForbidden();
+        $this->assertSame($before, $this->service()->calculation->recap($activity));
+        $this->assertSame($rawBefore, FitProperScore::orderBy('id')->get()->toArray());
+        $this->assertSame(4.25, $participant->fresh()->kpi());
+        $this->service()->transition($activity, 'Draft');
+        $this->get(route('fit-proper.participants.edit', [$activity, $participant]))->assertOk()->assertSee('value="4.25"', false);
     }
 }

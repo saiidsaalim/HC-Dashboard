@@ -104,10 +104,10 @@ class FitProperInteractionTest extends TestCase
         $other = app(FitProperService::class)->create(['name' => 'Lain', 'target_position' => 'Lain', 'scheduled_at' => '2026-10-19'], $admin);
         $foreign = app(FitProperService::class)->participant($other, ['name' => 'Di luar kegiatan']);
         $this->get(route('fit-proper.link.cv', [$token, $foreign]))->assertNotFound();
-        $this->post($link, ['intent' => 'draft', 'scores' => [$participant->id => ['adaptability' => 0]]])->assertRedirect();
-        $this->assertSame(0, $examiner->scores()->sole()->indicators['adaptability']);
+        $this->post($link, ['intent' => 'draft', 'scores' => [$participant->id => ['adaptability' => 1]]])->assertRedirect();
+        $this->assertSame(1, $examiner->scores()->sole()->indicators['adaptability']);
         $this->assertNull($examiner->fresh()->submitted_at);
-        $this->postJson($link, ['intent' => 'submit', 'scores' => [$participant->id => ['adaptability' => 0]]])->assertUnprocessable();
+        $this->postJson($link, ['intent' => 'submit', 'scores' => [$participant->id => ['adaptability' => 1]]])->assertUnprocessable();
         $values = array_fill_keys(array_keys(FitProperCalculationService::INDICATORS), 4);
         $this->post($link, ['intent' => 'submit', 'scores' => [$participant->id => $values]])->assertRedirect();
         $this->assertNotNull($examiner->fresh()->submitted_at);

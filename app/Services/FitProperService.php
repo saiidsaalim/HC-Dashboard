@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Http\Requests\SaveFitProperScoresRequest;
 use App\Models\Employee;
 use App\Models\FitProperActivity;
 use App\Models\FitProperExaminer;
@@ -190,24 +191,25 @@ class FitProperService
                 throw ValidationException::withMessages(['scores' => 'Penilaian sudah dikirim dan terkunci.']);
             }
             $participants = $activityRecord->participants()->get();
-            $rules = ['scores' => 'required|array'];
-            foreach ($participants as $participantRecord) {
-                foreach (array_keys(FitProperCalculationService::INDICATORS) as $key) {
-                    $rules['scores.'.$participantRecord->id.'.'.$key] = [$submit ? 'required' : 'nullable', 'numeric', 'decimal:0,6', 'between:0,5'];
-                }
-                $rules['scores.'.$participantRecord->id.'.recommendation'] = 'nullable|string|max:10000';
-                $rules['scores.'.$participantRecord->id.'.notes'] = 'nullable|string|max:10000';
-            }
+            $rules = SaveFitProperScoresRequest::scoreRules($participants->modelKeys(), $submit);
             $valid = Validator::make($data, $rules)->validate();
             $allowedIds = $participants->pluck('id')->map(fn ($id) => (string) $id)->all();
             if (array_diff(array_map('strval', array_keys($data['scores'] ?? [])), $allowedIds)) {
                 throw ValidationException::withMessages(['scores' => 'Peserta di luar kegiatan tidak diizinkan.']);
             }
             foreach ($participants as $participantRecord) {
+                if (! array_key_exists($participantRecord->id, $data['scores'])) {
+                    continue;
+                }
                 $row = $valid['scores'][$participantRecord->id] ?? [];
                 $indicators = [];
                 foreach (array_keys(FitProperCalculationService::INDICATORS) as $key) {
                     $indicators[$key] = isset($row[$key]) ? (float) $row[$key] : null;
+                }
+                $hasInput = count(array_filter($indicators, fn ($value) => $value !== null)) > 0
+                    || filled($row['recommendation'] ?? null) || filled($row['notes'] ?? null);
+                if (! $hasInput && ! $examinerRecord->scores()->where('participant_id', $participantRecord->id)->exists()) {
+                    continue;
                 }
                 FitProperScore::updateOrCreate(['participant_id' => $participantRecord->id, 'examiner_id' => $examinerRecord->id],
                     ['indicators' => $indicators, 'recommendation' => $row['recommendation'] ?? null, 'notes' => $row['notes'] ?? null]);
