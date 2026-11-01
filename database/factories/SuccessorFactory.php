@@ -3,7 +3,6 @@
 namespace Database\Factories;
 
 use App\Models\Department;
-use App\Models\Employee;
 use App\Models\Position;
 use App\Models\Successor;
 use App\Models\Unit;
@@ -36,31 +35,19 @@ class SuccessorFactory extends Factory
             'unit_id' => $unit->id,
             'code' => fake()->unique()->bothify('POS-####'),
             'name' => fake()->jobTitle(),
-            'job_level' => 'Manager',
             'formation_count' => 1,
             'sort_order' => 1,
             'active' => true,
         ]);
-        $employee = Employee::query()->forceCreate([
-            'sap' => fake()->unique()->numerify('SAP-########'),
-            'name' => fake()->name(),
-            'position' => fake()->jobTitle(),
-            'education' => fake()->randomElement(['S1', 'S2', 'S3']),
-            'hiring_date' => now()->subYears(fake()->numberBetween(1, 25)),
-            'department_id' => $department->id,
-            'unit_id' => $unit->id,
-            'position_id' => $position->id,
-        ]);
 
         return [
-            'employee_id' => $employee->id,
             'target_position_id' => $position->id,
-            'name' => $employee->name,
-            'position' => $employee->position,
+            'name' => fake()->name(),
+            'position' => fake()->jobTitle(),
             'talent_mapping' => fake()->randomElement(['High Potential', 'Key Contributor', 'Solid Performer']),
             'succession_readiness' => fake()->randomElement(['Ready Now', '1-2 Tahun', '3-5 Tahun']),
-            'idp' => fake()->sentence(),
-            'education' => $employee->education,
+            'idp' => fake()->numberBetween(0, 100),
+            'education' => fake()->randomElement(['S1', 'S2', 'S3']),
             'tenure' => fake()->numberBetween(1, 25).' tahun',
             'directorate' => fake()->words(2, true),
             'photo_path' => null,

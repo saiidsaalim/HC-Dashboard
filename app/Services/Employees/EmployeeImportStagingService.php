@@ -20,7 +20,10 @@ use ZipArchive;
 
 class EmployeeImportStagingService
 {
-    public function __construct(private StaffUserProvisioningService $staffUserProvisioningService) {}
+    public function __construct(
+        private StaffUserProvisioningService $staffUserProvisioningService,
+        private EmployeeOrganizationSyncService $organizationSyncService,
+    ) {}
 
     private const HEADERS = [
         'SAP', 'ID Number', 'AGKN', 'Position id', 'Personal Number', 'Position',
@@ -278,6 +281,10 @@ class EmployeeImportStagingService
                 ->exists();
             $batch->update(['status' => $hasUnprocessedRows ? 'REVIEW_REQUIRED' : 'PROCESSED']);
         });
+
+        if ($result['processed'] > 0) {
+            $this->organizationSyncService->synchronizePositionLevels();
+        }
 
         $this->refreshBatchCounters($batch);
 

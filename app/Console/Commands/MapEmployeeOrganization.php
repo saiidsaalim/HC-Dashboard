@@ -11,6 +11,7 @@ use RuntimeException;
 #[Signature('employees:map-organization
     {--dry-run : Report mappings without modifying data}
     {--apply : Create missing masters and map safe Employee rows}
+    {--sync-levels : Only synchronize positions.job_level from linked Employee levels}
     {--confirm= : Non-interactive confirmation token}
     {--report= : Optional CSV report path}
     {--chunk=500 : Employees read per database chunk}')]
@@ -19,8 +20,10 @@ class MapEmployeeOrganization extends Command
 {
     public function handle(EmployeeOrganizationSyncService $service): int
     {
-        if ($this->option('dry-run') && $this->option('apply')) {
-            $this->error('Pilih salah satu: --dry-run atau --apply.');
+        $selectedModes = collect(['dry-run', 'apply', 'sync-levels'])
+            ->filter(fn (string $option): bool => (bool) $this->option($option));
+        if ($selectedModes->count() > 1) {
+            $this->error('Pilih salah satu: --dry-run, --apply, atau --sync-levels.');
 
             return self::FAILURE;
         }
@@ -33,10 +36,21 @@ class MapEmployeeOrganization extends Command
         }
 
         $applying = (bool) $this->option('apply');
-        if ($applying && ! $this->confirmed()) {
+        $synchronizingLevels = (bool) $this->option('sync-levels');
+        if (($applying || $synchronizingLevels) && ! $this->confirmed()) {
             $this->warn('Sinkronisasi dibatalkan. Tidak ada data yang diubah.');
 
             return self::FAILURE;
+        }
+
+        if ($synchronizingLevels) {
+            $result = $service->synchronizePositionLevels();
+            $this->line('Mode: sync-levels');
+            $this->line('Positions evaluated: '.$result['positions']);
+            $this->line('Position levels updated: '.$result['updated']);
+            $this->line('Position level conflicts logged: '.count($result['conflicts']));
+
+            return self::SUCCESS;
         }
 
         try {
@@ -125,6 +139,8 @@ class MapEmployeeOrganization extends Command
             $this->line('Units created: '.$result['applied']['units_created']);
             $this->line('Sections created: '.$result['applied']['sections_created']);
             $this->line('Positions created: '.$result['applied']['positions_created']);
+            $this->line('Position levels updated: '.$result['applied']['position_levels_updated']);
+            $this->line('Position level conflicts logged: '.$result['applied']['position_level_conflicts']);
         } else {
             $this->comment('Dry-run selesai. Database tidak diubah.');
         }

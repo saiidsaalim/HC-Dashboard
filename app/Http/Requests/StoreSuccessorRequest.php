@@ -21,15 +21,14 @@ class StoreSuccessorRequest extends FormRequest
     {
         return [
             'target_position_id' => ['required', 'integer', Rule::in(app(SuccessorOrganizationStructure::class)->positionIds())],
-            'employee_id' => [
-                'required',
-                'integer',
-                'exists:employees,id',
-                Rule::unique('successors')->where('target_position_id', $this->input('target_position_id')),
-            ],
+            'name' => ['required', 'string', 'max:255'],
+            'position' => ['required', 'string', 'max:255'],
             'talent_mapping' => ['required', 'string', 'max:100'],
             'succession_readiness' => ['required', 'string', 'max:100'],
-            'idp' => ['required', 'string', 'max:2000'],
+            'idp' => ['required', 'integer', 'min:0', 'max:100'],
+            'education' => ['required', 'string', 'max:255'],
+            'tenure' => ['required', 'string', 'max:100'],
+            'directorate' => ['required', 'string', 'max:255'],
             'photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ];
     }

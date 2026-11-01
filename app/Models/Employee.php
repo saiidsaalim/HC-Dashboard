@@ -126,11 +126,6 @@ class Employee extends Model
         return $this->hasOne(User::class);
     }
 
-    public function successorNominations(): HasMany
-    {
-        return $this->hasMany(Successor::class);
-    }
-
     public function wlaParticipations(): HasMany
     {
         return $this->hasMany(WlaParticipant::class);

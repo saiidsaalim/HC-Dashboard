@@ -3,10 +3,12 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Models\Department;
 use App\Models\Employee;
 use App\Models\EmployeeImportBatch;
 use App\Models\EmployeeImportRow;
 use App\Models\EmployeePromotion;
+use App\Models\Position;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -348,6 +350,32 @@ class EmployeeImportStagingTest extends TestCase
         $this->assertDatabaseCount('employees', 1);
         $this->assertDatabaseHas('employees', ['sap' => 'SAP-E2E-IDEMPOTENT']);
         $this->assertSame('UPDATE', $secondRow->fresh()->processing_result['operation']);
+    }
+
+    public function test_approved_import_update_synchronizes_employee_level_to_existing_position(): void
+    {
+        Storage::fake('local');
+        $actor = $this->superAdmin();
+        $department = Department::query()->create(['code' => 'D-IMPORT-LEVEL', 'name' => 'Import Level', 'active' => true]);
+        $unit = $department->units()->create(['code' => 'U-IMPORT-LEVEL', 'name' => 'Import Unit', 'active' => true]);
+        $position = $unit->positions()->create(['code' => 'P-IMPORT-LEVEL', 'name' => 'Planning Lead', 'active' => true]);
+        $employee = $this->createEmployee('SAP-IMPORT-LEVEL', [
+            'employee_subgroup' => 'Manager',
+            'position_id' => $position->id,
+        ]);
+        $source = $this->canonicalSourceRow($employee->sap);
+        $source['Employee Subgroup'] = 'Senior Manager';
+        $file = $this->csvFile(self::HEADERS, [$source]);
+
+        $this->actingAs($actor)->post(route('data-pegawai.import'), ['file' => $file])->assertRedirect();
+        $row = EmployeeImportRow::query()->firstOrFail();
+        $this->actingAs($actor)->post(route('data-pegawai.import-rows.approve', $row))->assertOk();
+        $this->actingAs($actor)->post(route('data-pegawai.import-batches.process', $row->batch))
+            ->assertOk()
+            ->assertJsonPath('processed', 1);
+
+        $this->assertSame(Position::JOB_LEVEL_SENIOR_MANAGER, $position->fresh()->job_level);
+        $this->assertSame('Senior Manager', $employee->fresh()->employee_subgroup);
     }
 
     public function test_validated_existing_employee_update_does_not_overwrite_legacy_name_or_write_before_approval(): void

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\UserRole;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\Position;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -91,6 +92,46 @@ class EmployeeOrganizationSyncWebTest extends TestCase
         $this->assertSame(' Control   Room ', $employee->txt_biro);
         $this->assertSame(' Operator ', $employee->position);
         $this->assertSame('IGNORED ORGANIZATIONAL UNIT', $employee->organizational_unit);
+    }
+
+    public function test_employee_organization_sync_assigns_position_levels_from_employee_subgroup(): void
+    {
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        Employee::create([
+            ...$this->employeeAttributes(
+                'WEB-SYNC-LEVEL-001',
+                'Human Capital',
+                'Planning',
+                'HC Planning Lead',
+            ),
+            'employee_subgroup' => 'Senior Manager',
+        ]);
+        Employee::create([
+            ...$this->employeeAttributes(
+                'WEB-SYNC-LEVEL-002',
+                'Human Capital',
+                'Operations',
+                'HC Operations Lead',
+            ),
+            'employee_subgroup' => 'Supervisor',
+        ]);
+
+        $this->actingAs($superAdmin)
+            ->post(route('data-pegawai.organization-sync.apply'))
+            ->assertRedirect(route('data-pegawai.organization-sync.preview'));
+
+        $this->assertDatabaseHas('positions', [
+            'name' => 'HC Planning Lead',
+            'job_level' => Position::JOB_LEVEL_SENIOR_MANAGER,
+        ]);
+        $this->assertDatabaseHas('positions', [
+            'name' => 'HC Operations Lead',
+            'job_level' => Position::JOB_LEVEL_STAFF,
+        ]);
+        $this->assertDatabaseHas('employees', [
+            'sap' => 'WEB-SYNC-LEVEL-001',
+            'employee_subgroup' => 'Senior Manager',
+        ]);
     }
 
     public function test_web_apply_does_not_overwrite_conflicting_foreign_key(): void

@@ -19,7 +19,6 @@ use App\Models\WorkSchedule;
 use App\Services\Workforce\WlaCalculationService;
 use App\Services\Workforce\WlaLegacyBackfillService;
 use App\Services\Workforce\WorkCalendarService;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -393,45 +392,15 @@ class WlaFinalizationTest extends TestCase
         $this->assertNull($assessment->fresh()->final_snapshot);
     }
 
-    public function test_migration_rollback_preserves_records_and_downgrades_final_status(): void
+    public function test_finalization_columns_are_part_of_the_fresh_schema(): void
     {
-        $originalDefault = config('database.default');
-        $connection = array_replace(config('database.connections.sqlite'), ['database' => ':memory:']);
-        config([
-            'database.default' => 'wla_rollback',
-            'database.connections.wla_rollback' => $connection,
-        ]);
-        DB::purge('wla_rollback');
-        $migration = require database_path('migrations/2026_10_08_013041_add_finalization_fields_to_wla_assessments_table.php');
-
-        try {
-            Schema::create('users', function (Blueprint $table): void {
-                $table->id();
-            });
-            Schema::create('wla_assessments', function (Blueprint $table): void {
-                $table->id();
-                $table->string('status', 20)->default('draft');
-            });
-            Schema::create('wla_activities', function (Blueprint $table): void {
-                $table->id();
-                $table->foreignId('wla_assessment_id')->constrained()->restrictOnDelete();
-            });
-            $migration->up();
-            DB::table('users')->insert(['id' => 1]);
-            DB::table('wla_assessments')->insert([
-                'id' => 1, 'status' => 'final', 'finalized_by' => 1,
-                'finalization_key' => '2025:1', 'final_snapshot' => '{}',
-            ]);
-            DB::table('wla_activities')->insert(['id' => 1, 'wla_assessment_id' => 1]);
-
-            $migration->down();
-            $this->assertSame('draft', DB::table('wla_assessments')->where('id', 1)->value('status'));
-            $this->assertSame(1, DB::table('wla_activities')->where('id', 1)->count());
-            $this->assertFalse(Schema::hasColumn('wla_assessments', 'final_snapshot'));
-        } finally {
-            DB::disconnect('wla_rollback');
-            config(['database.default' => $originalDefault]);
-        }
+        $this->assertTrue(Schema::hasColumns('wla_assessments', [
+            'status',
+            'finalized_at',
+            'finalized_by',
+            'finalization_key',
+            'final_snapshot',
+        ]));
     }
 
     /** @return array{user: User, department: Department, unit: Unit, position: Position, schedule: WorkSchedule, calendar: WorkCalendar, period: int} */

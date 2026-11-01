@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call(PermissionSeeder::class);
+        $this->call(WorkScheduleSeeder::class);
 
         User::query()->updateOrCreate(
             ['email' => 'admin@sig.com'],

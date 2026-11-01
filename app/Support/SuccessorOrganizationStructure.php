@@ -4,8 +4,7 @@ namespace App\Support;
 
 use App\Models\Department;
 use App\Models\Position;
-use App\Models\Unit;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection;
 
 class SuccessorOrganizationStructure
 {
@@ -84,89 +83,102 @@ class SuccessorOrganizationStructure
     /** @return array<int, array<string, mixed>> */
     private function departmentRoots(Department $department): array
     {
-        $generalManagers = $department->units
-            ->flatMap->positions
-            ->filter(fn (Position $position): bool => $position->job_level === 'General Manager')
-            ->values()
-            ->map(fn (Position $position): array => $this->positionNode($position));
-        $unitRoots = $department->units
-            ->flatMap(fn (Unit $unit): array => $this->unitRoots($unit))
-            ->values()
-            ->all();
+        $positions = $this->sortedPositions($department->units->flatMap->positions);
+        $positionsById = $positions->keyBy(fn (Position $position): int => $position->id);
+        $parentIds = [];
 
-        if ($generalManagers->isEmpty()) {
-            return $unitRoots;
+        foreach ($positions as $position) {
+            $explicitParent = $position->parent_position_id === null
+                ? null
+                : $positionsById->get($position->parent_position_id);
+            $parent = $explicitParent instanceof Position
+                && $this->isEligibleParent($explicitParent, $position)
+                    ? $explicitParent
+                    : $this->fallbackParent($position, $positions);
+            $parentIds[$position->id] = $parent?->id;
         }
 
-        return $generalManagers
-            ->map(function (array $generalManager, int $index) use ($unitRoots): array {
-                $generalManager['children'] = $index === 0 ? $unitRoots : [];
+        $childrenByParent = [];
+        $roots = [];
 
-                return $generalManager;
-            })
+        foreach ($positions as $position) {
+            $parentId = $parentIds[$position->id];
+
+            if ($parentId === null) {
+                $roots[] = $position;
+
+                continue;
+            }
+
+            $childrenByParent[$parentId][] = $position;
+        }
+
+        $visitedPositionIds = [];
+
+        return collect($roots)
+            ->map(fn (Position $position): array => $this->buildPositionNode($position, $childrenByParent, $visitedPositionIds))
             ->all();
     }
 
-    /** @return array<int, array<string, mixed>> */
-    private function unitRoots(Unit $unit): array
-    {
-        $positions = $unit->positions
-            ->reject(fn (Position $position): bool => $position->job_level === 'General Manager')
-            ->values();
-        $seniorManagers = $positions
-            ->filter(fn (Position $position): bool => $position->job_level === 'Senior Manager')
-            ->values();
-        $positionsBelowSeniorManager = $this->managerRoots($positions
-            ->reject(fn (Position $position): bool => $position->job_level === 'Senior Manager')
-            ->values());
-
-        if ($seniorManagers->isEmpty()) {
-            return $positionsBelowSeniorManager;
-        }
-
-        return $seniorManagers
-            ->map(function (Position $seniorManager, int $index) use ($positionsBelowSeniorManager): array {
-                return $this->positionNode(
-                    $seniorManager,
-                    $index === 0 ? $positionsBelowSeniorManager : [],
-                );
-            })
-            ->all();
-    }
-
-    /**
-     * @param  Collection<int, Position>  $positions
-     * @return array<int, array<string, mixed>>
+    /** @param array<int, array<int, Position>> $childrenByParent
+     * @param  array<int, bool>  $visitedPositionIds
+     * @return array<string, mixed>
      */
-    private function managerRoots(Collection $positions): array
+    private function buildPositionNode(Position $position, array $childrenByParent, array &$visitedPositionIds): array
     {
-        return $positions
-            ->groupBy(fn (Position $position): string => (string) ($position->section_id ?? ''))
-            ->flatMap(function (Collection $sectionPositions): array {
-                $managers = $sectionPositions
-                    ->filter(fn (Position $position): bool => $position->job_level === 'Manager')
-                    ->values();
-                $positionsBelowManager = $sectionPositions
-                    ->reject(fn (Position $position): bool => $position->job_level === 'Manager')
-                    ->map(fn (Position $position): array => $this->positionNode($position))
-                    ->values()
-                    ->all();
+        if (isset($visitedPositionIds[$position->id])) {
+            return $this->positionNode($position);
+        }
 
-                if ($managers->isEmpty()) {
-                    return $positionsBelowManager;
-                }
-
-                return $managers
-                    ->map(function (Position $manager, int $index) use ($positionsBelowManager): array {
-                        return $this->positionNode(
-                            $manager,
-                            $index === 0 ? $positionsBelowManager : [],
-                        );
-                    })
-                    ->all();
-            })
-            ->values()
+        $visitedPositionIds[$position->id] = true;
+        $children = collect($childrenByParent[$position->id] ?? [])
+            ->map(fn (Position $child): array => $this->buildPositionNode($child, $childrenByParent, $visitedPositionIds))
             ->all();
+
+        return $this->positionNode($position, $children);
+    }
+
+    private function fallbackParent(Position $position, Collection $positions): ?Position
+    {
+        foreach (Position::allowedParentLevels($position->structuralJobLevel()) as $parentLevel) {
+            $parent = $positions
+                ->filter(fn (Position $candidate): bool => $candidate->id !== $position->id
+                    && $candidate->structuralJobLevel() === $parentLevel)
+                ->sort(fn (Position $left, Position $right): int => [
+                    $this->scopePriority($position, $left),
+                    $left->sort_order,
+                    mb_strtolower($left->name),
+                ] <=> [
+                    $this->scopePriority($position, $right),
+                    $right->sort_order,
+                    mb_strtolower($right->name),
+                ])
+                ->first();
+
+            if ($parent instanceof Position) {
+                return $parent;
+            }
+        }
+
+        return null;
+    }
+
+    private function isEligibleParent(Position $parent, Position $child): bool
+    {
+        return in_array(
+            $parent->structuralJobLevel(),
+            Position::allowedParentLevels($child->structuralJobLevel()),
+            true,
+        );
+    }
+
+    private function scopePriority(Position $child, Position $parent): int
+    {
+        if ($child->section_id !== null && $child->section_id === $parent->section_id) {
+            return 1;
+        }
+
+        return $child->unit_id === $parent->unit_id ? 2 : 3;
     }
 
     /** @param array<int, array<string, mixed>> $children
@@ -176,13 +188,32 @@ class SuccessorOrganizationStructure
     {
         return [
             'key' => (string) $position->id,
-            'level' => $position->job_level ?? 'Staff',
+            'level' => $position->structuralJobLevel(),
             'name' => $position->name,
             'formation_count' => $position->formation_count,
             'occupied_count' => $position->employees_count,
             'children' => $children,
             'department' => $position->unit->department->name,
         ];
+    }
+
+    /**
+     * @param  Collection<int, Position>  $positions
+     * @return Collection<int, Position>
+     */
+    private function sortedPositions(Collection $positions): Collection
+    {
+        return $positions
+            ->sort(fn (Position $left, Position $right): int => [
+                Position::jobLevelPriority($left->structuralJobLevel()),
+                $left->sort_order,
+                mb_strtolower($left->name),
+            ] <=> [
+                Position::jobLevelPriority($right->structuralJobLevel()),
+                $right->sort_order,
+                mb_strtolower($right->name),
+            ])
+            ->values();
     }
 
     private function departmentFormationCount(Department $department): int

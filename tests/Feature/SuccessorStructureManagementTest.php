@@ -12,6 +12,7 @@ use App\Models\Unit;
 use App\Models\User;
 use Database\Seeders\PermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
@@ -29,32 +30,45 @@ class SuccessorStructureManagementTest extends TestCase
     public function test_successor_structure_uses_active_master_organization_records(): void
     {
         [$department, $unit, $section, $position] = $this->organization();
-        Position::query()->create([
+        $generalManager = Position::query()->create([
             'unit_id' => $unit->id,
             'code' => 'GM-TALENT',
             'name' => 'General Manager of Talent',
-            'job_level' => 'General Manager',
             'formation_count' => 1,
             'sort_order' => 0,
             'active' => true,
         ]);
-        Position::query()->create([
+        $generalManager->forceFill(['job_level' => Position::JOB_LEVEL_GENERAL_MANAGER])->save();
+        $seniorManager = Position::query()->create([
             'unit_id' => $unit->id,
+            'parent_position_id' => $generalManager->id,
             'code' => 'SM-TALENT',
             'name' => 'Senior Manager of Talent Development',
-            'job_level' => 'Senior Manager',
             'formation_count' => 1,
             'sort_order' => 1,
             'active' => true,
         ]);
-        Position::query()->create([
+        $seniorManager->forceFill(['job_level' => Position::JOB_LEVEL_SENIOR_MANAGER])->save();
+        $manager = Position::query()->create([
             'unit_id' => $unit->id,
             'section_id' => $section->id,
+            'parent_position_id' => $seniorManager->id,
             'code' => 'MGR-TALENT',
             'name' => 'Manager of Talent Performance',
-            'job_level' => 'Manager',
             'formation_count' => 1,
             'sort_order' => 2,
+            'active' => true,
+        ]);
+        $manager->forceFill(['job_level' => Position::JOB_LEVEL_MANAGER])->save();
+        $position->update(['parent_position_id' => $manager->id]);
+        $secondStaff = Position::query()->create([
+            'unit_id' => $unit->id,
+            'section_id' => $section->id,
+            'parent_position_id' => $manager->id,
+            'code' => 'STAFF-TALENT-2',
+            'name' => 'Talent Management Officer',
+            'formation_count' => 1,
+            'sort_order' => 4,
             'active' => true,
         ]);
         foreach (range(1, 2) as $number) {
@@ -69,7 +83,6 @@ class SuccessorStructureManagementTest extends TestCase
             'section_id' => $section->id,
             'code' => 'INACTIVE',
             'name' => 'Inactive Position',
-            'job_level' => 'Staff',
             'formation_count' => 9,
             'sort_order' => 2,
             'active' => false,
@@ -78,7 +91,7 @@ class SuccessorStructureManagementTest extends TestCase
         $this->actingAs($this->superAdmin())
             ->get(route('performance-talent.successors.index', ['department' => $department->id]))
             ->assertOk()
-            ->assertViewHas('successorStructures', function (array $structures) use ($department, $position): bool {
+            ->assertViewHas('successorStructures', function (array $structures) use ($department, $position, $secondStaff): bool {
                 $generalManager = $structures[$department->name][0];
                 $seniorManager = $generalManager['children'][0];
                 $manager = $seniorManager['children'][0];
@@ -86,7 +99,7 @@ class SuccessorStructureManagementTest extends TestCase
                 return $generalManager['level'] === 'General Manager'
                     && $seniorManager['level'] === 'Senior Manager'
                     && $manager['level'] === 'Manager'
-                    && $manager['children'][0]['key'] === (string) $position->id;
+                    && array_column($manager['children'], 'key') === [(string) $position->id, (string) $secondStaff->id];
             })
             ->assertSee($department->name)
             ->assertSeeInOrder([
@@ -94,6 +107,7 @@ class SuccessorStructureManagementTest extends TestCase
                 'Senior Manager of Talent Development',
                 'Manager of Talent Performance',
                 $position->name,
+                $secondStaff->name,
             ])
             ->assertSee('Formasi')
             ->assertSee('Terisi')
@@ -107,54 +121,110 @@ class SuccessorStructureManagementTest extends TestCase
             ->assertDontSee('Tambah Bawahan');
     }
 
+    public function test_staff_falls_directly_under_general_manager_when_intermediate_levels_are_missing(): void
+    {
+        $department = Department::query()->create([
+            'code' => 'PROJECT-SUPPORT',
+            'name' => 'Project Management & Maint. Support',
+            'active' => true,
+        ]);
+        $unit = Unit::query()->create([
+            'department_id' => $department->id,
+            'code' => 'TPM',
+            'name' => 'TPM Unit',
+            'active' => true,
+        ]);
+        $generalManager = Position::query()->create([
+            'unit_id' => $unit->id,
+            'code' => 'GM-PROJECT',
+            'name' => 'GM of Project Mngmt & Maint. Support',
+            'sort_order' => 1,
+            'active' => true,
+        ]);
+        $generalManager->forceFill(['job_level' => Position::JOB_LEVEL_GENERAL_MANAGER])->save();
+        $firstStaff = Position::query()->create([
+            'unit_id' => $unit->id,
+            'code' => 'C-TPM',
+            'name' => 'C TPM Officer',
+            'sort_order' => 2,
+            'active' => true,
+        ]);
+        $secondStaff = Position::query()->create([
+            'unit_id' => $unit->id,
+            'code' => 'TPM-OFFICER',
+            'name' => 'TPM Officer',
+            'sort_order' => 3,
+            'active' => true,
+        ]);
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('performance-talent.successors.index', ['department' => $department->id]))
+            ->assertOk()
+            ->assertViewHas('successorStructures', function (array $structures) use ($department, $generalManager, $firstStaff, $secondStaff): bool {
+                $root = $structures[$department->name][0];
+
+                return $root['key'] === (string) $generalManager->id
+                    && $root['level'] === Position::JOB_LEVEL_GENERAL_MANAGER
+                    && array_column($root['children'], 'key') === [(string) $firstStaff->id, (string) $secondStaff->id]
+                    && collect($root['children'])->every(
+                        fn (array $child): bool => $child['level'] === Position::JOB_LEVEL_STAFF,
+                    );
+            })
+            ->assertSeeInOrder([
+                $generalManager->name,
+                $firstStaff->name,
+                $secondStaff->name,
+            ]);
+    }
+
     public function test_changes_in_master_position_are_reflected_in_successor_view(): void
     {
         [$department, , , $position] = $this->organization();
+        $position->forceFill(['job_level' => Position::JOB_LEVEL_MANAGER])->save();
 
         $position->update([
-            'name' => 'Updated Target Position',
-            'job_level' => 'Senior Manager',
+            'name' => 'Senior Manager Updated Target Position',
             'formation_count' => 7,
         ]);
 
         $this->actingAs($this->superAdmin())
             ->get(route('performance-talent.successors.index', ['department' => $department->id]))
             ->assertOk()
-            ->assertSee('Updated Target Position')
-            ->assertSee('Senior Manager')
+            ->assertSee('Senior Manager Updated Target Position')
+            ->assertViewHas('successorStructures', function (array $structures) use ($department): bool {
+                return $structures[$department->name][0]['level'] === Position::JOB_LEVEL_MANAGER;
+            })
             ->assertSee('Formasi')
             ->assertSee('>7</strong>', escape: false)
             ->assertSee('Terisi');
     }
 
+    public function test_unknown_stored_job_level_falls_back_to_staff_in_successor_view(): void
+    {
+        [$department, , , $position] = $this->organization();
+        DB::table('positions')->where('id', $position->id)->update(['job_level' => 'Supervisor']);
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('performance-talent.successors.index', ['department' => $department->id]))
+            ->assertOk()
+            ->assertViewHas('successorStructures', function (array $structures) use ($department, $position): bool {
+                $node = $structures[$department->name][0];
+
+                return $node['key'] === (string) $position->id
+                    && $node['level'] === Position::JOB_LEVEL_STAFF;
+            });
+    }
+
     public function test_master_position_with_successors_cannot_be_deleted(): void
     {
-        [, $unit, , $targetPosition] = $this->organization();
-        $employeePosition = Position::query()->create([
-            'unit_id' => $unit->id,
-            'code' => 'CURRENT',
-            'name' => 'Current Position',
-            'job_level' => 'Staff',
-            'formation_count' => 1,
-            'sort_order' => 2,
-            'active' => true,
-        ]);
-        $employee = Employee::query()->forceCreate([
-            'sap' => 'SAP-SUCCESSOR',
-            'name' => 'Successor Employee',
-            'position' => $employeePosition->name,
-            'position_id' => $employeePosition->id,
-            'unit_id' => $unit->id,
-            'department_id' => $unit->department_id,
-        ]);
+        [, , , $targetPosition] = $this->organization();
         Successor::query()->create([
-            'employee_id' => $employee->id,
             'target_position_id' => $targetPosition->id,
-            'name' => $employee->name,
-            'position' => $employee->position,
+            'name' => 'Manual Successor',
+            'position' => 'Current Position',
             'talent_mapping' => 'High Potential',
             'succession_readiness' => 'Ready Now',
-            'idp' => 'Leadership program',
+            'idp' => 60,
             'education' => '-',
             'tenure' => '-',
             'directorate' => '-',
@@ -200,8 +270,7 @@ class SuccessorStructureManagementTest extends TestCase
             'unit_id' => $unit->id,
             'section_id' => $section->id,
             'code' => 'TARGET',
-            'name' => 'Target Position',
-            'job_level' => 'Staff',
+            'name' => 'Supervisor Talent Operations',
             'formation_count' => 3,
             'sort_order' => 1,
             'active' => true,

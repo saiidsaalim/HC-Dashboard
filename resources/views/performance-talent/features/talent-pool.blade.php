@@ -1,122 +1,132 @@
 @php
+    $talentMatrixData = collect($talentMatrix ?? []);
     $matrixRows = [
         [
             'potential' => 'Tinggi',
             'boxes' => [
-                ['number' => '07', 'title' => 'Potential tinggi', 'performance' => 'Rendah', 'tone' => 'border-sky-200 bg-sky-50'],
-                ['number' => '08', 'title' => 'Talenta berkembang', 'performance' => 'Sedang', 'tone' => 'border-emerald-200 bg-emerald-50'],
-                ['number' => '09', 'title' => 'Talenta unggulan', 'performance' => 'Tinggi', 'tone' => 'border-emerald-200 bg-emerald-50'],
+                ['key' => '07', 'number' => '01', 'title' => 'Diam-Diam Jago', 'performance' => 'Rendah', 'background' => '#DFF8EB', 'accent' => '#27C696', 'icon' => 'bulb.svg', 'illustration' => '01_diam_diam_jago.png'],
+                ['key' => '08', 'number' => '02', 'title' => 'Lagi Ngebut', 'performance' => 'Sedang', 'background' => '#E1F0FF', 'accent' => '#378CED', 'icon' => 'trending-up.svg', 'illustration' => '02_lagi_ngebut.png'],
+                ['key' => '09', 'number' => '03', 'title' => 'Rising Star', 'performance' => 'Tinggi', 'background' => '#FFF2BA', 'accent' => '#F3AE13', 'icon' => 'star.svg', 'illustration' => '03_rising_star.png'],
             ],
         ],
         [
             'potential' => 'Sedang',
             'boxes' => [
-                ['number' => '04', 'title' => 'Perlu pengembangan', 'performance' => 'Rendah', 'tone' => 'border-amber-200 bg-amber-50'],
-                ['number' => '05', 'title' => 'Talenta inti', 'performance' => 'Sedang', 'tone' => 'border-sky-200 bg-sky-50'],
-                ['number' => '06', 'title' => 'Kinerja unggul', 'performance' => 'Tinggi', 'tone' => 'border-emerald-200 bg-emerald-50'],
+                ['key' => '04', 'number' => '04', 'title' => 'Butuh Arah', 'performance' => 'Rendah', 'background' => '#FFE6EA', 'accent' => '#F47C92', 'icon' => 'signpost.svg', 'illustration' => '04_butuh_arah.png'],
+                ['key' => '05', 'number' => '05', 'title' => 'Tim Andalan', 'performance' => 'Sedang', 'background' => '#EEE3FF', 'accent' => '#9765E8', 'icon' => 'users.svg', 'illustration' => '05_tim_andalan.png'],
+                ['key' => '06', 'number' => '06', 'title' => 'Gaspol', 'performance' => 'Tinggi', 'background' => '#E5F2FF', 'accent' => '#2F91EC', 'icon' => 'rocket.svg', 'illustration' => '06_gaspol.png'],
             ],
         ],
         [
             'potential' => 'Rendah',
             'boxes' => [
-                ['number' => '01', 'title' => 'Perlu perhatian', 'performance' => 'Rendah', 'tone' => 'border-amber-200 bg-amber-50'],
-                ['number' => '02', 'title' => 'Kontributor stabil', 'performance' => 'Sedang', 'tone' => 'border-sky-200 bg-sky-50'],
-                ['number' => '03', 'title' => 'Spesialis andal', 'performance' => 'Tinggi', 'tone' => 'border-sky-200 bg-sky-50'],
+                ['key' => '01', 'number' => '07', 'title' => 'Perlu Booster', 'performance' => 'Rendah', 'background' => '#FFEBD8', 'accent' => '#F49B50', 'icon' => 'battery-low.svg', 'illustration' => '07_perlu_booster.png'],
+                ['key' => '02', 'number' => '08', 'title' => 'Aman Terkendali', 'performance' => 'Sedang', 'background' => '#DDF9EE', 'accent' => '#22BE99', 'icon' => 'shield-check.svg', 'illustration' => '08_aman_terkendali.png'],
+                ['key' => '03', 'number' => '09', 'title' => 'Jagonya Eksekusi', 'performance' => 'Tinggi', 'background' => '#F0E5FF', 'accent' => '#9454E7', 'icon' => 'clipboard-check.svg', 'illustration' => '09_jagonya_eksekusi.png'],
             ],
         ],
     ];
+    $totalTalentCount = $talentMatrixData->sum(fn ($talents): int => collect($talents)->count());
 @endphp
 
-<section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" aria-labelledby="talent-matrix-title">
-    <header class="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+<section x-data="{ selectedBox: null }" x-on:talent-box-selected.window="selectedBox = $event.detail"
+    class="talent-matrix-panel" aria-labelledby="talent-matrix-title">
+    <header class="talent-matrix-header">
         <div>
-            <h3 id="talent-matrix-title" class="font-display text-lg font-bold text-slate-950">Pemetaan talenta</h3>
-            <p class="mt-1 text-sm text-slate-500">Potential &times; Performance</p>
+            <span class="talent-matrix-header__eyebrow">9-Box Talent Matrix</span>
+            <h3 id="talent-matrix-title" class="font-display">Talent Matrix <span>3&times;3</span></h3>
+            <p>Pemetaan talenta yang simple, ramah, dan mudah dipahami tanpa mengubah klasifikasi penilaian.</p>
         </div>
-        <span class="w-fit rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-slate-600">
-            9-Box Matrix
-        </span>
+        <div class="talent-matrix-header__summary" aria-label="Ringkasan jumlah talent">
+            <strong>{{ $totalTalentCount }}</strong>
+            <span>Total talent terpetakan</span>
+        </div>
     </header>
 
-    <div class="p-2 sm:p-5">
-        <div class="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-1.5 sm:grid-cols-[2.75rem_minmax(0,1fr)] sm:gap-3">
-                <div class="flex flex-col items-center justify-center gap-2 rounded-lg bg-slate-950 px-1 py-2 text-white sm:gap-3 sm:rounded-xl sm:px-2 sm:py-4"
-                    aria-label="Potential meningkat ke atas">
-                    <svg class="h-4 w-4 shrink-0 sm:h-5 sm:w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                        stroke-width="2" aria-hidden="true">
-                        <path d="M12 20V4m0 0-6 6m6-6 6 6" stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
-                    <span class="-rotate-180 text-[9px] font-bold tracking-[0.12em] [writing-mode:vertical-rl] sm:text-xs sm:tracking-[0.2em]">POTENTIAL</span>
+    <p class="talent-matrix-scroll-hint">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M8 7 3 12l5 5m8-10 5 5-5 5M3 12h18" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        Geser horizontal untuk melihat seluruh matriks.
+    </p>
+
+    <div class="talent-matrix-scroll" tabindex="0" aria-label="Area Talent Matrix dapat digeser horizontal">
+        <div class="talent-matrix-layout">
+            <div class="talent-matrix-axis-y" aria-label="Potential meningkat ke atas">
+                <span>Tinggi</span>
+                <span>Sedang</span>
+                <span>Rendah</span>
+                <strong>Potential <span aria-hidden="true">&uarr;</span></strong>
+            </div>
+
+            <div>
+                <div role="group" aria-label="9-Box Talent Matrix" class="talent-matrix-grid">
+                    @foreach ($matrixRows as $row)
+                        <div class="contents">
+                            @foreach ($row['boxes'] as $box)
+                                <x-performance-talent.talent-matrix-card :box="$box" :potential="$row['potential']"
+                                    :talents="$talentMatrixData->get($box['key'], [])" />
+                            @endforeach
+                        </div>
+                    @endforeach
                 </div>
 
-                <div>
-                    <div role="grid" aria-label="9-Box Talent Matrix" class="space-y-1.5 sm:space-y-3">
-                        @foreach ($matrixRows as $row)
-                            <div role="row"
-                                class="grid grid-cols-[1.5rem_repeat(3,minmax(0,1fr))] gap-1.5 sm:grid-cols-[3.75rem_repeat(3,minmax(0,1fr))] sm:gap-3">
-                                <div role="rowheader"
-                                    class="flex items-center justify-center text-[9px] font-semibold text-slate-500 [writing-mode:vertical-rl] sm:text-xs">
-                                    {{ $row['potential'] }}
-                                </div>
-
-                                @foreach ($row['boxes'] as $box)
-                                    <article role="gridcell" data-talent-box data-box="{{ $box['number'] }}"
-                                        data-potential="{{ $row['potential'] }}" data-performance="{{ $box['performance'] }}"
-                                        class="flex aspect-square min-w-0 flex-col overflow-hidden rounded-lg border p-1.5 sm:rounded-xl sm:p-4 {{ $box['tone'] }}">
-                                        <div class="flex items-start justify-between gap-1 sm:gap-3">
-                                            <span class="text-[10px] font-bold text-slate-500 sm:text-xs">{{ $box['number'] }}</span>
-                                            <span class="rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] font-bold text-slate-700 sm:px-2 sm:py-1 sm:text-xs"
-                                                aria-label="0 talenta">0</span>
-                                        </div>
-
-                                        <div class="mt-1.5 min-w-0 sm:mt-4">
-                                            <h4 class="break-words font-display text-[9px] font-bold leading-tight text-slate-950 sm:text-base sm:leading-normal">
-                                                {{ $box['title'] }}
-                                            </h4>
-                                            <dl class="mt-2 hidden space-y-1 break-words text-xs leading-normal text-slate-600 sm:block">
-                                                <div class="grid gap-0.5 sm:flex sm:gap-1">
-                                                    <dt class="font-semibold">Potential:</dt>
-                                                    <dd>{{ $row['potential'] }}</dd>
-                                                </div>
-                                                <div class="grid gap-0.5 sm:flex sm:gap-1">
-                                                    <dt class="font-semibold">Performance:</dt>
-                                                    <dd>{{ $box['performance'] }}</dd>
-                                                </div>
-                                            </dl>
-                                        </div>
-
-                                        <div class="mt-auto flex items-center gap-1 border-t border-slate-900/10 pt-1.5 text-[9px] font-medium leading-tight text-slate-600 sm:gap-2 sm:pt-4 sm:text-xs sm:leading-normal">
-                                            <svg class="hidden h-4 w-4 shrink-0 sm:block" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                                stroke-width="1.8" aria-hidden="true">
-                                                <path d="M16 20v-1.5A4.5 4.5 0 0 0 11.5 14h-3A4.5 4.5 0 0 0 4 18.5V20M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7-1a2.5 2.5 0 0 1 0 5m3 6v-1a4 4 0 0 0-2.5-3.7"
-                                                    stroke-linecap="round" stroke-linejoin="round" />
-                                            </svg>
-                                            <span class="hidden sm:inline">Belum ada talenta</span>
-                                            <span class="sm:hidden">Kosong</span>
-                                        </div>
-                                    </article>
-                                @endforeach
-                            </div>
-                        @endforeach
+                <div class="talent-matrix-axis-x" aria-label="Performance meningkat ke kanan">
+                    <div>
+                        <span>Rendah</span>
+                        <span>Sedang</span>
+                        <span>Tinggi</span>
                     </div>
-
-                    <div class="mt-1.5 grid grid-cols-[1.5rem_repeat(3,minmax(0,1fr))] gap-1.5 sm:mt-3 sm:grid-cols-[3.75rem_repeat(3,minmax(0,1fr))] sm:gap-3"
-                        aria-hidden="true">
-                        <span></span>
-                        @foreach (['Rendah', 'Sedang', 'Tinggi'] as $performance)
-                            <span class="text-center text-[9px] font-semibold text-slate-500 sm:text-xs">{{ $performance }}</span>
-                        @endforeach
-                    </div>
-
-                    <div class="ml-[1.875rem] mt-2 flex items-center justify-center gap-1.5 text-slate-700 sm:ml-[4.5rem] sm:mt-3 sm:gap-3"
-                        aria-label="Performance meningkat ke kanan">
-                        <span class="text-[9px] font-bold tracking-[0.12em] sm:text-xs sm:tracking-[0.2em]">PERFORMANCE</span>
-                        <svg class="h-4 w-4 sm:h-5 sm:w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                            aria-hidden="true">
-                            <path d="M4 12h16m0 0-6-6m6 6-6 6" stroke-linecap="round" stroke-linejoin="round" />
-                        </svg>
-                    </div>
+                    <strong>Performance <span aria-hidden="true">&rarr;</span></strong>
+                </div>
             </div>
         </div>
+    </div>
+
+    <div class="talent-matrix-detail" aria-live="polite">
+        <template x-if="selectedBox === null">
+            <div class="talent-matrix-detail__placeholder">
+                <span aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <path d="M8 10h8m-8 4h5m8-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                </span>
+                <div>
+                    <strong>Pilih salah satu kotak</strong>
+                    <p>Detail kombinasi Potential dan Performance akan tampil di sini.</p>
+                </div>
+            </div>
+        </template>
+
+        <template x-if="selectedBox !== null">
+            <div>
+                <div class="talent-matrix-detail__header">
+                    <div>
+                        <span x-text="selectedBox.number"></span>
+                        <h4 class="font-display" x-text="selectedBox.title"></h4>
+                        <p>Potensi <strong x-text="selectedBox.potential"></strong> <span aria-hidden="true">&bull;</span> Performa <strong x-text="selectedBox.performance"></strong></p>
+                    </div>
+                    <strong class="talent-matrix-detail__count"><span x-text="selectedBox.count"></span> talent</strong>
+                </div>
+
+                <template x-if="selectedBox.count === 0">
+                    <p class="talent-matrix-detail__empty">Belum ada data talent pada kombinasi ini.</p>
+                </template>
+
+                <template x-if="selectedBox.count > 0">
+                    <ul class="talent-matrix-detail__list">
+                        <template x-for="talent in selectedBox.talents" x-bind:key="talent.name + talent.position">
+                            <li>
+                                <span x-text="talent.name.slice(0, 1).toUpperCase()"></span>
+                                <div>
+                                    <strong x-text="talent.name"></strong>
+                                    <p x-text="talent.position"></p>
+                                </div>
+                            </li>
+                        </template>
+                    </ul>
+                </template>
+            </div>
+        </template>
     </div>
 </section>

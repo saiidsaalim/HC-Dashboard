@@ -12,6 +12,7 @@ use App\Models\Unit;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class EmployeeOrganizationSyncService
@@ -87,6 +88,7 @@ class EmployeeOrganizationSyncService
             }
 
             $after = $this->auditEmployees($employees->each->refresh(), $this->masterState());
+            $levelSynchronization = $this->synchronizePositionLevels();
             $after['applied'] = [
                 'employees_updated' => $updated,
                 'foreign_keys_updated' => $foreignKeysUpdated,
@@ -95,10 +97,114 @@ class EmployeeOrganizationSyncService
                 'units_created' => $created['units'],
                 'sections_created' => $created['sections'],
                 'positions_created' => $created['positions'],
+                'position_levels_updated' => $levelSynchronization['updated'],
+                'position_level_conflicts' => count($levelSynchronization['conflicts']),
             ];
 
             return $after;
         });
+    }
+
+    public function normalizeEmployeeLevel(?string $employeeLevel): string
+    {
+        $normalizedLevel = preg_replace('/\s+/u', ' ', mb_strtolower(trim((string) $employeeLevel))) ?? '';
+
+        if (preg_match('/\bgeneral manager\b/u', $normalizedLevel) === 1) {
+            return Position::JOB_LEVEL_GENERAL_MANAGER;
+        }
+
+        if (preg_match('/\bsenior manager\b/u', $normalizedLevel) === 1) {
+            return Position::JOB_LEVEL_SENIOR_MANAGER;
+        }
+
+        if (preg_match('/\bmanager\b/u', $normalizedLevel) === 1) {
+            return Position::JOB_LEVEL_MANAGER;
+        }
+
+        return Position::JOB_LEVEL_STAFF;
+    }
+
+    /**
+     * @param  array<int, int|string|null>|null  $positionIds
+     * @return array{positions: int, updated: int, conflicts: array<int, array{position_id: int, employee_levels: array<int, string>, normalized_levels: array<int, string>}>}
+     */
+    public function synchronizePositionLevels(?array $positionIds = null): array
+    {
+        $normalizedPositionIds = $positionIds === null
+            ? null
+            : collect($positionIds)
+                ->filter(fn (mixed $positionId): bool => (int) $positionId > 0)
+                ->map(fn (mixed $positionId): int => (int) $positionId)
+                ->unique()
+                ->values()
+                ->all();
+
+        if ($normalizedPositionIds === []) {
+            return ['positions' => 0, 'updated' => 0, 'conflicts' => []];
+        }
+
+        $positions = Position::query()
+            ->select(['id', 'name', 'job_level'])
+            ->when($normalizedPositionIds !== null, fn ($query) => $query->whereIn('id', $normalizedPositionIds))
+            ->orderBy('id')
+            ->get();
+        $employeesByPosition = Employee::query()
+            ->select(['id', 'position_id', 'employee_subgroup'])
+            ->whereNotNull('position_id')
+            ->when($normalizedPositionIds !== null, fn ($query) => $query->whereIn('position_id', $normalizedPositionIds))
+            ->orderBy('position_id')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('position_id');
+        $updated = 0;
+        $conflicts = [];
+
+        foreach ($positions as $position) {
+            $employees = $employeesByPosition->get($position->id, collect());
+            $normalizedLevels = $employees
+                ->map(fn (Employee $employee): string => $this->normalizeEmployeeLevel($employee->employee_subgroup))
+                ->unique()
+                ->sortBy(fn (string $level): int => Position::jobLevelPriority($level))
+                ->values();
+            $jobLevel = $normalizedLevels->first();
+
+            if (! is_string($jobLevel)) {
+                $jobLevel = Position::isValidJobLevel($position->job_level)
+                    ? (string) $position->job_level
+                    : Position::JOB_LEVEL_STAFF;
+            }
+
+            if ($normalizedLevels->count() > 1) {
+                $conflict = [
+                    'position_id' => (int) $position->id,
+                    'employee_levels' => $employees
+                        ->map(fn (Employee $employee): string => trim((string) $employee->employee_subgroup))
+                        ->unique()
+                        ->values()
+                        ->all(),
+                    'normalized_levels' => $normalizedLevels->all(),
+                ];
+                $conflicts[] = $conflict;
+                Log::warning('Position mempunyai level Employee yang tidak konsisten.', [
+                    ...$conflict,
+                    'position_name' => $position->name,
+                    'selected_job_level' => $jobLevel,
+                ]);
+            }
+
+            if ($position->job_level === $jobLevel) {
+                continue;
+            }
+
+            Position::query()->whereKey($position->id)->update(['job_level' => $jobLevel]);
+            $updated++;
+        }
+
+        return [
+            'positions' => $positions->count(),
+            'updated' => $updated,
+            'conflicts' => $conflicts,
+        ];
     }
 
     /**

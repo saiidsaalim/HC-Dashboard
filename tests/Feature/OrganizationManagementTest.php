@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Models\Department;
 use App\Models\Directorate;
 use App\Models\Employee;
+use App\Models\Position;
 use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -665,6 +666,193 @@ class OrganizationManagementTest extends TestCase
         $this->get(route('organization.positions.index', ['department_id' => $department->id]))->assertOk()->assertSee('Specialist');
         $this->get(route('organization.positions.create'))->assertOk();
         $this->get(route('organization.positions.edit', $position))->assertOk();
+    }
+
+    public function test_master_positions_are_ordered_by_normalized_level_then_sort_order(): void
+    {
+        $unit = $this->unit();
+        foreach ([
+            ['code' => 'P-ORDER-STAFF', 'name' => 'A Staff', 'job_level' => Position::JOB_LEVEL_STAFF, 'sort_order' => 1],
+            ['code' => 'P-ORDER-MANAGER', 'name' => 'Z Manager', 'job_level' => Position::JOB_LEVEL_MANAGER, 'sort_order' => 1],
+            ['code' => 'P-ORDER-GM', 'name' => 'Z General Manager', 'job_level' => Position::JOB_LEVEL_GENERAL_MANAGER, 'sort_order' => 1],
+            ['code' => 'P-ORDER-SM', 'name' => 'Z Senior Manager', 'job_level' => Position::JOB_LEVEL_SENIOR_MANAGER, 'sort_order' => 1],
+        ] as $attributes) {
+            $unit->positions()->create([...$attributes, 'active' => true]);
+        }
+
+        $response = $this->actingAs($this->superAdmin())
+            ->get(route('organization.positions.index'))
+            ->assertOk();
+
+        $this->assertSame([
+            Position::JOB_LEVEL_GENERAL_MANAGER,
+            Position::JOB_LEVEL_SENIOR_MANAGER,
+            Position::JOB_LEVEL_MANAGER,
+            Position::JOB_LEVEL_STAFF,
+        ], $response->viewData('positions')->pluck('job_level')->all());
+    }
+
+    public function test_position_parent_hierarchy_can_be_managed_from_position_form(): void
+    {
+        $unit = $this->unit();
+        $generalManager = $unit->positions()->create([
+            'code' => 'P-HIER-GM',
+            'name' => 'General Manager Finance',
+            'active' => true,
+        ]);
+        $generalManager->forceFill(['job_level' => Position::JOB_LEVEL_GENERAL_MANAGER])->save();
+        $this->actingAs($this->superAdmin());
+
+        $this->post(route('organization.positions.store'), [
+            'department_id' => $unit->department_id,
+            'unit_id' => $unit->id,
+            'parent_position_id' => $generalManager->id,
+            'code' => 'P-HIER-SM',
+            'name' => 'Senior Manager Accounting',
+            'active' => '1',
+        ])->assertRedirect(route('organization.positions.index'));
+        $seniorManager = Position::query()->where('code', 'P-HIER-SM')->sole();
+        $seniorManager->forceFill(['job_level' => Position::JOB_LEVEL_SENIOR_MANAGER])->save();
+
+        $this->post(route('organization.positions.store'), [
+            'department_id' => $unit->department_id,
+            'unit_id' => $unit->id,
+            'parent_position_id' => $seniorManager->id,
+            'code' => 'P-HIER-MGR',
+            'name' => 'Manager Accounting',
+            'active' => '1',
+        ])->assertRedirect(route('organization.positions.index'));
+        $manager = Position::query()->where('code', 'P-HIER-MGR')->sole();
+        $manager->forceFill(['job_level' => Position::JOB_LEVEL_MANAGER])->save();
+
+        $this->post(route('organization.positions.store'), [
+            'department_id' => $unit->department_id,
+            'unit_id' => $unit->id,
+            'parent_position_id' => $manager->id,
+            'code' => 'P-HIER-STAFF',
+            'name' => 'Accounting Officer',
+            'active' => '1',
+        ])->assertRedirect(route('organization.positions.index'));
+        $staff = Position::query()->where('code', 'P-HIER-STAFF')->sole();
+
+        $this->assertNull($generalManager->parent_position_id);
+        $this->assertSame($generalManager->id, $seniorManager->parent_position_id);
+        $this->assertSame($seniorManager->id, $manager->parent_position_id);
+        $this->assertSame($manager->id, $staff->parent_position_id);
+        $this->assertTrue($generalManager->children->contains('id', $seniorManager->id));
+        $this->assertSame($manager->id, $staff->parent->id);
+    }
+
+    public function test_position_rejects_itself_and_descendant_as_parent(): void
+    {
+        $unit = $this->unit();
+        $generalManager = $unit->positions()->create([
+            'code' => 'P-CYCLE-GM',
+            'name' => 'General Manager Finance',
+            'active' => true,
+        ]);
+        $seniorManager = $unit->positions()->create([
+            'parent_position_id' => $generalManager->id,
+            'code' => 'P-CYCLE-SM',
+            'name' => 'Senior Manager Finance',
+            'active' => true,
+        ]);
+        $manager = $unit->positions()->create([
+            'parent_position_id' => $seniorManager->id,
+            'code' => 'P-CYCLE-MGR',
+            'name' => 'Manager Finance',
+            'active' => true,
+        ]);
+        $generalManager->forceFill(['job_level' => Position::JOB_LEVEL_GENERAL_MANAGER])->save();
+        $seniorManager->forceFill(['job_level' => Position::JOB_LEVEL_SENIOR_MANAGER])->save();
+        $manager->forceFill(['job_level' => Position::JOB_LEVEL_MANAGER])->save();
+        $this->actingAs($this->superAdmin());
+
+        $this->assertTrue($manager->wouldCreateCircularParent($manager->id));
+        $this->assertTrue($generalManager->wouldCreateCircularParent($seniorManager->id));
+
+        $this->from(route('organization.positions.edit', $manager))
+            ->put(route('organization.positions.update', $manager), [
+                'department_id' => $unit->department_id,
+                'unit_id' => $unit->id,
+                'parent_position_id' => $manager->id,
+                'code' => $manager->code,
+                'name' => 'Finance Officer',
+                'active' => '1',
+            ])
+            ->assertRedirect(route('organization.positions.edit', $manager))
+            ->assertSessionHasErrors('parent_position_id');
+
+        $this->from(route('organization.positions.edit', $generalManager))
+            ->put(route('organization.positions.update', $generalManager), [
+                'department_id' => $unit->department_id,
+                'unit_id' => $unit->id,
+                'parent_position_id' => $seniorManager->id,
+                'code' => $generalManager->code,
+                'name' => 'Manager Finance Root',
+                'active' => '1',
+            ])
+            ->assertRedirect(route('organization.positions.edit', $generalManager))
+            ->assertSessionHasErrors('parent_position_id');
+
+        $this->assertNull($generalManager->fresh()->parent_position_id);
+        $this->assertSame($seniorManager->id, $manager->fresh()->parent_position_id);
+    }
+
+    public function test_position_form_does_not_accept_manual_job_level_and_uses_safe_default(): void
+    {
+        $unit = $this->unit();
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('organization.positions.create'))
+            ->assertOk()
+            ->assertDontSee('name="job_level"', escape: false)
+            ->assertSee('name="parent_position_id"', escape: false);
+
+        $this->post(route('organization.positions.store'), [
+            'department_id' => $unit->department_id,
+            'unit_id' => $unit->id,
+            'code' => 'P-AUTO-LEVEL',
+            'name' => '  SENIOR   MANAGER Corporate Planning  ',
+            'job_level' => 'Supervisor',
+            'formation_count' => 1,
+            'sort_order' => 7,
+            'active' => '1',
+        ])->assertRedirect(route('organization.positions.index'));
+
+        $position = Position::query()->where('code', 'P-AUTO-LEVEL')->sole();
+        $this->assertSame('SENIOR   MANAGER Corporate Planning', $position->name);
+        $this->assertSame(Position::JOB_LEVEL_STAFF, $position->job_level);
+        $this->assertSame(7, $position->sort_order);
+    }
+
+    public function test_position_name_change_does_not_recompute_employee_sourced_job_level(): void
+    {
+        $unit = $this->unit();
+        $position = $unit->positions()->create([
+            'code' => 'P-LEVEL-UPDATE',
+            'name' => 'Supervisor HC',
+            'active' => true,
+        ]);
+        $position->forceFill(['job_level' => Position::JOB_LEVEL_MANAGER])->save();
+
+        $this->actingAs($this->superAdmin())->put(route('organization.positions.update', $position), [
+            'department_id' => $unit->department_id,
+            'unit_id' => $unit->id,
+            'code' => $position->code,
+            'name' => 'Manager HC',
+            'active' => '1',
+        ])->assertRedirect(route('organization.positions.index'));
+        $this->assertSame(Position::JOB_LEVEL_MANAGER, $position->fresh()->job_level);
+
+        $this->put(route('organization.positions.update', $position), [
+            'department_id' => $unit->department_id,
+            'unit_id' => $unit->id,
+            'code' => $position->code,
+            'name' => 'HC Specialist',
+            'active' => '1',
+        ])->assertRedirect(route('organization.positions.index'));
+        $this->assertSame(Position::JOB_LEVEL_MANAGER, $position->fresh()->job_level);
     }
 
     private function superAdmin(): User

@@ -17,6 +17,7 @@ use App\Services\Employees\EmployeeOrganizationMapper;
 use App\Services\Employees\EmployeeOrganizationSyncService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 use Tests\TestCase;
@@ -504,6 +505,112 @@ class EmployeeOrganizationMappingTest extends TestCase
         $this->assertSame(1, $exitCode);
         $this->assertStringContainsString('Mode non-interaktif memerlukan', Artisan::output());
         $this->assertNull($employee->fresh()->department_id);
+    }
+
+    public function test_employee_level_synchronizes_to_the_linked_master_position_without_changing_employee_data(): void
+    {
+        [, , $position] = $this->organization();
+        $employee = Employee::create([
+            ...$this->employeeAttributes('SAP-LEVEL-SYNC-001', 'Sales', 'Field Team', 'Unrelated Position Name'),
+            'employee_subgroup' => '  SENIOR   MANAGER ',
+            'position_id' => $position->id,
+        ]);
+
+        $result = app(EmployeeOrganizationSyncService::class)->synchronizePositionLevels([$position->id]);
+
+        $this->assertSame(1, $result['updated']);
+        $this->assertSame(Position::JOB_LEVEL_SENIOR_MANAGER, $position->fresh()->job_level);
+        $this->assertSame('  SENIOR   MANAGER ', $employee->fresh()->employee_subgroup);
+    }
+
+    public function test_position_level_is_recalculated_when_employee_level_changes(): void
+    {
+        [, , $position] = $this->organization();
+        $employee = Employee::create([
+            ...$this->employeeAttributes('SAP-LEVEL-SYNC-002', 'Sales', 'Field Team', 'Analyst'),
+            'employee_subgroup' => 'Manager',
+            'position_id' => $position->id,
+        ]);
+        $service = app(EmployeeOrganizationSyncService::class);
+        $service->synchronizePositionLevels([$position->id]);
+        $this->assertSame(Position::JOB_LEVEL_MANAGER, $position->fresh()->job_level);
+
+        $employee->update(['employee_subgroup' => 'Senior Manager']);
+        $service->synchronizePositionLevels([$position->id]);
+
+        $this->assertSame(Position::JOB_LEVEL_SENIOR_MANAGER, $position->fresh()->job_level);
+        $this->assertSame('Senior Manager', $employee->fresh()->employee_subgroup);
+    }
+
+    public function test_conflicting_employee_levels_use_deterministic_priority_and_are_logged(): void
+    {
+        [, , $position] = $this->organization();
+        Employee::create([
+            ...$this->employeeAttributes('SAP-LEVEL-SYNC-003', 'Sales', 'Field Team', 'Analyst'),
+            'employee_subgroup' => 'Staff',
+            'position_id' => $position->id,
+        ]);
+        Employee::create([
+            ...$this->employeeAttributes('SAP-LEVEL-SYNC-004', 'Sales', 'Field Team', 'Analyst'),
+            'employee_subgroup' => 'Manager',
+            'position_id' => $position->id,
+        ]);
+        Log::spy();
+
+        $result = app(EmployeeOrganizationSyncService::class)->synchronizePositionLevels([$position->id]);
+
+        $this->assertSame(Position::JOB_LEVEL_MANAGER, $position->fresh()->job_level);
+        $this->assertSame([
+            Position::JOB_LEVEL_MANAGER,
+            Position::JOB_LEVEL_STAFF,
+        ], $result['conflicts'][0]['normalized_levels']);
+        Log::shouldHaveReceived('warning')->once();
+    }
+
+    public function test_position_without_incumbent_preserves_valid_level_and_normalizes_invalid_level_to_staff(): void
+    {
+        [, $unit, $position] = $this->organization();
+        $invalidPosition = $unit->positions()->create([
+            'code' => 'POS-INVALID-LEVEL',
+            'name' => 'Position without Incumbent',
+            'active' => true,
+        ]);
+        Position::query()->whereKey($position->id)->update(['job_level' => Position::JOB_LEVEL_GENERAL_MANAGER]);
+        Position::query()->whereKey($invalidPosition->id)->update(['job_level' => 'Supervisor']);
+
+        app(EmployeeOrganizationSyncService::class)->synchronizePositionLevels();
+
+        $this->assertSame(Position::JOB_LEVEL_GENERAL_MANAGER, $position->fresh()->job_level);
+        $this->assertSame(Position::JOB_LEVEL_STAFF, $invalidPosition->fresh()->job_level);
+    }
+
+    public function test_existing_organization_command_can_synchronize_levels_idempotently_without_remapping_employees(): void
+    {
+        [, , $position] = $this->organization();
+        $employee = Employee::create([
+            ...$this->employeeAttributes('SAP-LEVEL-COMMAND', 'Sales', 'Field Team', 'Analyst'),
+            'employee_subgroup' => 'General Manager',
+            'position_id' => $position->id,
+        ]);
+        $beforePositionId = $employee->position_id;
+
+        $this->artisan('employees:map-organization', [
+            '--sync-levels' => true,
+            '--confirm' => EmployeeOrganizationSyncService::Confirmation,
+        ])
+            ->expectsOutput('Mode: sync-levels')
+            ->expectsOutput('Position levels updated: 1')
+            ->assertSuccessful();
+        $this->artisan('employees:map-organization', [
+            '--sync-levels' => true,
+            '--confirm' => EmployeeOrganizationSyncService::Confirmation,
+        ])
+            ->expectsOutput('Position levels updated: 0')
+            ->assertSuccessful();
+
+        $this->assertSame(Position::JOB_LEVEL_GENERAL_MANAGER, $position->fresh()->job_level);
+        $this->assertSame($beforePositionId, $employee->fresh()->position_id);
+        $this->assertSame('General Manager', $employee->employee_subgroup);
     }
 
     public function test_employee_sync_does_not_change_wla_or_final_snapshot(): void

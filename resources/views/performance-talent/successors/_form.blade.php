@@ -12,7 +12,7 @@
             <h4 class="mt-1 font-display text-lg font-bold text-slate-950" x-text="selectedPosition?.name"></h4>
         </div>
         <button type="button" @click="showSuccessorForm = false" aria-label="Tutup formulir successor"
-            class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500">×</button>
+            class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500">&times;</button>
     </div>
 
     @if ($errors->getBag($activeSuccessorErrorBag)->any())
@@ -22,19 +22,21 @@
     @endif
 
     <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div class="sm:col-span-2">
-            <label for="successor-employee" class="text-sm font-semibold text-slate-700">Pegawai</label>
-            <select id="successor-employee" name="employee_id" x-model="form.employee_id" required
+        <div>
+            <label for="successor-name" class="text-sm font-semibold text-slate-700">Name</label>
+            <input id="successor-name" name="name" x-model="form.name" required maxlength="255"
                 class="mt-1 w-full border-slate-300 text-sm">
-                <option value="">Pilih pegawai dari Data Pegawai</option>
-                @foreach ($employees as $employee)
-                    <option value="{{ $employee->id }}">
-                        {{ $employee->name }} — {{ $employee->organizationPositionName() ?? 'Tanpa posisi' }} ({{ $employee->sap }})
-                    </option>
-                @endforeach
-            </select>
-            @if ($errors->getBag($activeSuccessorErrorBag)->has('employee_id'))
-                <p class="mt-1 text-xs text-red-600">{{ $errors->getBag($activeSuccessorErrorBag)->first('employee_id') }}</p>
+            @if ($errors->getBag($activeSuccessorErrorBag)->has('name'))
+                <p class="mt-1 text-xs text-red-600">{{ $errors->getBag($activeSuccessorErrorBag)->first('name') }}</p>
+            @endif
+        </div>
+
+        <div>
+            <label for="successor-position" class="text-sm font-semibold text-slate-700">Position</label>
+            <input id="successor-position" name="position" x-model="form.position" required maxlength="255"
+                class="mt-1 w-full border-slate-300 text-sm">
+            @if ($errors->getBag($activeSuccessorErrorBag)->has('position'))
+                <p class="mt-1 text-xs text-red-600">{{ $errors->getBag($activeSuccessorErrorBag)->first('position') }}</p>
             @endif
         </div>
 
@@ -66,12 +68,39 @@
             @endif
         </div>
 
-        <div class="sm:col-span-2">
-            <label for="successor-idp" class="text-sm font-semibold text-slate-700">IDP</label>
-            <textarea id="successor-idp" name="idp" x-model="form.idp" rows="3" required maxlength="2000"
-                class="mt-1 w-full border-slate-300 text-sm"></textarea>
+        <div>
+            <label for="successor-idp" class="text-sm font-semibold text-slate-700">IDP (%)</label>
+            <input id="successor-idp" name="idp" x-model="form.idp" type="number" min="0" max="100" required
+                class="mt-1 w-full border-slate-300 text-sm">
             @if ($errors->getBag($activeSuccessorErrorBag)->has('idp'))
                 <p class="mt-1 text-xs text-red-600">{{ $errors->getBag($activeSuccessorErrorBag)->first('idp') }}</p>
+            @endif
+        </div>
+
+        <div>
+            <label for="successor-education" class="text-sm font-semibold text-slate-700">Education</label>
+            <input id="successor-education" name="education" x-model="form.education" required maxlength="255"
+                class="mt-1 w-full border-slate-300 text-sm">
+            @if ($errors->getBag($activeSuccessorErrorBag)->has('education'))
+                <p class="mt-1 text-xs text-red-600">{{ $errors->getBag($activeSuccessorErrorBag)->first('education') }}</p>
+            @endif
+        </div>
+
+        <div>
+            <label for="successor-tenure" class="text-sm font-semibold text-slate-700">Tenure / Masa Kerja</label>
+            <input id="successor-tenure" name="tenure" x-model="form.tenure" required maxlength="100"
+                class="mt-1 w-full border-slate-300 text-sm">
+            @if ($errors->getBag($activeSuccessorErrorBag)->has('tenure'))
+                <p class="mt-1 text-xs text-red-600">{{ $errors->getBag($activeSuccessorErrorBag)->first('tenure') }}</p>
+            @endif
+        </div>
+
+        <div>
+            <label for="successor-directorate" class="text-sm font-semibold text-slate-700">Directorate</label>
+            <input id="successor-directorate" name="directorate" x-model="form.directorate" required maxlength="255"
+                class="mt-1 w-full border-slate-300 text-sm">
+            @if ($errors->getBag($activeSuccessorErrorBag)->has('directorate'))
+                <p class="mt-1 text-xs text-red-600">{{ $errors->getBag($activeSuccessorErrorBag)->first('directorate') }}</p>
             @endif
         </div>
     </div>

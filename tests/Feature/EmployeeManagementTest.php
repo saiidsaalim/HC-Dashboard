@@ -949,7 +949,7 @@ class EmployeeManagementTest extends TestCase
             ->assertSee('Pilih berurutan dari Directorate, Department, Unit, Section, lalu Position.');
 
         $this->post(route('data-pegawai.store'), [
-            ...$this->employeeAttributes('SAP-FULL-ORG'),
+            ...$this->employeeAttributes('SAP-FULL-ORG', ['employee_subgroup' => 'Senior Manager']),
             'directorate_id' => $directorate->id,
             'department_id' => $department->id,
             'unit_id' => $unit->id,
@@ -975,6 +975,7 @@ class EmployeeManagementTest extends TestCase
             'txt_sect' => 'Domestic Section',
             'position' => 'Sales Analyst',
         ]);
+        $this->assertSame('Senior Manager', $position->fresh()->job_level);
     }
 
     public function test_employee_edit_uses_full_organization_hierarchy_and_refreshes_sap_text_fields(): void
@@ -991,7 +992,7 @@ class EmployeeManagementTest extends TestCase
         $targetSection = Section::query()->create(['unit_id' => $targetUnit->id, 'code' => 'SCT-EDIT-B', 'name' => 'Target Section', 'active' => true]);
         $targetPosition = $targetUnit->positions()->create(['section_id' => $targetSection->id, 'code' => 'POS-EDIT-B', 'name' => 'Target Position', 'active' => true]);
         $employee = Employee::query()->create([
-            ...$this->employeeAttributes('SAP-EDIT-FULL-ORG'),
+            ...$this->employeeAttributes('SAP-EDIT-FULL-ORG', ['employee_subgroup' => 'Manager']),
             'directorate_id' => $sourceDirectorate->id,
             'department_id' => $sourceDepartment->id,
             'unit_id' => $sourceUnit->id,
@@ -1007,7 +1008,7 @@ class EmployeeManagementTest extends TestCase
             ->assertSee('name="_employee_id" value="'.$employee->id.'"', false);
 
         $this->put(route('data-pegawai.update', $employee), [
-            ...$this->employeeAttributes('SAP-EDIT-FULL-ORG'),
+            ...$this->employeeAttributes('SAP-EDIT-FULL-ORG', ['employee_subgroup' => 'Senior Manager']),
             'directorate_id' => $targetDirectorate->id,
             'department_id' => $targetDepartment->id,
             'unit_id' => $targetUnit->id,
@@ -1033,6 +1034,8 @@ class EmployeeManagementTest extends TestCase
             'txt_sect' => 'Target Section',
             'position' => 'Target Position',
         ]);
+        $this->assertSame('Senior Manager', $targetPosition->fresh()->job_level);
+        $this->assertSame('Senior Manager', $employee->fresh()->employee_subgroup);
     }
 
     public function test_employee_edit_keeps_inactive_current_organization_options_available(): void

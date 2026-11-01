@@ -16,6 +16,7 @@ use Database\Seeders\PermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -24,8 +25,6 @@ class SuccessorManagementTest extends TestCase
     use RefreshDatabase;
 
     private Position $targetPosition;
-
-    private Employee $employee;
 
     protected function setUp(): void
     {
@@ -47,34 +46,13 @@ class SuccessorManagementTest extends TestCase
             'unit_id' => $unit->id,
             'code' => 'TARGET',
             'name' => 'Commercial General Manager',
-            'job_level' => 'General Manager',
             'formation_count' => 1,
             'sort_order' => 1,
             'active' => true,
         ]);
-        $currentPosition = Position::query()->create([
-            'unit_id' => $unit->id,
-            'code' => 'CURRENT',
-            'name' => 'Senior Manager Strategy',
-            'job_level' => 'Senior Manager',
-            'formation_count' => 1,
-            'sort_order' => 2,
-            'active' => true,
-        ]);
-        $this->employee = Employee::query()->forceCreate([
-            'sap' => 'SAP-001',
-            'name' => 'Andi Pratama',
-            'position' => $currentPosition->name,
-            'education' => 'S2 Manajemen',
-            'hiring_date' => now()->subYears(12),
-            'department_id' => $department->id,
-            'unit_id' => $unit->id,
-            'position_id' => $currentPosition->id,
-            'directorate' => 'Commercial Directorate',
-        ]);
     }
 
-    public function test_successor_view_renders_employee_and_master_position_data(): void
+    public function test_successor_popup_renders_manual_profile_for_selected_target_position(): void
     {
         $successor = $this->createSuccessor(['photo_path' => 'successors/andi-pratama.jpg']);
 
@@ -83,39 +61,165 @@ class SuccessorManagementTest extends TestCase
             ->assertOk()
             ->assertSee('aria-label="Lihat successor untuk Commercial General Manager"', escape: false)
             ->assertSee('Andi Pratama')
-            ->assertSee('Senior Manager Strategy')
+            ->assertSee('Manager Human Capital Planning')
             ->assertSee('S2 Manajemen')
             ->assertSee('12 tahun')
-            ->assertSee('Commercial Directorate')
+            ->assertSee('Human Capital Directorate')
+            ->assertSee('IDP: 75%')
             ->assertSee('storage/successors/andi-pratama.jpg', escape: false)
             ->assertSee(route('performance-talent.successors.update', $successor), escape: false);
     }
 
-    public function test_successor_can_be_created_from_employee_and_position_master(): void
+    public function test_successor_can_be_created_without_employee_using_manual_profile_fields(): void
     {
+        $this->assertDatabaseCount('employees', 0);
+
         $this->actingAs($this->superAdmin())
             ->post(route('performance-talent.successors.store'), $this->validData())
             ->assertRedirect(route('performance-talent.successors.index', ['position' => $this->targetPosition->id]))
             ->assertSessionHas('status', 'Successor berhasil ditambahkan.');
 
-        $this->assertDatabaseHas('successors', [
-            'employee_id' => $this->employee->id,
-            'target_position_id' => $this->targetPosition->id,
-            'name' => $this->employee->name,
-            'position' => $this->employee->position,
-            'education' => $this->employee->education,
-        ]);
+        $this->assertDatabaseHas('successors', $this->validData());
+        $this->assertDatabaseCount('employees', 0);
     }
 
-    public function test_same_employee_cannot_be_nominated_twice_for_the_same_position(): void
+    public function test_successor_schema_has_no_employee_or_legacy_structure_dependency(): void
     {
-        $this->createSuccessor();
+        $this->assertTrue(Schema::hasColumn('successors', 'target_position_id'));
+        $this->assertFalse(Schema::hasColumn('successors', 'employee_id'));
+        $this->assertFalse(Schema::hasTable('successor_structure_departments'));
+        $this->assertFalse(Schema::hasTable('successor_structure_positions'));
+    }
+
+    public function test_invalid_target_position_is_rejected(): void
+    {
+        $this->actingAs($this->superAdmin())
+            ->post(route('performance-talent.successors.store'), $this->validData([
+                'target_position_id' => 999999,
+            ]))
+            ->assertSessionHasErrorsIn('createSuccessor', ['target_position_id']);
+
+        $this->assertDatabaseCount('successors', 0);
+    }
+
+    public function test_manual_profile_and_idp_percentage_are_required_and_validated(): void
+    {
+        $this->actingAs($this->superAdmin())
+            ->post(route('performance-talent.successors.store'), [
+                'target_position_id' => $this->targetPosition->id,
+                'idp' => 101,
+            ])
+            ->assertSessionHasErrorsIn('createSuccessor', [
+                'name',
+                'position',
+                'talent_mapping',
+                'succession_readiness',
+                'idp',
+                'education',
+                'tenure',
+                'directorate',
+            ]);
+    }
+
+    public function test_same_manual_candidate_name_can_target_different_positions(): void
+    {
+        $secondTargetPosition = $this->createTargetPosition('TARGET-2', 'Senior Manager Commercial', 2);
 
         $this->actingAs($this->superAdmin())
             ->post(route('performance-talent.successors.store'), $this->validData())
-            ->assertSessionHasErrorsIn('createSuccessor', ['employee_id']);
+            ->assertRedirect();
 
-        $this->assertDatabaseCount('successors', 1);
+        $this->post(route('performance-talent.successors.store'), $this->validData([
+            'target_position_id' => $secondTargetPosition->id,
+        ]))->assertRedirect();
+
+        $this->assertDatabaseCount('successors', 2);
+        $this->assertSame(
+            [$this->targetPosition->id, $secondTargetPosition->id],
+            Successor::query()->orderBy('target_position_id')->pluck('target_position_id')->all(),
+        );
+    }
+
+    public function test_successor_can_be_updated_with_manual_data_and_target_position(): void
+    {
+        $successor = $this->createSuccessor();
+        $secondTargetPosition = $this->createTargetPosition('TARGET-2', 'Senior Manager Commercial', 2);
+
+        $this->actingAs($this->superAdmin())
+            ->put(route('performance-talent.successors.update', $successor), $this->validData([
+                'successor_id' => $successor->id,
+                'target_position_id' => $secondTargetPosition->id,
+                'name' => 'Budi Santoso',
+                'position' => 'Manager Strategy',
+                'talent_mapping' => 'Key Contributor',
+                'succession_readiness' => '1-2 Tahun',
+                'idp' => 80,
+                'education' => 'S1 Teknik Industri',
+                'tenure' => '8 tahun',
+                'directorate' => 'Commercial Directorate',
+            ]))
+            ->assertRedirect(route('performance-talent.successors.index', ['position' => $secondTargetPosition->id]))
+            ->assertSessionHas('status', 'Successor berhasil diperbarui.');
+
+        $this->assertDatabaseHas('successors', [
+            'id' => $successor->id,
+            'target_position_id' => $secondTargetPosition->id,
+            'name' => 'Budi Santoso',
+            'position' => 'Manager Strategy',
+            'talent_mapping' => 'Key Contributor',
+            'succession_readiness' => '1-2 Tahun',
+            'idp' => 80,
+            'education' => 'S1 Teknik Industri',
+            'tenure' => '8 tahun',
+            'directorate' => 'Commercial Directorate',
+        ]);
+    }
+
+    public function test_creating_successor_does_not_mutate_employee_or_target_position(): void
+    {
+        $employee = $this->createUnrelatedEmployee();
+        $employeeAttributes = $employee->refresh()->getAttributes();
+        $positionAttributes = $this->targetPosition->refresh()->getAttributes();
+
+        $this->actingAs($this->superAdmin())
+            ->post(route('performance-talent.successors.store'), $this->validData())
+            ->assertRedirect();
+
+        $this->assertSame($employeeAttributes, $employee->refresh()->getAttributes());
+        $this->assertSame($positionAttributes, $this->targetPosition->refresh()->getAttributes());
+    }
+
+    public function test_editing_successor_does_not_mutate_employee_or_target_position(): void
+    {
+        $employee = $this->createUnrelatedEmployee();
+        $successor = $this->createSuccessor();
+        $employeeAttributes = $employee->refresh()->getAttributes();
+        $positionAttributes = $this->targetPosition->refresh()->getAttributes();
+
+        $this->actingAs($this->superAdmin())
+            ->put(route('performance-talent.successors.update', $successor), $this->validData([
+                'successor_id' => $successor->id,
+                'name' => 'Updated Manual Name',
+            ]))
+            ->assertRedirect();
+
+        $this->assertSame($employeeAttributes, $employee->refresh()->getAttributes());
+        $this->assertSame($positionAttributes, $this->targetPosition->refresh()->getAttributes());
+    }
+
+    public function test_deleting_successor_does_not_delete_employee_or_target_position(): void
+    {
+        $employee = $this->createUnrelatedEmployee();
+        $successor = $this->createSuccessor();
+
+        $this->actingAs($this->superAdmin())
+            ->delete(route('performance-talent.successors.destroy', $successor))
+            ->assertRedirect(route('performance-talent.successors.index', ['position' => $this->targetPosition->id]))
+            ->assertSessionHas('status', 'Successor berhasil dihapus.');
+
+        $this->assertDatabaseMissing('successors', ['id' => $successor->id]);
+        $this->assertDatabaseHas('employees', ['id' => $employee->id]);
+        $this->assertDatabaseHas('positions', ['id' => $this->targetPosition->id]);
     }
 
     public function test_successor_photo_can_be_uploaded_replaced_and_deleted(): void
@@ -142,22 +246,6 @@ class SuccessorManagementTest extends TestCase
 
         $this->delete(route('performance-talent.successors.destroy', $successor))->assertRedirect();
         Storage::disk('public')->assertMissing($successor->photo_path);
-    }
-
-    public function test_successor_requires_known_employee_position_and_talent_data(): void
-    {
-        $this->actingAs($this->superAdmin())
-            ->post(route('performance-talent.successors.store'), [
-                'target_position_id' => 999999,
-                'employee_id' => 999999,
-            ])
-            ->assertSessionHasErrorsIn('createSuccessor', [
-                'target_position_id',
-                'employee_id',
-                'talent_mapping',
-                'succession_readiness',
-                'idp',
-            ]);
     }
 
     public function test_user_with_view_only_permission_cannot_manage_successors(): void
@@ -188,14 +276,7 @@ class SuccessorManagementTest extends TestCase
     /** @param array<string, mixed> $overrides */
     private function createSuccessor(array $overrides = []): Successor
     {
-        return Successor::query()->create(array_merge([
-            ...$this->validData(),
-            'name' => $this->employee->name,
-            'position' => $this->employee->position,
-            'education' => $this->employee->education,
-            'tenure' => '12 tahun',
-            'directorate' => $this->employee->directorate,
-        ], $overrides));
+        return Successor::query()->create(array_merge($this->validData(), $overrides));
     }
 
     /** @param array<string, mixed> $overrides
@@ -205,11 +286,38 @@ class SuccessorManagementTest extends TestCase
     {
         return array_merge([
             'target_position_id' => $this->targetPosition->id,
-            'employee_id' => $this->employee->id,
+            'name' => 'Andi Pratama',
+            'position' => 'Manager Human Capital Planning',
             'talent_mapping' => 'High Potential',
             'succession_readiness' => 'Ready Now',
-            'idp' => 'Executive leadership program.',
+            'idp' => 75,
+            'education' => 'S2 Manajemen',
+            'tenure' => '12 tahun',
+            'directorate' => 'Human Capital Directorate',
         ], $overrides);
+    }
+
+    private function createTargetPosition(string $code, string $name, int $sortOrder): Position
+    {
+        return Position::query()->create([
+            'unit_id' => $this->targetPosition->unit_id,
+            'code' => $code,
+            'name' => $name,
+            'formation_count' => 1,
+            'sort_order' => $sortOrder,
+            'active' => true,
+        ]);
+    }
+
+    private function createUnrelatedEmployee(): Employee
+    {
+        return Employee::query()->forceCreate([
+            'sap' => 'SAP-UNRELATED',
+            'name' => 'Unrelated Employee',
+            'position_id' => $this->targetPosition->id,
+            'unit_id' => $this->targetPosition->unit_id,
+            'department_id' => $this->targetPosition->unit->department_id,
+        ]);
     }
 
     private function superAdmin(): User

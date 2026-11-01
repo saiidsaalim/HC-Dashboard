@@ -4,6 +4,10 @@
         departmentId: @js((string) old('department_id', $selectedDepartmentId)),
         unitId: @js((string) old('unit_id', $selectedUnitId)),
         sectionId: @js((string) old('section_id', $selectedSectionId)),
+        parentPositionId: @js((string) old('parent_position_id', $selectedParentPositionId)),
+        allowedParentLevels: @js(\App\Models\Position::allowedParentLevels(
+            $position?->structuralJobLevel() ?? \App\Models\Position::JOB_LEVEL_STAFF
+        )),
         departments: @js($departments->map(fn ($department) => [
             'id' => $department->id,
             'directorate_id' => $department->directorate_id,
@@ -19,6 +23,12 @@
             'unit_id' => $section->unit_id,
             'label' => $section->name.($section->active ? '' : ' (Nonaktif)'),
         ])->values()),
+        parentPositions: @js($parentPositions->map(fn ($parentPosition) => [
+            'id' => $parentPosition->id,
+            'department_id' => $parentPosition->unit->department_id,
+            'level' => $parentPosition->structuralJobLevel(),
+            'label' => $parentPosition->name.' — '.$parentPosition->structuralJobLevel().($parentPosition->active ? '' : ' (Nonaktif)'),
+        ])->values()),
     }"
     class="ui-surface space-y-5 p-5 sm:p-6">
     @csrf
@@ -28,7 +38,7 @@
 
     <div>
         <label for="directorate_id" class="text-sm font-semibold text-slate-700">Directorate</label>
-        <select id="directorate_id" name="directorate_id" x-model="directorateId" x-on:change="departmentId = ''; unitId = ''; sectionId = ''"
+        <select id="directorate_id" name="directorate_id" x-model="directorateId" x-on:change="departmentId = ''; unitId = ''; sectionId = ''; parentPositionId = ''"
             class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
             <option value="">Tanpa Directorate (data lama)</option>
             @foreach ($directorates as $directorate)
@@ -44,7 +54,7 @@
 
     <div>
         <label for="department_id" class="text-sm font-semibold text-slate-700">Department <span class="text-red-500" aria-hidden="true">*</span></label>
-        <select id="department_id" name="department_id" x-model="departmentId" x-on:change="unitId = ''; sectionId = ''" required
+        <select id="department_id" name="department_id" x-model="departmentId" x-on:change="unitId = ''; sectionId = ''; parentPositionId = ''" required
             class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
             <option value="">Pilih Department</option>
             <template x-for="department in departments.filter(item => String(item.directorate_id ?? '') === String(directorateId))" :key="department.id">
@@ -83,6 +93,19 @@
     </div>
 
     <div>
+        <label for="parent_position_id" class="text-sm font-semibold text-slate-700">Atasan / Parent Position</label>
+        <select id="parent_position_id" name="parent_position_id" x-model="parentPositionId" :disabled="!departmentId"
+            class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400 disabled:bg-slate-100">
+            <option value="">Tanpa Atasan / gunakan fallback struktur</option>
+            <template x-for="parentPosition in parentPositions.filter(item => String(item.department_id) === String(departmentId) && allowedParentLevels.includes(item.level))" :key="parentPosition.id">
+                <option :value="String(parentPosition.id)" x-text="parentPosition.label"></option>
+            </template>
+        </select>
+        <p class="mt-1 text-xs text-slate-500">Pilihan dibatasi pada Position dengan level lebih tinggi di Department yang sama.</p>
+        @error('parent_position_id')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+    </div>
+
+    <div>
         <label for="code" class="text-sm font-semibold text-slate-700">Kode <span class="text-red-500" aria-hidden="true">*</span></label>
         <input id="code" name="code" value="{{ old('code', $position?->code) }}" required maxlength="50"
             class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
@@ -100,14 +123,7 @@
         @enderror
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-3">
-        <div>
-            <label for="job_level" class="text-sm font-semibold text-slate-700">Level Jabatan</label>
-            <input id="job_level" name="job_level" value="{{ old('job_level', $position?->job_level) }}" maxlength="100"
-                class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400"
-                placeholder="Contoh: Senior Manager">
-            @error('job_level')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
-        </div>
+    <div class="grid gap-4 sm:grid-cols-2">
         <div>
             <label for="formation_count" class="text-sm font-semibold text-slate-700">Jumlah Formasi <span class="text-red-500" aria-hidden="true">*</span></label>
             <input id="formation_count" name="formation_count" value="{{ old('formation_count', $position?->formation_count ?? 1) }}"

@@ -116,6 +116,26 @@ class OrganizationWlaImportTest extends TestCase
         $this->assertSame(1, Position::query()->count());
     }
 
+    public function test_imported_positions_without_incumbents_use_staff_as_safe_default(): void
+    {
+        $fixturePath = sys_get_temp_dir().'/wla-position-levels.xlsx';
+        WlaOrganizationFixture::write($fixturePath, [
+            ['department' => 'Human Capital', 'unit' => 'Planning', 'position' => 'Senior Manager HC Planning'],
+            ['department' => 'Human Capital', 'unit' => 'Development', 'position' => 'Supervisor HC'],
+        ]);
+
+        app(OrganizationWlaImportService::class)->import($fixturePath, false);
+
+        $this->assertDatabaseHas('positions', [
+            'name' => 'Senior Manager HC Planning',
+            'job_level' => Position::JOB_LEVEL_STAFF,
+        ]);
+        $this->assertDatabaseHas('positions', [
+            'name' => 'Supervisor HC',
+            'job_level' => Position::JOB_LEVEL_STAFF,
+        ]);
+    }
+
     public function test_it_refuses_missing_file_and_keeps_existing_master_intact(): void
     {
         $service = app(OrganizationWlaImportService::class);

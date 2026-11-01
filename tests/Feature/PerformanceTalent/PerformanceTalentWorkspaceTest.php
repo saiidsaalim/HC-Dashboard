@@ -140,11 +140,8 @@ class PerformanceTalentWorkspaceTest extends TestCase
             ->assertOk()
             ->assertSee('aria-label="Potential meningkat ke atas"', escape: false)
             ->assertSee('aria-label="Performance meningkat ke kanan"', escape: false)
-            ->assertSee('grid-cols-[1.5rem_repeat(3,minmax(0,1fr))]', escape: false)
-            ->assertSee('aspect-square', escape: false)
-            ->assertDontSee('overflow-x-auto', escape: false)
-            ->assertDontSee('min-w-[860px]', escape: false)
-            ->assertDontSee('min-h-[160px]', escape: false)
+            ->assertSee('talent-matrix-scroll', escape: false)
+            ->assertSee('Geser horizontal untuk melihat seluruh matriks.')
             ->assertSeeInOrder([
                 'data-box="07"',
                 'data-box="08"',
@@ -155,14 +152,61 @@ class PerformanceTalentWorkspaceTest extends TestCase
                 'data-box="01"',
                 'data-box="02"',
                 'data-box="03"',
-            ], escape: false);
+            ], escape: false)
+            ->assertSeeInOrder([
+                'Diam-Diam Jago',
+                'Lagi Ngebut',
+                'Rising Star',
+                'Butuh Arah',
+                'Tim Andalan',
+                'Gaspol',
+                'Perlu Booster',
+                'Aman Terkendali',
+                'Jagonya Eksekusi',
+            ])
+            ->assertSee('Pilih salah satu kotak')
+            ->assertDontSee('desain_3_talent_matrix_3x3.png');
 
         $html = $response->getContent();
 
         $this->assertSame(9, substr_count($html, 'data-talent-box'));
         $this->assertSame(9, substr_count($html, 'Belum ada talenta'));
-        $this->assertStringContainsString('data-potential="Tinggi" data-performance="Rendah"', $html);
-        $this->assertStringContainsString('data-potential="Rendah" data-performance="Tinggi"', $html);
+        $this->assertSame(9, substr_count($html, 'talent-matrix-card__illustration'));
+        $this->assertMatchesRegularExpression('/data-box="07"[\s\S]*?data-potential="Tinggi"[\s\S]*?data-performance="Rendah"/', $html);
+        $this->assertMatchesRegularExpression('/data-box="03"[\s\S]*?data-potential="Rendah"[\s\S]*?data-performance="Tinggi"/', $html);
+
+        foreach ([
+            '01_diam_diam_jago.png',
+            '02_lagi_ngebut.png',
+            '03_rising_star.png',
+            '04_butuh_arah.png',
+            '05_tim_andalan.png',
+            '06_gaspol.png',
+            '07_perlu_booster.png',
+            '08_aman_terkendali.png',
+            '09_jagonya_eksekusi.png',
+        ] as $illustration) {
+            $this->assertFileExists(public_path('images/talent-matrix/characters/'.$illustration));
+        }
+
+        $this->assertCount(9, glob(public_path('images/talent-matrix/icons/*.svg')) ?: []);
+    }
+
+    public function test_talent_pool_renders_supplied_talent_counts_and_details(): void
+    {
+        $html = view('performance-talent.features.talent-pool', [
+            'talentMatrix' => [
+                '09' => [
+                    ['name' => 'Talent Satu', 'position' => 'Senior Analyst'],
+                    ['name' => 'Talent Dua', 'position' => 'Lead Engineer'],
+                ],
+            ],
+        ])->render();
+
+        $this->assertStringContainsString('Total talent terpetakan', $html);
+        $this->assertStringContainsString('2 talenta', $html);
+        $this->assertStringContainsString('Talent Satu', $html);
+        $this->assertStringContainsString('Senior Analyst', $html);
     }
 
     public function test_successor_view_renders_the_master_organization_hierarchy(): void

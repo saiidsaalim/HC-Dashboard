@@ -9,11 +9,13 @@ use App\Models\Position;
 use App\Models\Section;
 use App\Models\Unit;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class PositionController extends Controller
@@ -46,6 +48,15 @@ class PositionController extends Controller
             ->when($unitId !== '', fn ($query) => $query->where('unit_id', $unitId))
             ->when($sectionId !== '', fn ($query) => $query->where('section_id', $sectionId))
             ->when(in_array($active, ['0', '1'], true), fn ($query) => $query->where('active', $active))
+            ->orderByRaw(
+                'CASE job_level WHEN ? THEN 1 WHEN ? THEN 2 WHEN ? THEN 3 ELSE 4 END',
+                [
+                    Position::JOB_LEVEL_GENERAL_MANAGER,
+                    Position::JOB_LEVEL_SENIOR_MANAGER,
+                    Position::JOB_LEVEL_MANAGER,
+                ],
+            )
+            ->orderBy('sort_order')
             ->orderBy('name')
             ->paginate(15)
             ->withQueryString();
@@ -113,6 +124,8 @@ class PositionController extends Controller
             'selectedDepartmentId' => $selectedDepartmentId,
             'selectedUnitId' => $selectedUnitId,
             'selectedSectionId' => $selectedSectionId,
+            'selectedParentPositionId' => '',
+            'parentPositions' => $this->parentPositions(),
         ]);
     }
 
@@ -170,6 +183,8 @@ class PositionController extends Controller
             'selectedDepartmentId' => (string) $position->unit->department_id,
             'selectedUnitId' => (string) $position->unit_id,
             'selectedSectionId' => (string) ($position->section_id ?? ''),
+            'selectedParentPositionId' => (string) ($position->parent_position_id ?? ''),
+            'parentPositions' => $this->parentPositions($position),
         ]);
     }
 
@@ -183,6 +198,11 @@ class PositionController extends Controller
             || (int) ($data['section_id'] ?? 0) !== (int) $position->section_id;
         if ($parentChanged && $position->employees()->exists()) {
             return back()->withErrors(['unit_id' => 'Induk Position tidak dapat dipindahkan selama ada Employee yang terhubung.'])->withInput();
+        }
+
+        $departmentChanged = $request->integer('department_id') !== $position->unit->department_id;
+        if ($departmentChanged && $position->children()->exists()) {
+            return back()->withErrors(['department_id' => 'Department Position tidak dapat dipindahkan selama masih mempunyai Position bawahan.'])->withInput();
         }
 
         $position->update($data);
@@ -200,12 +220,18 @@ class PositionController extends Controller
             ]);
         }
 
+        if ($position->children()->exists()) {
+            return back()->withErrors([
+                'position' => 'Position tidak dapat dihapus selama masih mempunyai Position bawahan.',
+            ]);
+        }
+
         $position->delete();
 
         return to_route('organization.positions.index')->with('status', 'Position berhasil dihapus.');
     }
 
-    /** @return array{unit_id: int, section_id: ?int, code: string, name: string, job_level: ?string, formation_count: int, sort_order: int, active: bool} */
+    /** @return array{unit_id: int, section_id: ?int, parent_position_id?: ?int, code: string, name: string, formation_count: int, sort_order: int, active: bool} */
     private function validatedData(Request $request, ?Position $position = null): array
     {
         $position?->loadMissing('unit.department');
@@ -244,12 +270,12 @@ class PositionController extends Controller
             'department_id' => ['required', 'integer', $departmentRule],
             'unit_id' => ['required', 'integer', $unitRule],
             'section_id' => ['nullable', 'integer', $sectionRule],
+            'parent_position_id' => ['nullable', 'integer', Rule::exists('positions', 'id')],
             'code' => [
                 'required', 'string', 'max:50',
                 Rule::unique('positions', 'code')->where('unit_id', $request->input('unit_id'))->ignore($position),
             ],
             'name' => ['required', 'string', 'max:255'],
-            'job_level' => ['nullable', 'string', 'max:100'],
             'formation_count' => ['sometimes', 'required', 'integer', 'min:1', 'max:999'],
             'sort_order' => ['sometimes', 'required', 'integer', 'min:0', 'max:999999'],
             'active' => ['required', 'boolean'],
@@ -262,12 +288,13 @@ class PositionController extends Controller
             'unit_id.required' => 'Pilih Unit untuk Position ini.',
             'unit_id.integer' => 'Unit yang dipilih tidak valid.',
             'unit_id.exists' => 'Unit yang dipilih tidak aktif atau tidak berada pada Department terpilih.',
+            'parent_position_id.integer' => 'Atasan Position yang dipilih tidak valid.',
+            'parent_position_id.exists' => 'Atasan Position yang dipilih tidak tersedia.',
             'code.required' => 'Kode Position wajib diisi.',
             'code.max' => 'Kode Position maksimal 50 karakter.',
             'code.unique' => 'Kode Position sudah digunakan pada Unit tersebut.',
             'name.required' => 'Nama Position wajib diisi.',
             'name.max' => 'Nama Position maksimal 255 karakter.',
-            'job_level.max' => 'Level jabatan maksimal 100 karakter.',
             'formation_count.required' => 'Jumlah formasi wajib diisi.',
             'formation_count.integer' => 'Jumlah formasi harus berupa angka.',
             'formation_count.min' => 'Jumlah formasi minimal 1.',
@@ -278,10 +305,79 @@ class PositionController extends Controller
             'active.boolean' => 'Status Position tidak valid.',
         ]);
 
+        $this->validateParentPosition($validated, $position);
+
         unset($validated['directorate_id'], $validated['department_id']);
         $validated['formation_count'] ??= $position?->formation_count ?? 1;
         $validated['sort_order'] ??= $position?->sort_order ?? 0;
 
         return $validated;
+    }
+
+    /** @param array<string, mixed> $validated */
+    private function validateParentPosition(array $validated, ?Position $position): void
+    {
+        $parentPositionId = (int) ($validated['parent_position_id'] ?? 0);
+        $jobLevel = $position?->structuralJobLevel() ?? Position::JOB_LEVEL_STAFF;
+
+        if ($parentPositionId === 0) {
+            return;
+        }
+
+        if ($jobLevel === Position::JOB_LEVEL_GENERAL_MANAGER) {
+            throw ValidationException::withMessages([
+                'parent_position_id' => 'General Manager harus menjadi root tanpa Atasan Position.',
+            ]);
+        }
+
+        $parentPosition = Position::query()
+            ->with('unit:id,department_id')
+            ->findOrFail($parentPositionId);
+
+        if ((int) $parentPosition->unit->department_id !== (int) $validated['department_id']) {
+            throw ValidationException::withMessages([
+                'parent_position_id' => 'Atasan Position harus berada dalam Department yang sama.',
+            ]);
+        }
+
+        if (! $parentPosition->active && $position?->parent_position_id !== $parentPosition->id) {
+            throw ValidationException::withMessages([
+                'parent_position_id' => 'Atasan Position harus aktif.',
+            ]);
+        }
+
+        if (! in_array($parentPosition->structuralJobLevel(), Position::allowedParentLevels($jobLevel), true)) {
+            throw ValidationException::withMessages([
+                'parent_position_id' => 'Level Atasan Position tidak sesuai dengan level Position ini.',
+            ]);
+        }
+
+        if ($position !== null && $position->wouldCreateCircularParent($parentPositionId)) {
+            throw ValidationException::withMessages([
+                'parent_position_id' => 'Atasan Position tidak boleh dirinya sendiri atau salah satu Position bawahannya.',
+            ]);
+        }
+    }
+
+    /** @return Collection<int, Position> */
+    private function parentPositions(?Position $position = null): Collection
+    {
+        $excludedPositionIds = $position === null
+            ? []
+            : [$position->id, ...$position->descendantIds()];
+
+        return Position::query()
+            ->with('unit:id,department_id,name')
+            ->where(function (EloquentBuilder $query) use ($position): void {
+                $query->where('active', true)
+                    ->when(
+                        $position?->parent_position_id !== null,
+                        fn (EloquentBuilder $query): EloquentBuilder => $query->orWhereKey($position->parent_position_id),
+                    );
+            })
+            ->when($excludedPositionIds !== [], fn (EloquentBuilder $query): EloquentBuilder => $query->whereNotIn('id', $excludedPositionIds))
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
     }
 }

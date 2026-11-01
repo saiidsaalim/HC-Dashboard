@@ -412,6 +412,10 @@ class EmployeeOrganizationMapper
             }
         });
 
+        if ($results['successfully_updated'] > 0) {
+            $this->syncService->synchronizePositionLevels();
+        }
+
         return $results;
     }
 

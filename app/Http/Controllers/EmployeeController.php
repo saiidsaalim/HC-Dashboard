@@ -266,7 +266,7 @@ class EmployeeController extends Controller
         return to_route('data-pegawai.organization-sync.preview')->with(
             'status',
             sprintf(
-                'Sinkronisasi selesai: %d pegawai dan %d foreign key diperbarui; %d Directorate, %d Department, %d Unit, %d Section, dan %d Position dibuat.',
+                'Sinkronisasi selesai: %d pegawai dan %d foreign key diperbarui; %d Directorate, %d Department, %d Unit, %d Section, dan %d Position dibuat; %d level Position diperbarui dengan %d konflik level tercatat.',
                 $applied['employees_updated'],
                 $applied['foreign_keys_updated'],
                 $applied['directorates_created'],
@@ -274,6 +274,8 @@ class EmployeeController extends Controller
                 $applied['units_created'],
                 $applied['sections_created'],
                 $applied['positions_created'],
+                $applied['position_levels_updated'],
+                $applied['position_level_conflicts'],
             ),
         );
     }
@@ -416,9 +418,12 @@ class EmployeeController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(StoreEmployeeRequest $request): RedirectResponse
-    {
-        Employee::create($this->withSelectedOrganizationNames($request->validated()));
+    public function store(
+        StoreEmployeeRequest $request,
+        EmployeeOrganizationSyncService $organizationSyncService,
+    ): RedirectResponse {
+        $employee = Employee::create($this->withSelectedOrganizationNames($request->validated()));
+        $organizationSyncService->synchronizePositionLevels([$employee->position_id]);
 
         return to_route('data-pegawai')->with('status', 'Data pegawai berhasil ditambahkan.');
     }
@@ -442,10 +447,13 @@ class EmployeeController extends Controller
         UpdateEmployeeRequest $request,
         Employee $employee,
         StaffUserProvisioningService $staffUserProvisioningService,
+        EmployeeOrganizationSyncService $organizationSyncService,
     ): RedirectResponse {
-        DB::transaction(function () use ($request, $employee, $staffUserProvisioningService): void {
+        DB::transaction(function () use ($request, $employee, $staffUserProvisioningService, $organizationSyncService): void {
+            $oldPositionId = $employee->position_id;
             $employee->update($this->withSelectedOrganizationNames($request->validated()));
             $staffUserProvisioningService->synchronizeLinkedUser($employee);
+            $organizationSyncService->synchronizePositionLevels([$oldPositionId, $employee->position_id]);
         });
 
         return to_route('data-pegawai')->with('status', 'Data pegawai berhasil diperbarui.');

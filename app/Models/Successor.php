@@ -9,7 +9,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
-    'employee_id',
     'target_position_id',
     'name',
     'position',
@@ -26,10 +25,9 @@ class Successor extends Model
     /** @use HasFactory<SuccessorFactory> */
     use HasFactory;
 
-    public function employee(): BelongsTo
-    {
-        return $this->belongsTo(Employee::class);
-    }
+    protected $casts = [
+        'idp' => 'integer',
+    ];
 
     public function targetPosition(): BelongsTo
     {

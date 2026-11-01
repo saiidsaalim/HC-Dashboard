@@ -5,7 +5,6 @@ namespace App\Http\Controllers\PerformanceTalent;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreSuccessorRequest;
 use App\Http\Requests\UpdateSuccessorRequest;
-use App\Models\Employee;
 use App\Models\Successor;
 use App\Support\SuccessorOrganizationStructure;
 use Illuminate\Http\RedirectResponse;
@@ -22,7 +21,7 @@ class SuccessorController extends Controller
         Gate::authorize('viewAny', Successor::class);
 
         $successors = Successor::query()
-            ->with(['employee.organizationDirectorate', 'employee.organizationPosition'])
+            ->with('targetPosition')
             ->orderBy('name')
             ->orderBy('id')
             ->get();
@@ -50,18 +49,12 @@ class SuccessorController extends Controller
             'successorCounts' => $successorCounts->all(),
             'selectedPositionKey' => $selectedPositionKey,
             'selectedDepartmentName' => $selectedDepartmentName,
-            'employees' => Employee::query()
-                ->with(['organizationDirectorate:id,name', 'organizationPosition:id,name'])
-                ->whereNotNull('name')
-                ->orderBy('name')
-                ->get(),
         ]);
     }
 
     public function store(StoreSuccessorRequest $request): RedirectResponse
     {
         $data = $request->safe()->except('photo');
-        $data = [...$data, ...$this->employeeSnapshot($data['employee_id'])];
         $photoPath = $request->file('photo')?->store('successors', 'public');
 
         if (is_string($photoPath)) {
@@ -85,7 +78,6 @@ class SuccessorController extends Controller
     public function update(UpdateSuccessorRequest $request, Successor $successor): RedirectResponse
     {
         $data = $request->safe()->except('successor_id', 'photo');
-        $data = [...$data, ...$this->employeeSnapshot($data['employee_id'])];
         $oldPhotoPath = $successor->photo_path;
         $newPhotoPath = $request->file('photo')?->store('successors', 'public');
 
@@ -133,25 +125,5 @@ class SuccessorController extends Controller
 
         return to_route('performance-talent.successors.index', ['position' => $positionId])
             ->with('status', 'Successor berhasil dihapus.');
-    }
-
-    /** @return array{name: string, position: string, education: string, tenure: string, directorate: string} */
-    private function employeeSnapshot(int $employeeId): array
-    {
-        $employee = Employee::query()
-            ->with(['organizationDirectorate:id,name', 'organizationPosition:id,name'])
-            ->findOrFail($employeeId);
-        $hiringDate = $employee->hiring_date ?? $employee->hiring;
-
-        return [
-            'name' => $employee->name ?? $employee->personal_number ?? $employee->sap,
-            'position' => $employee->organizationPositionName() ?? '-',
-            'education' => $employee->education ?? $employee->pendidikan ?? '-',
-            'tenure' => $hiringDate === null ? '-' : ((int) $hiringDate->diffInYears(now())).' tahun',
-            'directorate' => $employee->txt_dir
-                ?? $employee->organizationDirectorate?->name
-                ?? $employee->directorate
-                ?? '-',
-        ];
     }
 }

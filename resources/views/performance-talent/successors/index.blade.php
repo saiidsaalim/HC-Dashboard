@@ -31,10 +31,14 @@
     $initialForm = [
         'successor_id' => old('successor_id', ''),
         'target_position_id' => old('target_position_id', $initialPositionId),
-        'employee_id' => old('employee_id', ''),
+        'name' => old('name', ''),
+        'position' => old('position', ''),
         'talent_mapping' => old('talent_mapping', ''),
         'succession_readiness' => old('succession_readiness', ''),
         'idp' => old('idp', ''),
+        'education' => old('education', ''),
+        'tenure' => old('tenure', ''),
+        'directorate' => old('directorate', ''),
     ];
 @endphp
 
@@ -65,7 +69,18 @@
         return this.selectedPosition ? (this.successorCounts[this.selectedPosition.key] ?? 0) : 0;
     },
     emptySuccessorForm(positionId) {
-        return { successor_id: '', target_position_id: positionId, employee_id: '', talent_mapping: '', succession_readiness: '', idp: '' };
+        return {
+            successor_id: '',
+            target_position_id: positionId,
+            name: '',
+            position: '',
+            talent_mapping: '',
+            succession_readiness: '',
+            idp: '',
+            education: '',
+            tenure: '',
+            directorate: '',
+        };
     },
     openSuccessorDialog(position) {
         this.selectedPosition = position;
@@ -210,7 +225,7 @@
                                 <span class="rounded-full bg-violet-50 px-3 py-1 text-xs font-bold text-violet-700">{{ $successor->talent_mapping }}</span>
                                 <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">{{ $successor->succession_readiness }}</span>
                             </div>
-                            <p class="mt-3 whitespace-pre-line rounded-lg bg-slate-50 px-3 py-2.5 text-sm text-slate-700">{{ $successor->idp }}</p>
+                            <p class="mt-3 whitespace-pre-line rounded-lg bg-slate-50 px-3 py-2.5 text-sm text-slate-700">IDP: {{ $successor->idp }}%</p>
                             <dl class="mt-3 space-y-2 text-sm text-slate-600">
                                 <div><dt class="font-bold">Pendidikan</dt><dd>{{ $successor->education }}</dd></div>
                                 <div><dt class="font-bold">Masa Kerja</dt><dd>{{ $successor->tenure }}</dd></div>
@@ -221,10 +236,14 @@
                                     <button type="button" @click="openEditSuccessor(@js([
                                         'successor_id' => (string) $successor->id,
                                         'target_position_id' => (string) $successor->target_position_id,
-                                        'employee_id' => (string) $successor->employee_id,
+                                        'name' => $successor->name,
+                                        'position' => $successor->position,
                                         'talent_mapping' => $successor->talent_mapping,
                                         'succession_readiness' => $successor->succession_readiness,
                                         'idp' => $successor->idp,
+                                        'education' => $successor->education,
+                                        'tenure' => $successor->tenure,
+                                        'directorate' => $successor->directorate,
                                         'updateUrl' => route('performance-talent.successors.update', $successor),
                                     ]))" class="text-sm font-bold text-sky-700">Edit</button>
                                 @endcan
@@ -241,7 +260,7 @@
 
                 <div x-show="selectedSuccessorCount === 0 && !showSuccessorForm" class="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-10 text-center">
                     <h4 class="font-display text-lg font-bold text-slate-800">Belum ada successor</h4>
-                    <p class="mt-1 text-sm text-slate-500">Tambahkan kandidat dari Data Pegawai.</p>
+                    <p class="mt-1 text-sm text-slate-500">Tambahkan data kandidat Successor secara manual.</p>
                 </div>
 
                 @if (auth()->user()->hasPermission('successors.create') || auth()->user()->hasPermission('successors.update'))
