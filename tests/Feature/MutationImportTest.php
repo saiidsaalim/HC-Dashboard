@@ -3,15 +3,55 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Models\Department;
+use App\Models\Directorate;
+use App\Models\Employee;
 use App\Models\EmployeeMutation;
+use App\Models\MutationApprovalConfig;
+use App\Models\Position;
+use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class MutationImportTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_create_form_renders_accessible_organization_comparison_layout(): void
+    {
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+
+        $response = $this->actingAs($superAdmin)->get(route('mutasi'));
+
+        $response->assertOk()
+            ->assertSee('Tambah Data Mutasi')
+            ->assertSee('Lengkapi data utama dan bandingkan organisasi saat ini dengan organisasi tujuan sebelum menyimpan.')
+            ->assertSeeInOrder(['Cari Employee', 'Organisasi Saat Ini', 'Organisasi Tujuan', 'Detail Perubahan'])
+            ->assertSee('aria-describedby="manual-mutation-description"', escape: false)
+            ->assertSee('name="employee_id"', escape: false)
+            ->assertSee('name="new_position_id"', escape: false)
+            ->assertSee('name="level_lama"', escape: false)
+            ->assertSee('name="level_baru"', escape: false)
+            ->assertSee('w-full min-w-[73rem] table-fixed text-left text-sm whitespace-nowrap', escape: false)
+            ->assertSee('w-60 px-4 py-3">Workflow', escape: false)
+            ->assertSee('Level Lama')
+            ->assertSee('Level Baru')
+            ->assertDontSee('BA'.'ND')
+            ->assertSee('Minimal satu organisasi atau Position harus berubah.');
+
+        $document = new \DOMDocument;
+        @$document->loadHTML($response->getContent());
+        $xpath = new \DOMXPath($document);
+        $this->assertSame(1, $xpath->query('//select[@name="level_baru" and @id="create-mutation-level_baru"]')->length);
+        $this->assertSame(0, $xpath->query('//form//form')->length, 'Form Mutasi tidak boleh bersarang.');
+
+        $ids = [];
+        foreach ($xpath->query('//*[@id]') as $element) {
+            $ids[] = $element->getAttribute('id');
+        }
+        $this->assertSame($ids, array_values(array_unique($ids)), 'Setiap elemen harus memiliki ID unik.');
+    }
 
     public function test_authenticated_user_can_search_mutations(): void
     {
@@ -23,8 +63,42 @@ class MutationImportTest extends TestCase
 
         $response->assertOk()
             ->assertViewHas('search', 'SAP006')
+            ->assertViewHas('mutations', fn ($mutations): bool => $mutations->count() === 1
+                && $mutations->first()->sap === 'SAP006')
             ->assertSee('SAP006')
-            ->assertDontSee('SAP007');
+            ->assertSee('Data mutasi terbaru');
+    }
+
+    public function test_detail_dialog_renders_complete_comparison_and_three_step_approval_progress(): void
+    {
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        $mutation = EmployeeMutation::query()->create($this->mutationAttributes('SAP-DETAIL'));
+        $approvers = User::factory()->count(3)->create(['role' => UserRole::MANAGER->value]);
+
+        foreach ($approvers as $step => $approver) {
+            MutationApprovalConfig::query()->create([
+                'step_order' => $step + 1,
+                'user_id' => $approver->id,
+            ]);
+        }
+        $mutation->approvals()->create([
+            'step_order' => 1,
+            'manager_id' => $approvers[0]->id,
+            'status' => 'Approved',
+            'approved_at' => now(),
+        ]);
+
+        $this->actingAs($superAdmin)->get(route('mutasi'))
+            ->assertOk()
+            ->assertSee('Detail Mutasi HC')
+            ->assertSeeInOrder(['Organisasi Sebelumnya', 'Organisasi Tujuan', 'Detail Perubahan'])
+            ->assertSee('Metadata Mutasi')
+            ->assertSee('Persetujuan 1 dari 3')
+            ->assertSee($approvers[0]->name)
+            ->assertSee($approvers[1]->name)
+            ->assertSee('Disetujui')
+            ->assertSee('Menunggu keputusan')
+            ->assertSee('Edit Data');
     }
 
     public function test_pending_mutations_card_counts_only_pending_records(): void
@@ -77,24 +151,17 @@ class MutationImportTest extends TestCase
             'jabatan_baru' => 'Supervisor',
             'tmt' => '2026-12-01',
             'pg' => 'PG-1',
-            'band_lama' => 'B1',
+            'level_lama' => 'B1',
             'jg_lama' => 'JG-1',
-            'band_baru' => 'B2',
+            'level_baru' => 'B2',
             'jg_baru' => 'JG-2',
         ]);
 
         $response = $this->actingAs($user)->put(route('mutasi.update', $mutation), [
-            'sap' => 'SAP003',
-            'nama' => 'Dewi Lestari Updated',
-            'departemen_lama' => 'Keuangan',
-            'jabatan_lama' => 'Staff',
-            'departemen_baru' => 'Audit',
-            'jabatan_baru' => 'Manager',
+            ...$this->mutationPayload('SAP003'),
             'tmt' => '2027-01-01',
             'pg' => 'PG-2',
-            'band_lama' => 'B1',
-            'jg_lama' => 'JG-1',
-            'band_baru' => 'B3',
+            'level_baru' => 'B3',
             'jg_baru' => 'JG-3',
         ]);
 
@@ -102,10 +169,10 @@ class MutationImportTest extends TestCase
             ->assertSessionHas('status', 'Data mutasi berhasil diperbarui.');
         $this->assertDatabaseHas('employee_mutations', [
             'id' => $mutation->id,
-            'nama' => 'Dewi Lestari Updated',
-            'jabatan_baru' => 'Manager',
+            'nama' => 'Pegawai SAP003',
+            'jabatan_baru' => 'Position Baru SAP003',
             'pg' => 'PG-2',
-            'band_baru' => 'B3',
+            'level_baru' => 'B3',
             'jg_baru' => 'JG-3',
         ]);
     }
@@ -118,6 +185,9 @@ class MutationImportTest extends TestCase
             User::factory()->create(['role' => UserRole::MANAGER->value]),
             User::factory()->create(['role' => UserRole::MANAGER->value]),
         ]);
+        foreach ($approvers as $step => $approver) {
+            MutationApprovalConfig::query()->create(['step_order' => $step + 1, 'user_id' => $approver->id]);
+        }
 
         foreach ($approvers as $approver) {
             $response = $this->actingAs($approver)->post(route('mutasi.approve', $mutation));
@@ -143,6 +213,31 @@ class MutationImportTest extends TestCase
             ->assertSee('Print')
             ->assertSee('Detail');
         $this->assertDatabaseHas('employee_mutations', ['id' => $mutation->id, 'verification_status' => 'Final']);
+    }
+
+    public function test_finalized_mutation_print_contains_level_labels(): void
+    {
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        $mutation = EmployeeMutation::query()->create([
+            ...$this->mutationAttributes('SAP-PRINT-LEVEL'),
+            'verification_status' => 'Final',
+            'finalized_at' => now(),
+        ]);
+
+        $response = $this->actingAs($superAdmin)->get(route('mutasi.print', $mutation));
+        $response->assertOk()->assertDownload();
+        $downloadPath = $response->baseResponse->getFile()->getPathname();
+        $archive = new \ZipArchive;
+        $this->assertSame(true, $archive->open($downloadPath));
+        $documentXml = $archive->getFromName('word/document.xml');
+        $archive->close();
+        if (file_exists($downloadPath)) {
+            unlink($downloadPath);
+        }
+
+        $this->assertIsString($documentXml);
+        $this->assertStringContainsString('Level Lama: B1', $documentXml);
+        $this->assertStringContainsString('Level Baru: B2', $documentXml);
     }
 
     public function test_admin_cannot_edit_or_delete_mutations(): void
@@ -174,73 +269,55 @@ class MutationImportTest extends TestCase
         $user = User::factory()->create();
 
         $response = $this->actingAs($user)->post(route('mutasi.store'), [
-            'sap' => 'SAP002',
-            'nama' => 'Sari Wulandari',
-            'departemen_lama' => 'Keuangan',
-            'jabatan_lama' => 'Staff',
-            'departemen_baru' => 'Audit',
-            'jabatan_baru' => 'Supervisor',
+            ...$this->mutationPayload('SAP002'),
             'tmt' => '2026-11-01',
-            'pg' => 'PG-1',
-            'band_lama' => 'B2',
-            'jg_lama' => 'JG-2',
-            'band_baru' => 'B3',
+            'level_baru' => 'B3',
             'jg_baru' => 'JG-3',
         ]);
 
         $response->assertRedirect(route('mutasi'))
-            ->assertSessionHas('status', 'Data mutasi berhasil ditambahkan.');
+            ->assertSessionHas('status', 'Data mutasi berhasil disimpan sebagai Draft.');
         $this->assertDatabaseHas('employee_mutations', [
             'sap' => 'SAP002',
-            'nama' => 'Sari Wulandari',
-            'departemen_baru' => 'Audit',
+            'nama' => 'Pegawai SAP002',
+            'departemen_baru' => 'Department Baru SAP002',
+            'verification_status' => 'Draft',
         ]);
-    }
 
-    public function test_authenticated_user_can_import_mutation_csv(): void
-    {
-        $user = User::factory()->create();
-        $file = UploadedFile::fake()->createWithContent(
-            'mutasi.csv',
-            "SAP,Nama,Departemen Lama,Jabatan Lama,Departemen Baru,Jabatan Baru,TMT,PG,Band Lama,JG Lama,Band Baru,JG Baru\n".
-            "SAP001,Budi Santoso,Operasional,Staff,Keuangan,Supervisor,2026-10-01,PG-1,B1,JG-1,B2,JG-2\n",
-        );
+        $mutation = EmployeeMutation::query()->where('sap', 'SAP002')->firstOrFail();
+        $approvers = User::factory()->count(3)->create(['role' => UserRole::MANAGER->value]);
+        foreach ($approvers as $step => $approver) {
+            MutationApprovalConfig::query()->create(['step_order' => $step + 1, 'user_id' => $approver->id]);
+        }
 
-        $response = $this->actingAs($user)->post(route('mutasi.import'), ['file' => $file]);
+        $this->actingAs($approvers[0])->post(route('mutasi.approve', $mutation))->assertForbidden();
 
-        $response->assertRedirect(route('mutasi'))
-            ->assertSessionHas('status', 'Import berhasil: 1 data mutasi disimpan.');
-        $this->assertDatabaseHas('employee_mutations', [
-            'sap' => 'SAP001',
-            'nama' => 'Budi Santoso',
-            'departemen_lama' => 'Operasional',
-            'jabatan_baru' => 'Supervisor',
-            'pg' => 'PG-1',
-            'band_lama' => 'B1',
-            'jg_lama' => 'JG-1',
-            'band_baru' => 'B2',
-            'jg_baru' => 'JG-2',
-        ]);
-        $this->assertSame('2026-10-01', EmployeeMutation::query()->firstOrFail()->tmt->toDateString());
-    }
+        $listResponse = $this->actingAs($user)->get(route('mutasi'));
+        $listResponse->assertOk()->assertSee('Ajukan Mutasi');
+        $document = new \DOMDocument;
+        @$document->loadHTML($listResponse->getContent());
+        $xpath = new \DOMXPath($document);
+        $employeeCell = $xpath->query('//table/tbody/tr[td[contains(., "SAP002")]]/td[@data-label="Pegawai"]')->item(0);
+        $targetCell = $xpath->query('//table/tbody/tr[td[contains(., "SAP002")]]/td[@data-label="Usulan"]')->item(0);
+        $actionCell = $xpath->query('//table/tbody/tr[td[contains(., "SAP002")]]/td[@data-label="Aksi"]')->item(0);
+        $this->assertNotNull($employeeCell);
+        $this->assertNotNull($targetCell);
+        $this->assertNotNull($actionCell);
+        $this->assertStringContainsString('TMT 01 Nov 2026', $employeeCell->textContent);
+        $this->assertStringNotContainsString('TMT', $targetCell->textContent);
+        $this->assertSame('Detail Ajukan Mutasi', preg_replace('/\s+/', ' ', trim($actionCell->textContent)));
 
-    public function test_mutation_import_rejects_missing_headers(): void
-    {
-        $user = User::factory()->create();
-        $file = UploadedFile::fake()->createWithContent('mutasi.csv', "SAP,Nama\nSAP001,Budi Santoso\n");
-
-        $response = $this->actingAs($user)
-            ->from(route('mutasi'))
-            ->post(route('mutasi.import'), ['file' => $file]);
-
-        $response->assertRedirect(route('mutasi'))->assertSessionHasErrors('file');
-        $this->assertDatabaseMissing('employee_mutations', ['sap' => 'SAP001']);
+        $this->actingAs($user)->post(route('mutasi.submit', $mutation))
+            ->assertRedirect(route('mutasi'))
+            ->assertSessionHas('status', 'Mutasi berhasil diajukan ke approver Tahap 1.');
+        $this->assertSame('Pending', $mutation->fresh()->verification_status);
     }
 
     /** @return array<string, string> */
     private function mutationAttributes(string $sap): array
     {
         return [
+            ...$this->mutationPayload($sap),
             'sap' => $sap,
             'nama' => 'Pegawai '.$sap,
             'departemen_lama' => 'Operasional',
@@ -249,9 +326,62 @@ class MutationImportTest extends TestCase
             'jabatan_baru' => 'Supervisor',
             'tmt' => '2026-12-01',
             'pg' => 'PG-1',
-            'band_lama' => 'B1',
+            'level_lama' => 'B1',
             'jg_lama' => 'JG-1',
-            'band_baru' => 'B2',
+            'level_baru' => 'B2',
+            'jg_baru' => 'JG-2',
+        ];
+    }
+
+    /** @return array<string, int|string|null> */
+    private function mutationPayload(string $sap): array
+    {
+        Employee::query()->updateOrCreate(
+            ['sap' => 'LEVEL-OPTION-B2'],
+            ['employee_subgroup' => 'B2'],
+        );
+        Employee::query()->updateOrCreate(
+            ['sap' => 'LEVEL-OPTION-B3'],
+            ['employee_subgroup' => 'B3'],
+        );
+        $oldDirectorate = Directorate::query()->firstOrCreate(['code' => 'OLD-DIR-'.$sap], ['name' => 'Directorate Lama '.$sap]);
+        $oldDepartment = Department::query()->firstOrCreate(['code' => 'OLD-DEP-'.$sap], [
+            'directorate_id' => $oldDirectorate->id, 'name' => 'Department Lama '.$sap,
+        ]);
+        $oldUnit = Unit::query()->firstOrCreate(['department_id' => $oldDepartment->id, 'code' => 'OLD-UNIT-'.$sap], ['name' => 'Unit Lama '.$sap]);
+        $oldPosition = Position::query()->firstOrCreate(['unit_id' => $oldUnit->id, 'code' => 'OLD-POS-'.$sap], ['name' => 'Position Lama '.$sap]);
+        $employee = Employee::query()->firstOrCreate(['sap' => $sap]);
+        $employee->update([
+            'employee_subgroup' => 'B1',
+            'directorate_id' => $oldDirectorate->id, 'department_id' => $oldDepartment->id,
+            'unit_id' => $oldUnit->id, 'position_id' => $oldPosition->id,
+        ]);
+        $employee->forceFill(['name' => 'Pegawai '.$sap])->save();
+
+        $newDirectorate = Directorate::query()->firstOrCreate(['code' => 'NEW-DIR-'.$sap], ['name' => 'Directorate Baru '.$sap]);
+        $newDepartment = Department::query()->firstOrCreate(['code' => 'NEW-DEP-'.$sap], [
+            'directorate_id' => $newDirectorate->id, 'name' => 'Department Baru '.$sap,
+        ]);
+        $newUnit = Unit::query()->firstOrCreate(['department_id' => $newDepartment->id, 'code' => 'NEW-UNIT-'.$sap], ['name' => 'Unit Baru '.$sap]);
+        $newPosition = Position::query()->firstOrCreate(['unit_id' => $newUnit->id, 'code' => 'NEW-POS-'.$sap], ['name' => 'Position Baru '.$sap]);
+
+        return [
+            'employee_id' => $employee->id,
+            'old_directorate_id' => $oldDirectorate->id,
+            'old_department_id' => $oldDepartment->id,
+            'old_unit_id' => $oldUnit->id,
+            'old_section_id' => null,
+            'old_position_id' => $oldPosition->id,
+            'new_directorate_id' => $newDirectorate->id,
+            'new_department_id' => $newDepartment->id,
+            'new_unit_id' => $newUnit->id,
+            'new_section_id' => null,
+            'new_position_id' => $newPosition->id,
+            'tmt' => '2026-12-01',
+            'pg' => 'PG-1',
+            'level_lama' => 'B1',
+            'jg_lama' => 'JG-1',
+            'level_baru' => 'B2',
             'jg_baru' => 'JG-2',
         ];
     }

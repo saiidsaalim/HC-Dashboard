@@ -3,6 +3,7 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DemotionController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\MovementApprovalSettingsController;
 use App\Http\Controllers\MutationController;
 use App\Http\Controllers\Organization\DepartmentController;
 use App\Http\Controllers\Organization\DirectorateController;
@@ -63,14 +64,15 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/mutasi', [MutationController::class, 'index'])->middleware('can:mutations.view')->name('mutasi');
     Route::post('/mutasi', [MutationController::class, 'store'])->middleware('can:mutations.create')->name('mutasi.store');
-    Route::post('/mutasi/import', [MutationController::class, 'upload'])->middleware('can:mutations.import')->name('mutasi.import');
+    Route::get('/mutasi/pengaturan-persetujuan', [MovementApprovalSettingsController::class, 'editMutation'])->name('mutasi.approval-settings.edit');
+    Route::put('/mutasi/pengaturan-persetujuan', [MovementApprovalSettingsController::class, 'updateMutation'])->name('mutasi.approval-settings.update');
     Route::get('/mutasi/{employeeMutation}/print', [MutationController::class, 'print'])->middleware('can:mutations.print')->name('mutasi.print');
     Route::put('/mutasi/{employeeMutation}', [MutationController::class, 'update'])->middleware('can:mutations.update')->name('mutasi.update');
+    Route::post('/mutasi/{employeeMutation}/submit', [MutationController::class, 'submit'])->middleware('can:mutations.submit')->name('mutasi.submit');
     Route::post('/mutasi/{employeeMutation}/approve', [MutationController::class, 'approve'])->middleware('can:mutations.approve')->name('mutasi.approve');
     Route::delete('/mutasi', [MutationController::class, 'destroyMany'])->middleware('can:mutations.delete')->name('mutasi.destroy-many');
     Route::get('/promosi', [PromotionController::class, 'index'])->name('promosi');
     Route::post('/promosi', [PromotionController::class, 'store'])->name('promosi.store');
-    Route::post('/promosi/import', [PromotionController::class, 'upload'])->name('promosi.import');
     Route::get('/promosi/pengaturan-persetujuan', [PromotionApprovalSettingsController::class, 'edit'])->name('promosi.approval-settings.edit');
     Route::put('/promosi/pengaturan-persetujuan', [PromotionApprovalSettingsController::class, 'update'])->name('promosi.approval-settings.update');
     Route::get('/promosi/{employeePromotion}/print', [PromotionController::class, 'print'])->name('promosi.print');
@@ -82,9 +84,11 @@ Route::middleware('auth')->group(function () {
     Route::view('/laporan', 'pages.laporan')->middleware('can:reports.view')->name('laporan');
     Route::get('/demosi', [DemotionController::class, 'index'])->middleware('can:demotions.view')->name('demosi');
     Route::post('/demosi', [DemotionController::class, 'store'])->middleware('can:demotions.create')->name('demosi.store');
-    Route::post('/demosi/import', [DemotionController::class, 'upload'])->middleware('can:demotions.import')->name('demosi.import');
+    Route::get('/demosi/pengaturan-persetujuan', [MovementApprovalSettingsController::class, 'editDemotion'])->name('demosi.approval-settings.edit');
+    Route::put('/demosi/pengaturan-persetujuan', [MovementApprovalSettingsController::class, 'updateDemotion'])->name('demosi.approval-settings.update');
     Route::get('/demosi/{employeeDemotion}/print', [DemotionController::class, 'print'])->middleware('can:demotions.print')->name('demosi.print');
     Route::put('/demosi/{employeeDemotion}', [DemotionController::class, 'update'])->middleware('can:demotions.update')->name('demosi.update');
+    Route::post('/demosi/{employeeDemotion}/submit', [DemotionController::class, 'submit'])->middleware('can:demotions.submit')->name('demosi.submit');
     Route::post('/demosi/{employeeDemotion}/approve', [DemotionController::class, 'approve'])->middleware('can:demotions.approve')->name('demosi.approve');
     Route::delete('/demosi', [DemotionController::class, 'destroyMany'])->middleware('can:demotions.delete')->name('demosi.destroy-many');
     Route::view('/formasi', 'pages.formasi')->middleware('can:formation.view')->name('formasi');

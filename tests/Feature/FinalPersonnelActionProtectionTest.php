@@ -3,10 +3,14 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Models\Department;
+use App\Models\Directorate;
 use App\Models\Employee;
 use App\Models\EmployeeDemotion;
 use App\Models\EmployeeMutation;
 use App\Models\EmployeePromotion;
+use App\Models\Position;
+use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -35,7 +39,7 @@ class FinalPersonnelActionProtectionTest extends TestCase
 
         $this->assertDatabaseHas($personnelAction->getTable(), [
             'id' => $personnelAction->getKey(),
-            'nama' => 'Nama Diperbarui',
+            'nama' => 'Nama Awal',
         ]);
     }
 
@@ -74,11 +78,7 @@ class FinalPersonnelActionProtectionTest extends TestCase
             ->from(route($indexRoute))
             ->put(route($updateRoute, $personnelAction), $this->validPayload('100003', 'Nama Diperbarui'));
 
-        if ($modelClass === EmployeePromotion::class) {
-            $response->assertForbidden();
-        } else {
-            $response->assertRedirect(route($indexRoute))->assertSessionHasErrors('status');
-        }
+        $response->assertForbidden();
 
         $this->assertDatabaseHas($personnelAction->getTable(), [
             'id' => $personnelAction->getKey(),
@@ -98,11 +98,15 @@ class FinalPersonnelActionProtectionTest extends TestCase
         $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
         $personnelAction = $this->createPersonnelAction($modelClass, '100004', 'Final');
 
-        $this->actingAs($superAdmin)
+        $response = $this->actingAs($superAdmin)
             ->from(route($indexRoute))
-            ->delete(route($destroyRoute), [$idsField => [$personnelAction->getKey()]])
-            ->assertRedirect(route($indexRoute))
-            ->assertSessionHasErrors('status');
+            ->delete(route($destroyRoute), [$idsField => [$personnelAction->getKey()]]);
+
+        if ($modelClass === EmployeePromotion::class) {
+            $response->assertRedirect(route($indexRoute))->assertSessionHasErrors('status');
+        } else {
+            $response->assertForbidden();
+        }
 
         $this->assertDatabaseHas($personnelAction->getTable(), [
             'id' => $personnelAction->getKey(),
@@ -122,13 +126,17 @@ class FinalPersonnelActionProtectionTest extends TestCase
         $pendingAction = $this->createPersonnelAction($modelClass, '100005', 'Pending');
         $finalAction = $this->createPersonnelAction($modelClass, '100006', 'Final');
 
-        $this->actingAs($superAdmin)
+        $response = $this->actingAs($superAdmin)
             ->from(route($indexRoute))
             ->delete(route($destroyRoute), [
                 $idsField => [$pendingAction->getKey(), $finalAction->getKey()],
-            ])
-            ->assertRedirect(route($indexRoute))
-            ->assertSessionHasErrors('status');
+            ]);
+
+        if ($modelClass === EmployeePromotion::class) {
+            $response->assertRedirect(route($indexRoute))->assertSessionHasErrors('status');
+        } else {
+            $response->assertForbidden();
+        }
 
         $this->assertDatabaseHas($pendingAction->getTable(), ['id' => $pendingAction->getKey()]);
         $this->assertDatabaseHas($finalAction->getTable(), ['id' => $finalAction->getKey()]);
@@ -188,7 +196,8 @@ class FinalPersonnelActionProtectionTest extends TestCase
     /** @param class-string<Model> $modelClass */
     private function createPersonnelAction(string $modelClass, string $sap, string $status): Model
     {
-        Employee::create(['sap' => $sap]);
+        $employee = Employee::create(['sap' => $sap, 'employee_subgroup' => 'Level 1']);
+        $employee->forceFill(['name' => 'Nama Awal'])->save();
 
         return $modelClass::query()->create([
             ...$this->validPayload($sap, 'Nama Awal'),
@@ -197,11 +206,47 @@ class FinalPersonnelActionProtectionTest extends TestCase
         ]);
     }
 
-    /** @return array<string, string> */
+    /** @return array<string, int|string|null> */
     private function validPayload(string $sap, string $name): array
     {
+        Employee::query()->updateOrCreate(
+            ['sap' => 'LEVEL-OPTION-2'],
+            ['employee_subgroup' => 'Level 2'],
+        );
+        $employee = Employee::query()->where('sap', $sap)->firstOrFail();
+        $oldDirectorate = Directorate::query()->firstOrCreate(['code' => 'OLD-DIR-'.$sap], ['name' => 'Directorate Lama']);
+        $oldDepartment = Department::query()->firstOrCreate(['code' => 'OLD-DEP-'.$sap], [
+            'directorate_id' => $oldDirectorate->id,
+            'name' => 'Department Lama',
+        ]);
+        $oldUnit = Unit::query()->firstOrCreate(['department_id' => $oldDepartment->id, 'code' => 'OLD-U-'.$sap], ['name' => 'Unit Lama']);
+        $oldPosition = Position::query()->firstOrCreate(['unit_id' => $oldUnit->id, 'code' => 'OLD-P-'.$sap], ['name' => 'Position Lama']);
+        $newDirectorate = Directorate::query()->firstOrCreate(['code' => 'NEW-DIR-'.$sap], ['name' => 'Directorate Baru']);
+        $newDepartment = Department::query()->firstOrCreate(['code' => 'NEW-DEP-'.$sap], [
+            'directorate_id' => $newDirectorate->id,
+            'name' => 'Department Baru',
+        ]);
+        $newUnit = Unit::query()->firstOrCreate(['department_id' => $newDepartment->id, 'code' => 'NEW-U-'.$sap], ['name' => 'Unit Baru']);
+        $newPosition = Position::query()->firstOrCreate(['unit_id' => $newUnit->id, 'code' => 'NEW-P-'.$sap], ['name' => 'Position Baru']);
+        $employee->update([
+            'directorate_id' => $oldDirectorate->id,
+            'department_id' => $oldDepartment->id,
+            'unit_id' => $oldUnit->id,
+            'position_id' => $oldPosition->id,
+        ]);
+
         return [
-            'employee_id' => (string) Employee::query()->where('sap', $sap)->value('id'),
+            'employee_id' => $employee->id,
+            'old_directorate_id' => $oldDirectorate->id,
+            'old_department_id' => $oldDepartment->id,
+            'old_unit_id' => $oldUnit->id,
+            'old_section_id' => null,
+            'old_position_id' => $oldPosition->id,
+            'new_directorate_id' => $newDirectorate->id,
+            'new_department_id' => $newDepartment->id,
+            'new_unit_id' => $newUnit->id,
+            'new_section_id' => null,
+            'new_position_id' => $newPosition->id,
             'sap' => $sap,
             'nama' => $name,
             'departemen_lama' => 'Departemen Lama',
@@ -210,9 +255,9 @@ class FinalPersonnelActionProtectionTest extends TestCase
             'jabatan_baru' => 'Jabatan Baru',
             'tmt' => '2026-10-01',
             'pg' => 'PG 1',
-            'band_lama' => 'Band 1',
+            'level_lama' => 'Level 1',
             'jg_lama' => 'JG 1',
-            'band_baru' => 'Band 2',
+            'level_baru' => 'Level 2',
             'jg_baru' => 'JG 2',
         ];
     }

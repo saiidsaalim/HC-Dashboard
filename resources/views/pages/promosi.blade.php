@@ -6,7 +6,6 @@
     @php
         $canCreatePromotions = auth()->user()->hasPermission('promotions.create');
         $canDeletePromotions = auth()->user()->hasPermission('promotions.delete');
-        $canImportPromotions = auth()->user()->hasPermission('promotions.import');
         $canManagePromotionApprovals = auth()->user()->hasPermission('promotions.manage-approval-settings');
         $statusStyles = [
             \App\Enums\PromotionStatus::Draft->value => 'bg-slate-100 text-slate-700',
@@ -19,24 +18,13 @@
 
     <x-ui.page-header title="Daftar Promosi" eyebrow="Talent movement"
         description="Workflow promosi berurutan dari Draft hingga empat tahap persetujuan.">
-        @if ($canCreatePromotions || $canImportPromotions || $canManagePromotionApprovals)
+        @if ($canCreatePromotions || $canManagePromotionApprovals)
             <x-slot:actions>
                 @if ($canManagePromotionApprovals)
                     <a href="{{ route('promosi.approval-settings.edit') }}"
                         class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
                         Pengaturan Persetujuan
                     </a>
-                @endif
-                @if ($canImportPromotions)
-                    <form method="POST" action="{{ route('promosi.import') }}" enctype="multipart/form-data"
-                    class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    @csrf
-                    <input type="file" name="file" accept=".xlsx,.csv,.txt" required
-                        class="block w-full rounded-lg border border-slate-300 bg-white text-sm text-slate-500 file:mr-3 file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-700 sm:w-auto">
-                    <button type="submit" class="rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700">
-                        Import Promosi
-                    </button>
-                    </form>
                 @endif
                 @if ($canCreatePromotions)
                     <button type="button" onclick="document.getElementById('create-promotion').showModal()"
@@ -86,23 +74,39 @@
     </div>
 
     <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div class="flex flex-col justify-between gap-4 p-4 sm:p-6 xl:flex-row xl:items-center">
+        <div class="flex w-full flex-col items-stretch justify-between gap-4 p-4 sm:p-6 xl:flex-row xl:items-center">
             <h3 class="font-display text-lg font-bold text-slate-950">Usulan Promosi</h3>
-            <x-ui.filter-panel id="promotion-filters" title="Filter Promosi"
-                :action="route('promosi')" :reset-href="route('promosi')"
-                :active="$search !== '' || $filter !== 'all'">
-                <label class="block text-sm font-semibold text-slate-700">Pencarian
-                    <input name="search" value="{{ $search }}" type="search" placeholder="Cari SAP, nama, jabatan..."
-                        class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
-                </label>
-                <label class="block text-sm font-semibold text-slate-700">Status Promosi
-                    <select name="status" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
-                        @foreach (['all' => 'Semua', 'draft' => 'Draft', 'waiting' => 'Menunggu Persetujuan', 'returned' => 'Dikembalikan', 'final' => 'Final', 'mine' => 'Menunggu Persetujuan Saya'] as $value => $label)
-                            <option value="{{ $value }}" @selected($filter === $value)>{{ $label }}</option>
-                        @endforeach
-                    </select>
-                </label>
-            </x-ui.filter-panel>
+            <div class="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+                <x-ui.filter-panel id="promotion-filters" title="Filter Promosi" class="w-full sm:w-auto"
+                    :action="route('promosi')" :reset-href="route('promosi')"
+                    :active="$search !== '' || $filter !== 'all'">
+                    <label class="block text-sm font-semibold text-slate-700">Pencarian
+                        <input name="search" value="{{ $search }}" type="search" placeholder="Cari SAP, nama, jabatan..."
+                            class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
+                    </label>
+                    <label class="block text-sm font-semibold text-slate-700">Status Promosi
+                        <select name="status" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
+                            @foreach (['all' => 'Semua', 'draft' => 'Draft', 'waiting' => 'Menunggu Persetujuan', 'returned' => 'Dikembalikan', 'final' => 'Final', 'mine' => 'Menunggu Persetujuan Saya'] as $value => $label)
+                                <option value="{{ $value }}" @selected($filter === $value)>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                </x-ui.filter-panel>
+                @if ($canDeletePromotions && $promotions->contains(fn ($promotion) => auth()->user()->can('delete', $promotion)))
+                    <div class="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
+                        <label class="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-600">
+                            <input id="select-all-promotions" type="checkbox"
+                                onchange="document.querySelectorAll('.promotion-checkbox').forEach((checkbox) => checkbox.checked = this.checked)"
+                                class="rounded border-slate-300 text-slate-950 focus:ring-amber-400">
+                            Pilih semua
+                        </label>
+                        <button type="submit" form="bulk-delete-promotions"
+                            class="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700">
+                            Hapus terpilih
+                        </button>
+                    </div>
+                @endif
+            </div>
         </div>
 
         <form id="bulk-delete-promotions" method="POST" action="{{ route('promosi.destroy-many') }}"
@@ -112,16 +116,17 @@
             @csrf
             @method('DELETE')
             <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm whitespace-nowrap">
+                <table class="w-full min-w-[73rem] table-fixed text-left text-sm whitespace-nowrap">
+                    <x-personnel-movement-table-columns :show-selection-column="$canDeletePromotions" />
                     <thead class="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wider text-slate-400">
                         <tr>
-                            @if ($canDeletePromotions)<th class="w-12 px-4 py-3 text-center">Pilih</th>@endif
-                            <th class="px-4 py-3">SAP</th>
-                            <th class="min-w-[160px] px-4 py-3">Pegawai</th>
-                            <th class="min-w-[150px] px-4 py-3">Posisi Saat Ini</th>
-                            <th class="min-w-[150px] px-4 py-3">Usulan</th>
-                            <th class="px-4 py-3">Workflow</th>
-                            <th class="px-4 py-3 text-center">Aksi</th>
+                            @if ($canDeletePromotions)<th class="w-12 px-4 py-3 text-center align-middle">Pilih</th>@endif
+                            <th class="w-24 px-4 py-3">SAP</th>
+                            <th class="w-44 px-4 py-3">Pegawai</th>
+                            <th class="w-52 px-4 py-3">Posisi Saat Ini</th>
+                            <th class="w-52 px-4 py-3">Usulan</th>
+                            <th class="w-60 px-4 py-3">Workflow</th>
+                            <th class="w-48 px-4 py-3 text-center">Aksi</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
@@ -150,7 +155,8 @@
                                     <td class="px-4 py-4 text-center">
                                         @can('delete', $promotion)
                                             <input type="checkbox" name="promotion_ids[]" value="{{ $promotion->id }}"
-                                                class="promotion-checkbox rounded border-slate-300 text-slate-950 focus:ring-amber-400">
+                                                class="promotion-checkbox rounded border-slate-300 text-slate-950 focus:ring-amber-400"
+                                                onchange="document.getElementById('select-all-promotions').checked = document.querySelectorAll('.promotion-checkbox').length > 0 && document.querySelectorAll('.promotion-checkbox:not(:checked)').length === 0">
                                         @endcan
                                     </td>
                                 @endif
@@ -209,21 +215,21 @@
             </div>
         </form>
 
-        @if ($canDeletePromotions && $promotions->contains(fn ($promotion) => auth()->user()->can('delete', $promotion)))
-            <div class="border-t border-slate-100 p-4">
-                <button type="submit" form="bulk-delete-promotions" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">Hapus terpilih</button>
-            </div>
-        @endif
         <div class="border-t border-slate-100 p-4">{{ $promotions->links() }}</div>
     </div>
 
     @if ($canCreatePromotions)
         <dialog id="create-promotion" @if (old('_form') === 'create') open @endif
-            class="w-[calc(100%-2rem)] max-w-5xl rounded-2xl p-0 shadow-2xl backdrop:bg-slate-950/60">
-            <section class="max-h-[90vh] overflow-y-auto bg-white p-6 sm:p-8">
-                <div class="flex items-start justify-between gap-4">
-                    <div><h3 class="font-display text-xl font-bold text-slate-950">Buat Draft Promosi</h3><p class="mt-1 text-sm text-slate-500">Pilih Employee lalu koreksi snapshot dokumen jika diperlukan.</p></div>
-                    <button type="button" onclick="this.closest('dialog').close()" aria-label="Tutup" class="rounded-lg px-3 py-2 text-xl text-slate-400 hover:bg-slate-100">&times;</button>
+            aria-labelledby="manual-promotion-title" aria-describedby="manual-promotion-description"
+            class="w-[calc(100%-1rem)] max-w-7xl overflow-hidden rounded-2xl p-0 shadow-2xl backdrop:bg-slate-950/60 sm:w-[calc(100%-2rem)] sm:rounded-3xl">
+            <section class="flex max-h-[calc(100dvh-1rem)] min-h-0 flex-col bg-white sm:max-h-[calc(100dvh-2rem)]">
+                <div class="flex flex-none items-start justify-between gap-4 border-b border-slate-200 bg-white px-4 py-4 sm:px-6 sm:py-5 lg:px-7">
+                    <div>
+                        <h3 id="manual-promotion-title" class="font-display text-xl font-bold text-slate-950 sm:text-2xl">Tambah Data Promosi</h3>
+                        <p id="manual-promotion-description" class="mt-1 text-sm leading-6 text-slate-500">Lengkapi data utama dan bandingkan organisasi saat ini dengan organisasi tujuan sebelum menyimpan.</p>
+                    </div>
+                    <button type="button" onclick="this.closest('dialog').close()" aria-label="Tutup modal Tambah Data Promosi"
+                        class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-2xl leading-none text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500">&times;</button>
                 </div>
                 @include('pages.promosi._form', ['promotion' => null, 'action' => route('promosi.store'), 'method' => 'POST', 'formKey' => 'create', 'submitLabel' => 'Simpan Draft Promosi'])
             </section>
@@ -239,6 +245,12 @@
                 && $activeApprover?->id === auth()->id()
                 && $approvalConfigurationComplete
                 && auth()->user()->hasPermission('promotions.approve');
+            $statusIsFinal = $status === \App\Enums\PromotionStatus::Final;
+            $initials = collect(preg_split('/\s+/', trim($promotion->nama)) ?: [])
+                ->filter()
+                ->take(2)
+                ->map(fn (string $part): string => mb_strtoupper(mb_substr($part, 0, 1)))
+                ->implode('');
         @endphp
 
         @if ($isActiveApprover)
@@ -258,31 +270,53 @@
             </form>
         @endcan
 
-        <dialog id="promotion-detail-{{ $promotion->id }}" @if (in_array(old('_form'), ["edit-{$promotion->id}", "return-{$promotion->id}"], true)) open @endif
-            class="w-[calc(100%-2rem)] max-w-5xl rounded-2xl p-0 shadow-2xl backdrop:bg-slate-950/60">
-            <section class="max-h-[90vh] overflow-y-auto bg-white p-6 sm:p-8">
-                <div class="flex items-start justify-between gap-4">
-                    <div><p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Detail Promosi</p><h3 class="mt-1 font-display text-2xl font-bold text-slate-950">{{ $promotion->nama }}</h3></div>
-                    <button type="button" onclick="this.closest('dialog').close()" aria-label="Tutup" class="rounded-lg px-3 py-2 text-xl text-slate-400 hover:bg-slate-100">&times;</button>
-                </div>
+        <dialog id="promotion-detail-{{ $promotion->id }}"
+            @if (in_array(old('_form'), ["edit-{$promotion->id}", "return-{$promotion->id}"], true)) x-init="$el.showModal()" @endif
+            aria-labelledby="promotion-detail-title-{{ $promotion->id }}"
+            class="w-[calc(100%-1rem)] max-w-7xl overflow-hidden rounded-2xl p-0 shadow-2xl backdrop:bg-slate-950/60 sm:w-[calc(100%-2rem)] sm:rounded-3xl">
+            <section class="flex max-h-[calc(100dvh-1rem)] min-h-0 flex-col bg-white sm:max-h-[calc(100dvh-2rem)]">
+                <header class="flex flex-none items-center justify-between gap-4 bg-slate-950 px-4 py-4 text-white sm:px-6 lg:px-8">
+                    <div class="flex min-w-0 items-center gap-3">
+                        <x-dashboard-icon name="users" class="h-6 w-6" />
+                        <span class="h-7 w-px bg-white/30" aria-hidden="true"></span>
+                        <h3 id="promotion-detail-title-{{ $promotion->id }}" class="truncate font-display text-lg font-bold sm:text-xl">Detail Promosi HC</h3>
+                    </div>
+                    <button type="button" onclick="this.closest('dialog').close()" aria-label="Tutup detail Promosi"
+                        class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-2xl leading-none text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300">&times;</button>
+                </header>
+                <div class="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8 lg:py-6">
+                    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+                        <span class="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-slate-950 font-display text-xl font-bold text-white shadow-lg shadow-slate-900/20 sm:h-20 sm:w-20 sm:text-2xl">{{ $initials ?: '?' }}</span>
+                        <div class="min-w-0 sm:border-l sm:border-slate-200 sm:pl-6">
+                            <p class="truncate font-display text-2xl font-bold text-slate-950">{{ $promotion->nama }}</p>
+                            <p class="mt-1 text-sm font-medium text-slate-500">SAP {{ $promotion->sap }}</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2 sm:ml-2">
+                            <span class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold {{ $promotion->employee ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200' }}">
+                                <span class="flex h-4 w-4 items-center justify-center rounded-full border border-current text-[10px]" aria-hidden="true">{{ $promotion->employee ? '✓' : '!' }}</span>
+                                Employee {{ $promotion->employee ? 'Tersedia' : 'Tidak Tersedia' }}
+                            </span>
+                            <span class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold ring-1 ring-inset {{ $statusStyles[$status->value] ?? 'bg-slate-100 text-slate-700' }}">
+                                <span class="flex h-4 w-4 items-center justify-center rounded-full border border-current text-[10px]" aria-hidden="true">{{ $statusIsFinal ? '✓' : '·' }}</span>
+                                {{ $status->label() }}
+                            </span>
+                        </div>
+                    </div>
 
-                <div class="mt-6 grid gap-5 lg:grid-cols-3">
-                    <div class="rounded-xl border border-slate-200 p-4">
-                        <h4 class="font-semibold text-slate-900">Data Pegawai</h4>
-                        <dl class="mt-3 space-y-2 text-sm"><div><dt class="text-xs text-slate-400">SAP</dt><dd class="font-medium text-slate-700">{{ $promotion->sap }}</dd></div><div><dt class="text-xs text-slate-400">Nama</dt><dd class="font-medium text-slate-700">{{ $promotion->nama }}</dd></div><div><dt class="text-xs text-slate-400">Employee</dt><dd class="font-medium {{ $promotion->employee ? 'text-emerald-700' : 'text-amber-700' }}">{{ $promotion->employee ? 'Masih tersedia' : 'Tidak lagi tersedia' }}</dd></div></dl>
-                    </div>
-                    <div class="rounded-xl border border-slate-200 p-4">
-                        <h4 class="font-semibold text-slate-900">Posisi Saat Ini</h4>
-                        <dl class="mt-3 space-y-2 text-sm">@foreach (['Department Lama' => $promotion->departemen_lama, 'Jabatan Saat Ini' => $promotion->jabatan_lama, 'PG' => $promotion->pg, 'BAND Saat Ini' => $promotion->band_lama, 'JG Saat Ini' => $promotion->jg_lama] as $label => $value)<div><dt class="text-xs text-slate-400">{{ $label }}</dt><dd class="font-medium text-slate-700">{{ $value }}</dd></div>@endforeach</dl>
-                    </div>
-                    <div class="rounded-xl border border-slate-200 p-4">
-                        <h4 class="font-semibold text-slate-900">Usulan Promosi</h4>
-                        <dl class="mt-3 space-y-2 text-sm">@foreach (['Department Baru' => $promotion->departemen_baru, 'Jabatan Usulan' => $promotion->jabatan_baru, 'BAND Usulan' => $promotion->band_baru, 'JG Usulan' => $promotion->jg_baru, 'TMT' => $promotion->tmt->format('d M Y')] as $label => $value)<div><dt class="text-xs text-slate-400">{{ $label }}</dt><dd class="font-medium text-slate-700">{{ $value }}</dd></div>@endforeach</dl>
-                    </div>
-                </div>
+                    @include('components.personnel-movement-detail-summary', [
+                        'movement' => $promotion,
+                        'movementLabel' => 'Promosi',
+                        'statusLabel' => $status->label(),
+                    ])
 
-                <div class="mt-6 rounded-xl border border-slate-200 p-4">
-                    <div class="flex flex-wrap items-center justify-between gap-2"><h4 class="font-semibold text-slate-900">Timeline Persetujuan</h4><span class="text-xs text-slate-500">Status: {{ $status->label() }}@if($promotion->finalized_at) · Final {{ $promotion->finalized_at->format('d M Y H:i') }}@endif</span></div>
+                <section class="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex items-center gap-2 text-slate-800">
+                            <span class="flex h-6 w-6 items-center justify-center rounded-full border-2 border-sky-700 text-xs font-bold text-sky-700">✓</span>
+                            <h4 class="font-display font-bold">Timeline Persetujuan</h4>
+                        </div>
+                        <span class="text-xs font-semibold text-slate-500">Status: {{ $status->label() }}@if($promotion->finalized_at) · Final {{ $promotion->finalized_at->format('d M Y H:i') }}@endif</span>
+                    </div>
                     @if ($promotion->approvals->whereNull('approval_round')->isNotEmpty())
                         <div class="mt-4 rounded-lg bg-slate-50 p-3"><p class="text-sm font-semibold text-slate-700">Riwayat persetujuan lama</p>@foreach ($promotion->approvals->whereNull('approval_round') as $approval)<p class="mt-2 text-xs text-slate-600">{{ $approval->approver_name_snapshot ?? $approval->manager?->name ?? 'User tidak tersedia' }} — {{ $approval->status->label() }} — {{ ($approval->approved_at ?? $approval->created_at)?->format('d M Y H:i') }}</p>@endforeach</div>
                     @endif
@@ -304,8 +338,11 @@
                                         $isActive = $round === $promotion->approval_round && $promotion->current_approval_step === $step && $status === \App\Enums\PromotionStatus::WaitingApproval;
                                         $stepConfig = $isActive ? $approvalConfiguration->get($step) : null;
                                     @endphp
-                                    <div class="rounded-lg border p-3 {{ $isActive ? 'border-sky-200 bg-sky-50' : 'border-slate-200' }}">
-                                        <p class="text-xs font-bold uppercase text-slate-500">Tahap {{ $step }}</p>
+                                    <div class="rounded-xl border p-3 {{ $decision?->status === \App\Enums\PromotionApprovalStatus::Approved ? 'border-emerald-200 bg-emerald-50' : ($isActive ? 'border-sky-200 bg-sky-50' : 'border-slate-200 bg-slate-50') }}">
+                                        <div class="flex items-center gap-2.5">
+                                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold {{ $decision?->status === \App\Enums\PromotionApprovalStatus::Approved ? 'bg-emerald-500 text-white' : ($isActive ? 'bg-sky-100 text-sky-700' : 'bg-slate-200 text-slate-500') }}">{{ $decision?->status === \App\Enums\PromotionApprovalStatus::Approved ? '✓' : $step }}</span>
+                                            <p class="text-xs font-bold uppercase text-slate-500">Tahap {{ $step }}</p>
+                                        </div>
                                         @if ($decision)
                                             <p class="mt-2 text-sm font-semibold text-slate-800">{{ $decision->approver_name_snapshot ?? $decision->manager?->name ?? 'User tidak tersedia' }}</p>
                                             <p class="text-xs text-slate-500">{{ $decision->approver_number_snapshot ?: 'Nomor tidak tercatat' }} · {{ $decision->approver_role_snapshot ?: 'Role tidak tercatat' }}</p>
@@ -324,7 +361,7 @@
                     @else
                         <p class="mt-3 text-sm text-slate-500">Belum diajukan ke workflow baru.</p>
                     @endif
-                </div>
+                </section>
 
                 @if ($isActiveApprover)
                     <form method="POST" action="{{ route('promosi.send-back', $promotion) }}" class="mt-6 rounded-xl border border-rose-200 bg-rose-50 p-4"
@@ -339,11 +376,23 @@
                 @endif
 
                 @can('update', $promotion)
-                    <details class="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4" @if (old('_form') === "edit-{$promotion->id}") open @endif>
-                        <summary class="cursor-pointer text-sm font-semibold text-slate-700">Edit Data Promosi</summary>
+                    <details id="promotion-edit-{{ $promotion->id }}" class="mt-5 scroll-mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5" @if (old('_form') === "edit-{$promotion->id}") open @endif>
+                        <summary class="cursor-pointer font-display text-sm font-bold text-slate-800">Edit Data Promosi</summary>
                         @include('pages.promosi._form', ['action' => route('promosi.update', $promotion), 'method' => 'PUT', 'formKey' => "edit-{$promotion->id}", 'submitLabel' => 'Simpan Perubahan'])
                     </details>
                 @endcan
+                </div>
+                <footer class="flex flex-none flex-col-reverse gap-3 border-t border-slate-200 bg-white/95 px-4 py-4 backdrop-blur sm:flex-row sm:justify-end sm:px-6 lg:px-8">
+                    <button type="button" onclick="this.closest('dialog').close()" class="ui-button ui-button-secondary w-full sm:w-auto">Tutup</button>
+                    @can('update', $promotion)
+                        <button type="button"
+                            onclick="const panel = document.getElementById('promotion-edit-{{ $promotion->id }}'); panel.open = true; panel.scrollIntoView({ behavior: 'smooth', block: 'start' });"
+                            class="ui-button ui-button-primary w-full sm:w-auto">
+                            <x-dashboard-icon name="edit" class="h-4 w-4" />
+                            Edit Data
+                        </button>
+                    @endcan
+                </footer>
             </section>
         </dialog>
     @endforeach

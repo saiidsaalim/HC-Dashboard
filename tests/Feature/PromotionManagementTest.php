@@ -6,6 +6,7 @@ use App\Enums\PromotionApprovalStatus;
 use App\Enums\PromotionStatus;
 use App\Enums\UserRole;
 use App\Models\Department;
+use App\Models\Directorate;
 use App\Models\Employee;
 use App\Models\EmployeePromotion;
 use App\Models\Position;
@@ -16,7 +17,6 @@ use App\Models\User;
 use App\Services\Personnel\PromotionApprovalWorkflowService;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Testing\TestResponse;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -26,6 +26,31 @@ use ZipArchive;
 class PromotionManagementTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_form_uses_level_terms_and_no_legacy_term(): void
+    {
+        $response = $this->actingAs($this->user(UserRole::SUPER_ADMIN))->get(route('promosi'));
+
+        $response
+            ->assertOk()
+            ->assertSee('Tambah Data Promosi')
+            ->assertSee('Lengkapi data utama dan bandingkan organisasi saat ini dengan organisasi tujuan sebelum menyimpan.')
+            ->assertSeeInOrder(['Cari Employee', 'Organisasi Saat Ini', 'Organisasi Tujuan', 'Detail Perubahan'])
+            ->assertSee('aria-describedby="manual-promotion-description"', escape: false)
+            ->assertSee('Level Lama')
+            ->assertSee('Level Baru')
+            ->assertSee('name="level_lama"', escape: false)
+            ->assertSee('name="level_baru"', escape: false)
+            ->assertSee('<select id="create-level_baru"', escape: false)
+            ->assertSee('w-full min-w-[73rem] table-fixed text-left text-sm whitespace-nowrap', escape: false)
+            ->assertSee('w-60 px-4 py-3">Workflow', escape: false)
+            ->assertDontSee('BA'.'ND');
+
+        $document = new \DOMDocument;
+        @$document->loadHTML($response->getContent());
+        $xpath = new \DOMXPath($document);
+        $this->assertSame(0, $xpath->query('//form//form')->length, 'Form Promosi tidak boleh bersarang.');
+    }
 
     public function test_guest_is_redirected_and_only_management_roles_can_view_promotions(): void
     {
@@ -220,8 +245,8 @@ class PromotionManagementTest extends TestCase
 
         $payload = $this->payload($employee, [
             'sap' => 'SAP-DIMANIPULASI',
-            'nama' => 'Nama Snapshot Dikoreksi',
-            'departemen_lama' => 'Department Snapshot Dikoreksi',
+            'nama' => 'Nama Employee',
+            'departemen_lama' => 'Canonical Department',
             'jabatan_lama' => 'Jabatan Snapshot Dikoreksi',
             'verification_status' => PromotionStatus::Final->value,
             'finalized_at' => now()->toDateTimeString(),
@@ -232,8 +257,8 @@ class PromotionManagementTest extends TestCase
 
         $this->assertDatabaseHas('employee_promotions', [
             'sap' => 'SAP-CANON',
-            'nama' => 'Nama Snapshot Dikoreksi',
-            'departemen_lama' => 'Department Snapshot Dikoreksi',
+            'nama' => 'Nama Employee',
+            'departemen_lama' => 'Canonical Department',
             'verification_status' => PromotionStatus::Draft->value,
             'finalized_at' => null,
         ]);
@@ -297,7 +322,7 @@ class PromotionManagementTest extends TestCase
                 $withoutPersonalNumberOption = $employeeOptions->firstWhere('id', $withoutPersonalNumber->id);
                 $duplicateNameOption = $employeeOptions->firstWhere('id', $duplicateNameEmployee->id);
 
-                return $employeeOptions->count() === 3
+                return $employeeOptions->count() === 4
                     && $canonicalOption['sap'] === '4809'
                     && $canonicalOption['personal_number'] === '10002345'
                     && $canonicalOption['name'] === 'FATMA HAERANI, S.AP.'
@@ -338,9 +363,9 @@ class PromotionManagementTest extends TestCase
         $this->actingAs($superAdmin)->from(route('promosi'))->post(route('promosi.store'), [
             ...$this->payload($canonicalEmployee),
             '_form' => 'create',
-            'nama' => '',
+            'tmt' => '',
         ])->assertRedirect(route('promosi'))
-            ->assertSessionHasErrors('nama')
+            ->assertSessionHasErrors('tmt')
             ->assertSessionHasInput('employee_id', $canonicalEmployee->id);
         $this->get(route('promosi'))
             ->assertOk()
@@ -366,7 +391,7 @@ class PromotionManagementTest extends TestCase
             ->assertOk()
             ->assertSee('Legacy Department', escape: false)
             ->assertSee('Legacy Position')
-            ->assertDontSee('JANGAN-JADI-PG');
+            ->assertSee('JANGAN-JADI-PG');
 
         $this->actingAs($superAdmin)->post(route('promosi.store'), [
             ...$this->payload($employee),
@@ -611,7 +636,7 @@ class PromotionManagementTest extends TestCase
         $promotion->refresh();
         $this->assertSame(2, $promotion->approval_round);
         $this->assertSame(1, $promotion->current_approval_step);
-        $this->assertSame('General Manager', $promotion->jabatan_baru);
+        $this->assertSame('Position '.$employee->id, $promotion->jabatan_baru);
         $this->assertSame(2, $promotion->approvals()->where('approval_round', 1)->count());
         $this->assertSame(0, $promotion->approvals()->where('approval_round', 2)->count());
     }
@@ -635,6 +660,25 @@ class PromotionManagementTest extends TestCase
         $this->actingAs($superAdmin)->put(route('promosi.update', $promotion), $this->payload($employee))->assertForbidden();
         $this->actingAs($approvers[3])->post(route('promosi.send-back', $promotion), ['return_note' => 'Terlambat'])
             ->assertForbidden();
+    }
+
+    public function test_bulk_delete_action_is_displayed_above_the_promotion_table(): void
+    {
+        $superAdmin = $this->user(UserRole::SUPER_ADMIN);
+        $this->promotion($this->employee('SAP-BULK-DELETE'));
+
+        $response = $this->actingAs($superAdmin)->get(route('promosi'));
+
+        $response
+            ->assertOk()
+            ->assertSeeInOrder([
+                'id="select-all-promotions"',
+                'form="bulk-delete-promotions"',
+                '<form id="bulk-delete-promotions"',
+            ], escape: false)
+            ->assertSee('Hapus terpilih');
+
+        $this->assertSame(1, substr_count($response->getContent(), 'Hapus terpilih'));
     }
 
     public function test_changing_active_approver_applies_immediately_without_changing_completed_approval(): void
@@ -692,33 +736,6 @@ class PromotionManagementTest extends TestCase
         $this->assertSame(PromotionStatus::Draft->value, $promotion->fresh()->verification_status);
     }
 
-    public function test_import_is_super_admin_only_atomic_requires_existing_employee_and_always_creates_draft(): void
-    {
-        $superAdmin = $this->user(UserRole::SUPER_ADMIN);
-        $admin = $this->user(UserRole::ADMIN);
-        $this->employee('SAP-IMPORT');
-        $header = 'SAP,Nama,Departemen Lama,Jabatan Lama,Departemen Baru,Jabatan Baru,TMT,PG,Band Lama,JG Lama,Band Baru,JG Baru,Status';
-        $validRow = 'SAP-IMPORT,Budi,Operasional,Staff,Keuangan,Supervisor,2026-10-01,PG-1,B1,JG-1,B2,JG-2,Final';
-        $invalidRow = 'SAP-TIDAK-ADA,Siti,Operasional,Staff,Keuangan,Supervisor,2026-10-01,PG-1,B1,JG-1,B2,JG-2,Final';
-
-        $adminFile = UploadedFile::fake()->createWithContent('promosi.csv', "{$header}\n{$validRow}\n");
-        $this->actingAs($admin)->post(route('promosi.import'), ['file' => $adminFile])->assertForbidden();
-
-        $invalidFile = UploadedFile::fake()->createWithContent('promosi.csv', "{$header}\n{$validRow}\n{$invalidRow}\n");
-        $this->actingAs($superAdmin)->post(route('promosi.import'), ['file' => $invalidFile])
-            ->assertSessionHasErrors('file');
-        $this->assertDatabaseCount('employee_promotions', 0);
-
-        $validFile = UploadedFile::fake()->createWithContent('promosi.csv', "{$header}\n{$validRow}\n");
-        $this->actingAs($superAdmin)->post(route('promosi.import'), ['file' => $validFile])
-            ->assertRedirect(route('promosi'));
-        $this->assertDatabaseHas('employee_promotions', [
-            'sap' => 'SAP-IMPORT',
-            'verification_status' => PromotionStatus::Draft->value,
-            'approval_round' => 0,
-        ]);
-    }
-
     public function test_list_is_paginated_search_and_filters_persist_and_detail_shows_approver_timeline(): void
     {
         $admin = $this->user(UserRole::ADMIN);
@@ -732,10 +749,14 @@ class PromotionManagementTest extends TestCase
             ->assertSee('page=2', escape: false)
             ->assertSee('search=SAP-PAGE', escape: false)
             ->assertSee('status=draft', escape: false)
-            ->assertSee('Data Pegawai')
-            ->assertSee('Posisi Saat Ini')
-            ->assertSee('Usulan Promosi')
-            ->assertSee('Timeline Persetujuan')
+            ->assertSeeInOrder([
+                'Detail Promosi HC',
+                'Organisasi Sebelumnya',
+                'Organisasi Tujuan',
+                'Detail Perubahan',
+                'Metadata Promosi',
+                'Timeline Persetujuan',
+            ])
             ->assertDontSee('Import Promosi')
             ->assertDontSee('Buat Promosi');
     }
@@ -799,7 +820,8 @@ class PromotionManagementTest extends TestCase
         $this->assertStringContainsString('Keuangan', $xml);
         $this->assertStringContainsString('Supervisor', $xml);
         $this->assertStringContainsString('PG-1', $xml);
-        $this->assertStringContainsString('BAND Saat Ini: B1', $xml);
+        $this->assertStringContainsString('Level Lama: B1', $xml);
+        $this->assertStringContainsString('Level Baru: B2', $xml);
         $this->assertStringContainsString('JG Usulan: JG-2', $xml);
         $this->assertStringContainsString('Approver Cetak 1', $xml);
         $this->assertStringContainsString('Approver Cetak 4', $xml);
@@ -895,7 +917,7 @@ class PromotionManagementTest extends TestCase
     /** @param array<string, mixed> $attributes */
     private function employee(string $sap, array $attributes = []): Employee
     {
-        return Employee::query()->create(['sap' => $sap, ...$attributes]);
+        return Employee::query()->create(['sap' => $sap, 'employee_subgroup' => 'B1', ...$attributes]);
     }
 
     /** @param array<string, mixed> $overrides */
@@ -904,8 +926,11 @@ class PromotionManagementTest extends TestCase
         PromotionStatus $status = PromotionStatus::Draft,
         array $overrides = [],
     ): EmployeePromotion {
+        $payload = $this->payload($employee);
+        unset($payload['employee_id']);
+
         return EmployeePromotion::query()->create([
-            ...$this->snapshot($employee->sap),
+            ...$payload,
             'verification_status' => $status->value,
             'approval_round' => 0,
             ...$overrides,
@@ -915,7 +940,71 @@ class PromotionManagementTest extends TestCase
     /** @param array<string, mixed> $overrides @return array<string, mixed> */
     private function payload(Employee $employee, array $overrides = []): array
     {
-        return ['employee_id' => $employee->id, ...$this->snapshot($employee->sap), ...$overrides];
+        Employee::query()->updateOrCreate(
+            ['sap' => 'LEVEL-OPTION-B2'],
+            ['employee_subgroup' => 'B2'],
+        );
+        $employee->refresh();
+        $directorate = $employee->organizationDirectorate;
+        $department = $employee->organizationDepartment;
+        $unit = $employee->unit;
+        $position = $employee->organizationPosition;
+
+        if ($directorate === null) {
+            $directorate = Directorate::query()->create([
+                'code' => 'DIR-'.$employee->id,
+                'name' => 'Directorate '.$employee->id,
+            ]);
+        }
+
+        if ($department === null) {
+            $department = Department::query()->create([
+                'directorate_id' => $directorate->id,
+                'code' => 'DEP-'.$employee->id,
+                'name' => 'Department '.$employee->id,
+            ]);
+        } elseif ($department->directorate_id === null) {
+            $department->update(['directorate_id' => $directorate->id]);
+        }
+
+        if ($unit === null) {
+            $unit = Unit::query()->create([
+                'department_id' => $department->id,
+                'code' => 'UNIT-'.$employee->id,
+                'name' => 'Unit '.$employee->id,
+            ]);
+        }
+
+        if ($position === null) {
+            $position = Position::query()->create([
+                'unit_id' => $unit->id,
+                'code' => 'POS-'.$employee->id,
+                'name' => 'Position '.$employee->id,
+            ]);
+        }
+
+        $employee->update([
+            'directorate_id' => $directorate->id,
+            'department_id' => $department->id,
+            'unit_id' => $unit->id,
+            'position_id' => $position->id,
+        ]);
+
+        return [
+            'employee_id' => $employee->id,
+            'old_directorate_id' => $directorate->id,
+            'old_department_id' => $department->id,
+            'old_unit_id' => $unit->id,
+            'old_section_id' => $employee->section_id,
+            'old_position_id' => $position->id,
+            'new_directorate_id' => $directorate->id,
+            'new_department_id' => $department->id,
+            'new_unit_id' => $unit->id,
+            'new_section_id' => $employee->section_id,
+            'new_position_id' => $position->id,
+            ...$this->snapshot($employee->sap),
+            ...$overrides,
+        ];
     }
 
     /** @return array<string, string> */
@@ -930,9 +1019,9 @@ class PromotionManagementTest extends TestCase
             'jabatan_baru' => 'Supervisor',
             'tmt' => '2026-12-01',
             'pg' => 'PG-1',
-            'band_lama' => 'B1',
+            'level_lama' => 'B1',
             'jg_lama' => 'JG-1',
-            'band_baru' => 'B2',
+            'level_baru' => 'B2',
             'jg_baru' => 'JG-2',
         ];
     }

@@ -18,6 +18,8 @@ class PromotionApprovalWorkflowService
 {
     public const REQUIRED_STEPS = 4;
 
+    public function __construct(private readonly EmployeeMovementFinalizationService $finalizationService) {}
+
     /** @return Collection<int, PromotionApprovalConfig> */
     public function configuration(): Collection
     {
@@ -87,6 +89,7 @@ class PromotionApprovalWorkflowService
             $this->createDecision($lockedPromotion, $approver, $step, PromotionApprovalStatus::Approved);
 
             if ($step === self::REQUIRED_STEPS) {
+                $this->finalizationService->apply($lockedPromotion);
                 $lockedPromotion->update([
                     'verification_status' => PromotionStatus::Final->value,
                     'current_approval_step' => null,

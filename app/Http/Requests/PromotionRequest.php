@@ -3,9 +3,8 @@
 namespace App\Http\Requests;
 
 use Illuminate\Contracts\Validation\ValidationRule;
-use Illuminate\Foundation\Http\FormRequest;
 
-abstract class PromotionRequest extends FormRequest
+abstract class PromotionRequest extends PersonnelActionRequest
 {
     /**
      * Get the validation rules that apply to the request.
@@ -14,26 +13,14 @@ abstract class PromotionRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
-            'employee_id' => ['required', 'integer', 'exists:employees,id'],
-            'nama' => ['required', 'string', 'max:255'],
-            'departemen_lama' => ['required', 'string', 'max:255'],
-            'jabatan_lama' => ['required', 'string', 'max:255'],
-            'departemen_baru' => ['required', 'string', 'max:255'],
-            'jabatan_baru' => ['required', 'string', 'max:255'],
-            'tmt' => ['required', 'date'],
-            'pg' => ['required', 'string', 'max:255'],
-            'band_lama' => ['required', 'string', 'max:255'],
-            'jg_lama' => ['required', 'string', 'max:255'],
-            'band_baru' => ['required', 'string', 'max:255'],
-            'jg_baru' => ['required', 'string', 'max:255'],
-        ];
+        return parent::rules();
     }
 
     /** @return array<string, string> */
     public function messages(): array
     {
         return [
+            ...parent::messages(),
             'employee_id.required' => 'Employee wajib dipilih.',
             'employee_id.exists' => 'Employee yang dipilih tidak tersedia.',
             '*.required' => ':attribute wajib diisi.',
@@ -53,9 +40,9 @@ abstract class PromotionRequest extends FormRequest
             'jabatan_baru' => 'Jabatan Usulan',
             'tmt' => 'TMT',
             'pg' => 'PG',
-            'band_lama' => 'BAND Saat Ini',
+            'level_lama' => 'Level Lama',
             'jg_lama' => 'JG Saat Ini',
-            'band_baru' => 'BAND Usulan',
+            'level_baru' => 'Level Baru',
             'jg_baru' => 'JG Usulan',
         ];
     }

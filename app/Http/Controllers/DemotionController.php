@@ -2,43 +2,63 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\StorePersonnelActionRequest;
-use App\Http\Requests\UpdatePersonnelActionRequest;
-use App\Imports\DemotionImport;
+use App\Http\Requests\StoreDemotionRequest;
+use App\Http\Requests\UpdateDemotionRequest;
+use App\Models\Employee;
 use App\Models\EmployeeDemotion;
 use App\Models\User;
 use App\Services\Personnel\ApprovalService;
+use App\Services\Personnel\MovementApprovalWorkflowService;
 use App\Services\Personnel\PersonnelActionGuard;
+use App\Services\Personnel\PersonnelMovementFormDataService;
+use App\Services\Personnel\PersonnelMovementSnapshotService;
 use DOMDocument;
+use DOMNode;
 use DOMNodeList;
 use DOMXPath;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use ZipArchive;
 
 class DemotionController extends Controller
 {
-    public function index(Request $request): View
-    {
+    public function index(
+        Request $request,
+        PersonnelMovementFormDataService $formDataService,
+        MovementApprovalWorkflowService $workflow,
+    ): View {
+        Gate::authorize('viewAny', EmployeeDemotion::class);
         $search = trim((string) $request->input('search', ''));
-        $demotionQuery = EmployeeDemotion::query();
+        $filter = in_array($request->input('status'), ['draft', 'waiting', 'final'], true)
+            ? (string) $request->input('status')
+            : 'all';
+        $demotionQuery = EmployeeDemotion::query()->with(['employee', 'approvals.manager']);
 
         if ($search !== '') {
             $demotionQuery->where(function (Builder $query) use ($search): void {
                 foreach ([
                     'sap', 'nama', 'departemen_lama', 'jabatan_lama', 'departemen_baru', 'jabatan_baru',
-                    'pg', 'band_lama', 'jg_lama', 'band_baru', 'jg_baru',
+                    'pg', 'level_lama', 'jg_lama', 'level_baru', 'jg_baru',
                 ] as $column) {
                     $query->orWhere($column, 'like', "%{$search}%");
                 }
             });
         }
 
+        if ($filter === 'draft') {
+            $demotionQuery->where('verification_status', 'Draft');
+        } elseif ($filter === 'waiting') {
+            $demotionQuery->where('verification_status', 'Pending');
+        } elseif ($filter === 'final') {
+            $demotionQuery->where('verification_status', 'Final');
+        }
+
         return view('pages.demosi', [
-            'demotions' => $demotionQuery->with('approvals')->latest('tmt')->latest()->limit(100)->get(),
+            'demotions' => $demotionQuery->latest('tmt')->latest()->paginate(15)->withQueryString(),
             'totalDemotions' => EmployeeDemotion::query()->count(),
             'pendingDemotions' => EmployeeDemotion::query()->where('verification_status', 'Pending')->count(),
             'approvedDemotionsThisYear' => EmployeeDemotion::query()
@@ -46,45 +66,56 @@ class DemotionController extends Controller
                 ->whereYear('finalized_at', now()->year)
                 ->count(),
             'search' => $search,
+            'filter' => $filter,
+            'employeeOptions' => $formDataService->employees(),
+            ...$formDataService->organization(),
+            'approvalConfiguration' => $workflow->configuration(EmployeeDemotion::class),
+            'approvalConfigurationComplete' => $workflow->isConfigurationComplete(EmployeeDemotion::class),
         ]);
     }
 
-    public function upload(Request $request, DemotionImport $demotionImport): RedirectResponse
+    public function store(StoreDemotionRequest $request, PersonnelMovementSnapshotService $snapshotService): RedirectResponse
     {
-        $validated = $request->validate([
-            'file' => ['required', 'file', 'mimes:xlsx,csv,txt', 'max:5120'],
+        $employee = Employee::query()->findOrFail($request->integer('employee_id'));
+        EmployeeDemotion::query()->create([
+            ...$snapshotService->fromEmployee($employee, $request->validated()),
+            'verification_status' => 'Draft',
         ]);
 
-        $created = $demotionImport->import($validated['file']);
-
-        return to_route('demosi')->with('status', "Import berhasil: {$created} data demosi disimpan.");
-    }
-
-    public function store(StorePersonnelActionRequest $request): RedirectResponse
-    {
-        EmployeeDemotion::create($request->validated());
-
-        return to_route('demosi')->with('status', 'Data demosi berhasil ditambahkan.');
+        return to_route('demosi')->with('status', 'Data demosi berhasil disimpan sebagai Draft.');
     }
 
     public function update(
-        UpdatePersonnelActionRequest $request,
+        UpdateDemotionRequest $request,
         EmployeeDemotion $employeeDemotion,
         PersonnelActionGuard $personnelActionGuard,
+        PersonnelMovementSnapshotService $snapshotService,
     ): RedirectResponse {
-        $personnelActionGuard->update($employeeDemotion, $request->validated());
+        $employee = Employee::query()->findOrFail($request->integer('employee_id'));
+        $approvalsReset = $personnelActionGuard->update(
+            $employeeDemotion,
+            $snapshotService->fromEmployee($employee, $request->validated()),
+        );
 
-        return to_route('demosi')->with('status', 'Data demosi berhasil diperbarui.');
+        return to_route('demosi')->with(
+            'status',
+            $approvalsReset
+                ? 'Data demosi diperbarui dan persetujuan lama direset karena isi usulan berubah.'
+                : 'Data demosi berhasil diperbarui.',
+        );
     }
 
     public function destroyMany(Request $request, PersonnelActionGuard $personnelActionGuard): RedirectResponse
     {
-        abort_unless($request->user()?->hasPermission('demotions.delete'), 403);
-
         $validated = $request->validate([
             'demotion_ids' => ['required', 'array', 'min:1'],
             'demotion_ids.*' => ['integer', 'distinct', 'exists:employee_demotions,id'],
         ]);
+
+        $demotions = EmployeeDemotion::query()->whereIn('id', $validated['demotion_ids'])->get();
+        foreach ($demotions as $demotion) {
+            Gate::authorize('delete', $demotion);
+        }
 
         $deleted = $personnelActionGuard->deleteMany(
             EmployeeDemotion::query()->whereIn('id', $validated['demotion_ids']),
@@ -96,7 +127,8 @@ class DemotionController extends Controller
     public function approve(Request $request, EmployeeDemotion $employeeDemotion, ApprovalService $approvalService): RedirectResponse
     {
         $manager = $request->user();
-        abort_unless($manager instanceof User && $manager->hasPermission('demotions.approve'), 403);
+        abort_unless($manager instanceof User, 403);
+        Gate::authorize('approve', $employeeDemotion);
 
         $alreadyApproved = $approvalService->approve($employeeDemotion, $manager);
 
@@ -108,10 +140,19 @@ class DemotionController extends Controller
         );
     }
 
+    public function submit(
+        EmployeeDemotion $employeeDemotion,
+        MovementApprovalWorkflowService $workflow,
+    ): RedirectResponse {
+        Gate::authorize('submit', $employeeDemotion);
+        $workflow->submit($employeeDemotion);
+
+        return to_route('demosi')->with('status', 'Demosi berhasil diajukan ke approver Tahap 1.');
+    }
+
     public function print(Request $request, EmployeeDemotion $employeeDemotion): BinaryFileResponse
     {
-        abort_unless($request->user()?->hasPermission('demotions.print'), 403);
-        abort_unless($employeeDemotion->verification_status === 'Final', 404, 'Data demosi belum final sehingga belum dapat dicetak.');
+        Gate::authorize('print', $employeeDemotion);
 
         $templatePath = storage_path('template/demosi-template.docx');
         abort_unless(file_exists($templatePath), 404, 'Template Word belum tersedia.');
@@ -173,16 +214,70 @@ class DemotionController extends Controller
             foreach ([
                 '[PEGAWAI]' => $employeeDemotion->nama,
                 '[SAP]' => $employeeDemotion->sap,
+                '[DIREKTORAT LAMA]' => $employeeDemotion->direktorat_lama ?? '',
+                '[DEPARTEMEN LAMA]' => $employeeDemotion->departemen_lama,
+                '[UNIT LAMA]' => $employeeDemotion->unit_lama ?? '',
+                '[SECTION LAMA]' => $employeeDemotion->section_lama ?? '',
+                '[JABATAN LAMA]' => $employeeDemotion->jabatan_lama,
+                '[DIREKTORAT BARU]' => $employeeDemotion->direktorat_baru ?? '',
+                '[DEPARTEMEN BARU]' => $employeeDemotion->departemen_baru,
+                '[UNIT BARU]' => $employeeDemotion->unit_baru ?? '',
+                '[SECTION BARU]' => $employeeDemotion->section_baru ?? '',
                 '[JABATAN BARU]' => $employeeDemotion->jabatan_baru,
+                '[TMT]' => $employeeDemotion->tmt?->format('d-m-Y') ?? '',
+                '[PG]' => $employeeDemotion->pg,
+                '[LEVEL LAMA]' => $employeeDemotion->level_lama,
+                '[JG LAMA]' => $employeeDemotion->jg_lama,
+                '[LEVEL BARU]' => $employeeDemotion->level_baru,
+                '[JG BARU]' => $employeeDemotion->jg_baru,
             ] as $placeholder => $replacement) {
                 $this->replacePlaceholderInTextNodes($textNodes, $placeholder, $replacement);
             }
         }
 
+        $this->appendLevelSummary($document, $xpath, $employeeDemotion);
+
         $updatedXml = $document->saveXML();
         abort_unless($updatedXml !== false, 500, 'Template Word tidak dapat diproses.');
 
         return $updatedXml;
+    }
+
+    private function appendLevelSummary(
+        DOMDocument $document,
+        DOMXPath $xpath,
+        EmployeeDemotion $employeeDemotion,
+    ): void {
+        $body = $xpath->query('//w:body')->item(0);
+        abort_unless($body instanceof DOMNode, 500, 'Struktur isi template Word demosi tidak valid.');
+        $sectionProperties = $xpath->query('./w:sectPr', $body)->item(0);
+
+        foreach ([
+            'Level Lama: '.$employeeDemotion->level_lama,
+            'Level Baru: '.$employeeDemotion->level_baru,
+        ] as $line) {
+            $paragraph = $document->createElementNS(
+                'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
+                'w:p',
+            );
+            $run = $document->createElementNS(
+                'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
+                'w:r',
+            );
+            $text = $document->createElementNS(
+                'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
+                'w:t',
+            );
+            $text->textContent = $line;
+            $run->appendChild($text);
+            $paragraph->appendChild($run);
+
+            if ($sectionProperties instanceof DOMNode) {
+                $body->insertBefore($paragraph, $sectionProperties);
+            } else {
+                $body->appendChild($paragraph);
+            }
+        }
     }
 
     private function replacePlaceholderInTextNodes(DOMNodeList $textNodes, string $placeholder, string $replacement): void

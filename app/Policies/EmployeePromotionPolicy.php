@@ -35,11 +35,6 @@ class EmployeePromotionPolicy
         return $user->hasPermission('promotions.delete') && $employeePromotion->isEditable();
     }
 
-    public function import(User $user): bool
-    {
-        return $user->hasPermission('promotions.import');
-    }
-
     public function submit(User $user, EmployeePromotion $employeePromotion): bool
     {
         return $user->hasPermission('promotions.submit') && $employeePromotion->statusEnum()->canBeSubmitted();

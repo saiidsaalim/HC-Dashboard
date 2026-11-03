@@ -650,9 +650,9 @@ class EmployeeImportStagingTest extends TestCase
             'jabatan_baru' => 'New Position',
             'tmt' => '2026-01-01',
             'pg' => 'PG',
-            'band_lama' => 'B1',
+            'level_lama' => 'B1',
             'jg_lama' => 'J1',
-            'band_baru' => 'B2',
+            'level_baru' => 'B2',
             'jg_baru' => 'J2',
             'verification_status' => 'Pending',
         ]);
@@ -689,9 +689,9 @@ class EmployeeImportStagingTest extends TestCase
             'jabatan_baru' => 'New Position',
             'tmt' => '2026-01-01',
             'pg' => 'PG',
-            'band_lama' => 'B1',
+            'level_lama' => 'B1',
             'jg_lama' => 'J1',
-            'band_baru' => 'B2',
+            'level_baru' => 'B2',
             'jg_baru' => 'J2',
             'verification_status' => 'Pending',
         ]);

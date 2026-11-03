@@ -149,30 +149,30 @@ class EmployeeManagementTest extends TestCase
     {
         $user = User::factory()->create();
         Employee::create($this->employeeAttributes('SAP-LEVEL-MALE', [
-            'employee_subgroup' => 'Band 1',
+            'employee_subgroup' => 'Level 1',
             'gender_key' => 'M',
         ]));
         Employee::create($this->employeeAttributes('SAP-LEVEL-FEMALE', [
-            'employee_subgroup' => 'Band 1',
+            'employee_subgroup' => 'Level 1',
             'gender_key' => 'F',
         ]));
         Employee::create($this->employeeAttributes('SAP-OTHER-LEVEL', [
-            'employee_subgroup' => 'Band 2',
+            'employee_subgroup' => 'Level 2',
             'gender_key' => 'M',
         ]));
 
         $this->actingAs($user)->get(route('data-pegawai', [
-            'level' => 'Band 1',
+            'level' => 'Level 1',
             'gender' => 'M',
         ]))->assertOk()
-            ->assertViewHas('level', 'Band 1')
+            ->assertViewHas('level', 'Level 1')
             ->assertViewHas('gender', 'M')
             ->assertSee('SAP-LEVEL-MALE')
             ->assertDontSee('SAP-LEVEL-FEMALE')
             ->assertDontSee('SAP-OTHER-LEVEL')
             ->assertSee('<select name="level" onchange="this.form.submit()"', false)
             ->assertSee('id="employee-status-filter" name="status"', false)
-            ->assertSee('<option value="Band 1" selected>Band 1</option>', false)
+            ->assertSee('<option value="Level 1" selected>Level 1</option>', false)
             ->assertSee('<option value="M" selected>M</option>', false);
     }
 
