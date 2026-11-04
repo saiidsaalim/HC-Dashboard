@@ -31,6 +31,16 @@ export async function initializeWlaDashboard() {
     const ApexCharts = (await import('apexcharts')).default;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const chartInstances = [];
+    const chartColors = () => {
+        const isDark = document.documentElement.classList.contains('dark');
+
+        return {
+            grid: isDark ? '#334155' : '#e2e8f0',
+            text: isDark ? '#cbd5e1' : '#64748b',
+            tooltip: isDark ? 'dark' : 'light',
+        };
+    };
+    const initialChartColors = chartColors();
     const baseOptions = {
         chart: {
             height: 300,
@@ -40,17 +50,17 @@ export async function initializeWlaDashboard() {
             animations: { enabled: !reduceMotion },
         },
         dataLabels: { enabled: false },
-        grid: { borderColor: '#e2e8f0', strokeDashArray: 4 },
+        grid: { borderColor: initialChartColors.grid, strokeDashArray: 4 },
         legend: {
             fontSize: '12px',
-            labels: { colors: '#475569' },
+            labels: { colors: initialChartColors.text },
             markers: { size: 5 },
         },
         noData: {
             text: 'Belum tersedia data untuk ditampilkan',
-            style: { color: '#64748b', fontSize: '13px' },
+            style: { color: initialChartColors.text, fontSize: '13px' },
         },
-        tooltip: { theme: 'light' },
+        tooltip: { theme: initialChartColors.tooltip },
     };
 
     const distributionElement = dashboard.querySelector('[data-wla-distribution-chart]');
@@ -111,14 +121,14 @@ export async function initializeWlaDashboard() {
                 categories: data.categories ?? [],
                 axisBorder: { color: '#cbd5e1' },
                 axisTicks: { color: '#cbd5e1' },
-                labels: { style: { colors: '#64748b', fontSize: '11px' } },
+                labels: { style: { colors: initialChartColors.text, fontSize: '11px' } },
             },
             yaxis: {
                 min: 0,
                 forceNiceScale: true,
                 labels: {
                     formatter: (value) => numberFormatter.format(value),
-                    style: { colors: '#64748b', fontSize: '11px' },
+                    style: { colors: initialChartColors.text, fontSize: '11px' },
                 },
             },
             legend: { show: false },
@@ -147,7 +157,7 @@ export async function initializeWlaDashboard() {
                 labels: {
                     trim: true,
                     hideOverlappingLabels: true,
-                    style: { colors: '#64748b', fontSize: '10px' },
+                    style: { colors: initialChartColors.text, fontSize: '10px' },
                 },
             },
             yaxis: {
@@ -155,7 +165,7 @@ export async function initializeWlaDashboard() {
                 forceNiceScale: true,
                 labels: {
                     formatter: (value) => numberFormatter.format(value),
-                    style: { colors: '#64748b', fontSize: '11px' },
+                    style: { colors: initialChartColors.text, fontSize: '11px' },
                 },
             },
             legend: { ...baseOptions.legend, position: 'top', horizontalAlign: 'right' },
@@ -165,7 +175,24 @@ export async function initializeWlaDashboard() {
         void chart.render();
     }
 
+    const synchronizeChartTheme = () => {
+        const colors = chartColors();
+
+        chartInstances.forEach((chart) => {
+            void chart.updateOptions({
+                chart: { foreColor: colors.text },
+                grid: { borderColor: colors.grid },
+                legend: { labels: { colors: colors.text } },
+                tooltip: { theme: colors.tooltip },
+                xaxis: { labels: { style: { colors: colors.text } } },
+                yaxis: { labels: { style: { colors: colors.text } } },
+            }, false, false);
+        });
+    };
+    window.addEventListener('themechange', synchronizeChartTheme);
+
     window.addEventListener('pagehide', () => {
+        window.removeEventListener('themechange', synchronizeChartTheme);
         chartInstances.forEach((chart) => chart.destroy());
     }, { once: true });
 }

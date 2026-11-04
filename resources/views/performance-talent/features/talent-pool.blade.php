@@ -4,25 +4,25 @@
         [
             'potential' => 'Tinggi',
             'boxes' => [
-                ['key' => '07', 'number' => '01', 'title' => 'Diam-Diam Jago', 'performance' => 'Rendah', 'background' => '#DFF8EB', 'accent' => '#27C696', 'icon' => 'bulb.svg', 'illustration' => '01_diam_diam_jago.png'],
-                ['key' => '08', 'number' => '02', 'title' => 'Lagi Ngebut', 'performance' => 'Sedang', 'background' => '#E1F0FF', 'accent' => '#378CED', 'icon' => 'trending-up.svg', 'illustration' => '02_lagi_ngebut.png'],
-                ['key' => '09', 'number' => '03', 'title' => 'Rising Star', 'performance' => 'Tinggi', 'background' => '#FFF2BA', 'accent' => '#F3AE13', 'icon' => 'star.svg', 'illustration' => '03_rising_star.png'],
+                ['key' => '07', 'number' => '7', 'title' => 'Diam-Diam Jago', 'performance' => 'Rendah', 'background' => '#DFF8EB', 'accent' => '#27C696', 'icon' => 'bulb.svg', 'illustration' => '01_diam_diam_jago.png'],
+                ['key' => '08', 'number' => '8', 'title' => 'Lagi Ngebut', 'performance' => 'Sedang', 'background' => '#E1F0FF', 'accent' => '#378CED', 'icon' => 'trending-up.svg', 'illustration' => '02_lagi_ngebut.png'],
+                ['key' => '09', 'number' => '9', 'title' => 'Rising Star', 'performance' => 'Tinggi', 'background' => '#FFF2BA', 'accent' => '#F3AE13', 'icon' => 'star.svg', 'illustration' => '03_rising_star.png'],
             ],
         ],
         [
             'potential' => 'Sedang',
             'boxes' => [
-                ['key' => '04', 'number' => '04', 'title' => 'Butuh Arah', 'performance' => 'Rendah', 'background' => '#FFE6EA', 'accent' => '#F47C92', 'icon' => 'signpost.svg', 'illustration' => '04_butuh_arah.png'],
-                ['key' => '05', 'number' => '05', 'title' => 'Tim Andalan', 'performance' => 'Sedang', 'background' => '#EEE3FF', 'accent' => '#9765E8', 'icon' => 'users.svg', 'illustration' => '05_tim_andalan.png'],
-                ['key' => '06', 'number' => '06', 'title' => 'Gaspol', 'performance' => 'Tinggi', 'background' => '#E5F2FF', 'accent' => '#2F91EC', 'icon' => 'rocket.svg', 'illustration' => '06_gaspol.png'],
+                ['key' => '04', 'number' => '4', 'title' => 'Butuh Arah', 'performance' => 'Rendah', 'background' => '#FFE6EA', 'accent' => '#F47C92', 'icon' => 'signpost.svg', 'illustration' => '04_butuh_arah.png'],
+                ['key' => '05', 'number' => '5', 'title' => 'Tim Andalan', 'performance' => 'Sedang', 'background' => '#EEE3FF', 'accent' => '#9765E8', 'icon' => 'users.svg', 'illustration' => '05_tim_andalan.png'],
+                ['key' => '06', 'number' => '6', 'title' => 'Gaspol', 'performance' => 'Tinggi', 'background' => '#E5F2FF', 'accent' => '#2F91EC', 'icon' => 'rocket.svg', 'illustration' => '06_gaspol.png'],
             ],
         ],
         [
             'potential' => 'Rendah',
             'boxes' => [
-                ['key' => '01', 'number' => '07', 'title' => 'Perlu Booster', 'performance' => 'Rendah', 'background' => '#FFEBD8', 'accent' => '#F49B50', 'icon' => 'battery-low.svg', 'illustration' => '07_perlu_booster.png'],
-                ['key' => '02', 'number' => '08', 'title' => 'Aman Terkendali', 'performance' => 'Sedang', 'background' => '#DDF9EE', 'accent' => '#22BE99', 'icon' => 'shield-check.svg', 'illustration' => '08_aman_terkendali.png'],
-                ['key' => '03', 'number' => '09', 'title' => 'Jagonya Eksekusi', 'performance' => 'Tinggi', 'background' => '#F0E5FF', 'accent' => '#9454E7', 'icon' => 'clipboard-check.svg', 'illustration' => '09_jagonya_eksekusi.png'],
+                ['key' => '01', 'number' => '1', 'title' => 'Perlu Booster', 'performance' => 'Rendah', 'background' => '#FFEBD8', 'accent' => '#F49B50', 'icon' => 'battery-low.svg', 'illustration' => '07_perlu_booster.png'],
+                ['key' => '02', 'number' => '2', 'title' => 'Aman Terkendali', 'performance' => 'Sedang', 'background' => '#DDF9EE', 'accent' => '#22BE99', 'icon' => 'shield-check.svg', 'illustration' => '08_aman_terkendali.png'],
+                ['key' => '03', 'number' => '3', 'title' => 'Jagonya Eksekusi', 'performance' => 'Tinggi', 'background' => '#F0E5FF', 'accent' => '#9454E7', 'icon' => 'clipboard-check.svg', 'illustration' => '09_jagonya_eksekusi.png'],
             ],
         ],
     ];
@@ -56,7 +56,7 @@
                 <span>Tinggi</span>
                 <span>Sedang</span>
                 <span>Rendah</span>
-                <strong>Potential <span aria-hidden="true">&uarr;</span></strong>
+                <strong>Potential <span aria-hidden="true">&rarr;</span></strong>
             </div>
 
             <div>

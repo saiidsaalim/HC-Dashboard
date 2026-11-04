@@ -154,6 +154,17 @@ class PerformanceTalentWorkspaceTest extends TestCase
                 'data-box="03"',
             ], escape: false)
             ->assertSeeInOrder([
+                'data-display-number="7"',
+                'data-display-number="8"',
+                'data-display-number="9"',
+                'data-display-number="4"',
+                'data-display-number="5"',
+                'data-display-number="6"',
+                'data-display-number="1"',
+                'data-display-number="2"',
+                'data-display-number="3"',
+            ], escape: false)
+            ->assertSeeInOrder([
                 'Diam-Diam Jago',
                 'Lagi Ngebut',
                 'Rising Star',
@@ -278,6 +289,8 @@ class PerformanceTalentWorkspaceTest extends TestCase
             ->get(route('performance-talent.successors.index', ['department' => $department->id]))
             ->assertOk()
             ->assertSee('Cari department...')
+            ->assertSee('data-successor-department-picker', escape: false)
+            ->assertSee('data-successor-department-card', escape: false)
             ->assertSee('Department of Sales')
             ->assertSeeInOrder([
                 'General Manager of Sales',

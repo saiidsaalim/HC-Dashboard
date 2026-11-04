@@ -9,6 +9,25 @@
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=dm-sans:400,500,600,700|space-grotesk:500,600,700&display=swap"
         rel="stylesheet" />
+    <script>
+        (() => {
+            try {
+                const storedTheme = window.localStorage.getItem('hc-dashboard-theme');
+                const preference = ['light', 'dark', 'system'].includes(storedTheme) ? storedTheme : 'system';
+                const isDark = preference === 'dark'
+                    || (preference === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+                document.documentElement.classList.toggle('dark', isDark);
+                document.documentElement.dataset.theme = preference;
+                document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+            } catch {
+                const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.classList.toggle('dark', isDark);
+                document.documentElement.dataset.theme = 'system';
+                document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+            }
+        })();
+    </script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 
@@ -138,6 +157,48 @@
                             <p class="text-sm font-semibold text-slate-700">{{ now()->translatedFormat('l, d F Y') }}</p>
                             <p class="text-xs text-slate-400">Panel administrasi internal</p>
                         </div>
+                        <x-dropdown align="right" width="48" contentClasses="border border-slate-200 bg-white p-2">
+                            <x-slot name="trigger">
+                                <button type="button" aria-label="Pilih tema tampilan" aria-haspopup="menu"
+                                    :aria-expanded="open.toString()"
+                                    class="theme-trigger inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-slate-700 shadow-sm transition hover:border-slate-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-sky-400">
+                                    <svg class="h-5 w-5 dark:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="1.8" aria-hidden="true">
+                                        <circle cx="12" cy="12" r="4" />
+                                        <path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42" stroke-linecap="round" />
+                                    </svg>
+                                    <svg class="hidden h-5 w-5 dark:block" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="1.8" aria-hidden="true">
+                                        <path d="M20.5 15.2A8.5 8.5 0 0 1 8.8 3.5 8.5 8.5 0 1 0 20.5 15.2Z" stroke-linecap="round" stroke-linejoin="round" />
+                                    </svg>
+                                    <span data-theme-label class="hidden text-sm font-semibold xl:inline">Ikuti sistem</span>
+                                    <svg class="h-4 w-4 text-slate-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                        <path fill-rule="evenodd" d="M5.22 7.22a.75.75 0 0 1 1.06 0L10 10.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 8.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+                                    </svg>
+                                </button>
+                            </x-slot>
+                            <x-slot name="content">
+                                <p class="px-3 pb-2 pt-1 text-xs font-bold uppercase tracking-wider text-slate-400">Tema tampilan</p>
+                                @foreach ([
+                                    ['value' => 'light', 'label' => 'Mode siang', 'description' => 'Tampilan terang'],
+                                    ['value' => 'dark', 'label' => 'Mode malam', 'description' => 'Nyaman di cahaya redup'],
+                                    ['value' => 'system', 'label' => 'Ikuti sistem', 'description' => 'Menyesuaikan perangkat'],
+                                ] as $themeOption)
+                                    <button type="button" role="menuitemradio" data-theme-option="{{ $themeOption['value'] }}"
+                                        aria-checked="false"
+                                        class="theme-option flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-400">
+                                        <span class="min-w-0 flex-1">
+                                            <span class="block text-sm font-semibold text-slate-700">{{ $themeOption['label'] }}</span>
+                                            <span class="block text-xs text-slate-400">{{ $themeOption['description'] }}</span>
+                                        </span>
+                                        <svg data-theme-check class="invisible h-4 w-4 shrink-0 text-sky-600" viewBox="0 0 20 20"
+                                            fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">
+                                            <path d="m4 10 4 4 8-8" stroke-linecap="round" stroke-linejoin="round" />
+                                        </svg>
+                                    </button>
+                                @endforeach
+                            </x-slot>
+                        </x-dropdown>
                         <x-dropdown align="right" width="64" contentClasses="border border-slate-200 bg-white p-2">
                             <x-slot name="trigger">
                                 <button type="button" aria-label="Buka menu akun" aria-haspopup="menu"

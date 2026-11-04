@@ -115,7 +115,7 @@
         <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ $errors->getBag('default')->first() }}</div>
     @endif
 
-    <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+    <section data-successor-department-picker class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
                 <h2 class="font-display text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">Pilih Department</h2>
@@ -133,7 +133,7 @@
         <div role="list" aria-label="Daftar department" class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             @foreach ($departments as $department)
                 @php($style = $departmentStyles[$loop->index % count($departmentStyles)])
-                <button type="button" role="listitem" x-show="matches(@js($department['name']))"
+                <button data-successor-department-card type="button" role="listitem" x-show="matches(@js($department['name']))"
                     @click="selectDepartment(@js($department['name']), @js($department['formation_count']))"
                     :aria-pressed="selectedDepartment === @js($department['name'])"
                     :class="selectedDepartment === @js($department['name']) ? 'border-blue-500 bg-blue-50/70 ring-1 ring-blue-500' : 'border-slate-200 bg-white hover:border-blue-300'"

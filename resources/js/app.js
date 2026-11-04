@@ -3,12 +3,15 @@
 import Alpine from 'alpinejs';
 import { gsap } from 'gsap';
 import './fit-proper';
+import { initializeThemeControls } from './theme';
 import { initializeWlaDashboard } from './wla-dashboard';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
 window.Alpine = Alpine;
 window.Swal = Swal;
+
+document.addEventListener('DOMContentLoaded', initializeThemeControls);
 
 function initializeDashboardAnimations() {
     const cards = [...document.querySelectorAll('[data-dashboard-card]')];
@@ -78,6 +81,16 @@ async function initializeEmployeeDashboardAnimations() {
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const counters = [...dashboard.querySelectorAll('[data-employee-counter]')];
     const chartInstances = [];
+    const chartColors = () => {
+        const isDark = document.documentElement.classList.contains('dark');
+
+        return {
+            grid: isDark ? '#334155' : '#cbd5e1',
+            text: isDark ? '#cbd5e1' : '#64748b',
+            tooltip: isDark ? 'dark' : 'light',
+        };
+    };
+    const initialChartColors = chartColors();
     const renderCounter = (counter, value) => {
         const decimals = Number(counter.dataset.counterDecimals ?? 0);
         const suffix = counter.dataset.counterSuffix ?? '';
@@ -133,16 +146,16 @@ async function initializeEmployeeDashboardAnimations() {
         dataLabels: { enabled: false },
         legend: { show: false },
         grid: {
-            borderColor: '#cbd5e1',
+            borderColor: initialChartColors.grid,
             strokeDashArray: 4,
         },
         noData: {
             text: 'Data belum tersedia',
             align: 'center',
             verticalAlign: 'middle',
-            style: { color: '#64748b', fontSize: '13px' },
+            style: { color: initialChartColors.text, fontSize: '13px' },
         },
-        tooltip: { theme: 'light' },
+        tooltip: { theme: initialChartColors.tooltip },
     };
     const hiringChartElement = dashboard.querySelector('[data-employee-hiring-chart]');
     const educationChartElement = dashboard.querySelector('[data-employee-education-chart]');
@@ -169,7 +182,7 @@ async function initializeEmployeeDashboardAnimations() {
                 labels: {
                     rotate: -35,
                     hideOverlappingLabels: true,
-                    style: { colors: '#64748b', fontSize: '11px' },
+                    style: { colors: initialChartColors.text, fontSize: '11px' },
                 },
             },
             yaxis: {
@@ -177,7 +190,7 @@ async function initializeEmployeeDashboardAnimations() {
                 forceNiceScale: true,
                 labels: {
                     formatter: (value) => Math.round(value).toLocaleString('id-ID'),
-                    style: { colors: '#64748b', fontSize: '11px' },
+                    style: { colors: initialChartColors.text, fontSize: '11px' },
                 },
             },
         });
@@ -204,13 +217,13 @@ async function initializeEmployeeDashboardAnimations() {
                 min: 0,
                 labels: {
                     formatter: (value) => Math.round(value).toLocaleString('id-ID'),
-                    style: { colors: '#64748b', fontSize: '11px' },
+                    style: { colors: initialChartColors.text, fontSize: '11px' },
                 },
             },
             yaxis: {
                 labels: {
                     maxWidth: 160,
-                    style: { colors: '#475569', fontSize: '11px' },
+                    style: { colors: initialChartColors.text, fontSize: '11px' },
                 },
             },
         });
@@ -340,8 +353,24 @@ async function initializeEmployeeDashboardAnimations() {
 
         return [trigger, listener];
     });
+    const synchronizeChartTheme = () => {
+        const colors = chartColors();
+
+        chartInstances.forEach((chart) => {
+            void chart.updateOptions({
+                chart: { foreColor: colors.text },
+                grid: { borderColor: colors.grid },
+                tooltip: { theme: colors.tooltip },
+                xaxis: { labels: { style: { colors: colors.text } } },
+                yaxis: { labels: { style: { colors: colors.text } } },
+            }, false, false);
+        });
+    };
+    window.addEventListener('themechange', synchronizeChartTheme);
+
     const cleanup = () => {
         triggerListeners.forEach(([trigger, listener]) => trigger.removeEventListener('click', listener));
+        window.removeEventListener('themechange', synchronizeChartTheme);
         chartInstances.forEach((chart) => chart.destroy());
         animationContext.revert();
     };
