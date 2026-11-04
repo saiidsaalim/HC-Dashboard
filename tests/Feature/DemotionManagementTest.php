@@ -135,7 +135,10 @@ class DemotionManagementTest extends TestCase
 
     public function test_demotion_becomes_final_after_three_approvals_and_can_be_printed(): void
     {
-        $demotion = EmployeeDemotion::create($this->demotionAttributes('SAP207'));
+        $demotion = EmployeeDemotion::create([
+            ...$this->demotionAttributes('SAP207'),
+            'tmt' => today()->toDateString(),
+        ]);
         $approvers = collect([
             User::factory()->create(['role' => UserRole::ADMIN->value]),
             User::factory()->create(['role' => UserRole::MANAGER->value]),
@@ -145,6 +148,7 @@ class DemotionManagementTest extends TestCase
             DemotionApprovalConfig::query()->create(['step_order' => $step + 1, 'user_id' => $approver->id]);
         }
         $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        $this->actingAs($superAdmin)->post(route('demosi.submit', $demotion))->assertRedirect(route('demosi'));
 
         foreach ($approvers as $approver) {
             $this->actingAs($approver)->post(route('demosi.approve', $demotion))

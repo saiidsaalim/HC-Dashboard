@@ -132,7 +132,8 @@
                             <option value="all" @selected($filter === 'all')>Semua</option>
                             <option value="draft" @selected($filter === 'draft')>Draft</option>
                             <option value="waiting" @selected($filter === 'waiting')>Menunggu</option>
-                            <option value="final" @selected($filter === 'final')>Final</option>
+                            <option value="approved" @selected($filter === 'approved')>Disetujui, menunggu TMT</option>
+                            <option value="final" @selected($filter === 'final')>Sudah diterapkan</option>
                         </select>
                     </label>
                 </x-ui.filter-panel>
@@ -182,10 +183,13 @@
                                 onkeydown="if ((event.key === 'Enter' || event.key === ' ') && !event.target.closest('a,button,input,select,textarea,label,form')) { event.preventDefault(); document.getElementById('mutation-detail-{{ $mutation->id }}').showModal(); }">
                                 @php
                                     $approvedCount = $mutation->approvals->where('status', 'Approved')->unique('manager_id')->count();
-                                    $activeStep = min($approvedCount + 1, 3);
-                                    $activeApprover = $approvalConfiguration->get($activeStep)?->user;
-                                    $isActiveApprover = $approvalConfigurationComplete
-                                        && $mutation->verification_status === 'Pending'
+                                    $activeStep = $mutation->current_approval_step ?? min($approvedCount + 1, 3);
+                                    $activeApproval = $mutation->approvals
+                                        ->where('approval_round', $mutation->approval_round)
+                                        ->firstWhere('step_order', $activeStep);
+                                    $activeApprover = $activeApproval?->manager;
+                                    $activeApproverName = $activeApproval?->approver_name_snapshot ?? $activeApprover?->name;
+                                    $isActiveApprover = $mutation->verification_status === 'Pending'
                                         && $activeApprover?->id === auth()->id();
                                 @endphp
                                 @if ($canDeleteMutations)
@@ -215,12 +219,14 @@
                                 <td data-label="Workflow" class="px-4 py-3 align-middle">
                                     <div class="flex flex-col items-start gap-1.5">
                                         @if ($mutation->verification_status === 'Final')
-                                            <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Final</span>
+                                            <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Sudah diterapkan</span>
+                                        @elseif ($mutation->verification_status === 'Approved')
+                                            <span class="rounded-full bg-sky-50 px-3 py-1 text-xs font-bold text-sky-700">Disetujui, menunggu TMT</span>
                                         @elseif ($mutation->verification_status === 'Draft')
                                             <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">Draft</span>
                                         @else
                                             <span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">{{ $approvedCount }}/3 disetujui</span>
-                                            <span class="text-xs text-slate-500">Tahap {{ $activeStep }}: {{ $activeApprover?->name ?? 'Belum dikonfigurasi' }}</span>
+                                            <span class="text-xs text-slate-500">Tahap {{ $activeStep }}: {{ $activeApproverName ?? 'Snapshot approver tidak tersedia' }}</span>
                                         @endif
                                     </div>
                                 </td>

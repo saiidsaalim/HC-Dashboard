@@ -549,6 +549,8 @@ class EmployeeImportStagingTest extends TestCase
         ])->assertRedirect();
 
         $batch = EmployeeImportBatch::query()->firstOrFail();
+        $sourceFile = $batch->source_file;
+        Storage::disk('local')->assertExists($sourceFile);
         $rowIds = $batch->rows()->pluck('id');
         $admin = User::factory()->create(['role' => UserRole::ADMIN->value]);
 
@@ -563,6 +565,7 @@ class EmployeeImportStagingTest extends TestCase
             ->assertSessionHas('status', "Batch import #{$batch->id} berhasil dihapus.");
 
         $this->assertDatabaseMissing('employee_import_batches', ['id' => $batch->id]);
+        Storage::disk('local')->assertMissing($sourceFile);
         foreach ($rowIds as $rowId) {
             $this->assertDatabaseMissing('employee_import_rows', ['id' => $rowId]);
         }
@@ -658,7 +661,7 @@ class EmployeeImportStagingTest extends TestCase
         ]);
     }
 
-    public function test_employee_mutation_relationship_resolves_using_sap_without_fk_while_orphans_exist(): void
+    public function test_employee_mutation_relationship_uses_stable_employee_id(): void
     {
         $employee = $this->createEmployee('SAP-MUTATION-REL');
         $mutation = $employee->mutations()->create([
@@ -677,7 +680,7 @@ class EmployeeImportStagingTest extends TestCase
         ));
     }
 
-    public function test_sap_foreign_keys_cascade_on_update_restrict_delete_while_mutation_remains_snapshot(): void
+    public function test_sap_changes_do_not_rewrite_historical_snapshots_and_employee_delete_is_restricted(): void
     {
         $employee = $this->createEmployee('SAP-REL-01');
         $promotion = EmployeePromotion::query()->create([
@@ -700,7 +703,7 @@ class EmployeeImportStagingTest extends TestCase
 
         $employee->sap = 'SAP-REL-02';
         $employee->save();
-        $this->assertDatabaseHas('employee_promotions', ['sap' => 'SAP-REL-02', 'nama' => 'Historical Snapshot Name']);
+        $this->assertDatabaseHas('employee_promotions', ['sap' => 'SAP-REL-01', 'nama' => 'Historical Snapshot Name']);
         $this->assertSame('SAP-REL-02', $promotion->fresh()->employee->sap);
         $this->assertFalse(collect(Schema::getForeignKeys('employee_mutations'))->contains(fn (array $foreignKey): bool => in_array('sap', $foreignKey['columns'], true)));
 

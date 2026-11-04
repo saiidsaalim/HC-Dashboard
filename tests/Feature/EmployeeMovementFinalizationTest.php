@@ -14,6 +14,7 @@ use App\Models\PromotionApprovalConfig;
 use App\Models\Unit;
 use App\Models\User;
 use App\Services\Personnel\ApprovalService;
+use App\Services\Personnel\MovementApprovalWorkflowService;
 use App\Services\Personnel\PersonnelMovementSnapshotService;
 use App\Services\Personnel\PromotionApprovalWorkflowService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -31,6 +32,7 @@ class EmployeeMovementFinalizationTest extends TestCase
         $untouchedEmployee = Employee::query()->create(['sap' => 'UNTOUCHED']);
         $approvers = User::factory()->count(3)->create(['role' => UserRole::MANAGER->value]);
         $this->configureDemotionApprovers($approvers);
+        $this->submitDemotion($movement);
         $approvalService = app(ApprovalService::class);
 
         $approvalService->approve($movement, $approvers[0]);
@@ -65,6 +67,7 @@ class EmployeeMovementFinalizationTest extends TestCase
         [$employee, $movement] = $this->demotion();
         $approvers = User::factory()->count(3)->create(['role' => UserRole::MANAGER->value]);
         $this->configureDemotionApprovers($approvers);
+        $this->submitDemotion($movement);
         $approvalService = app(ApprovalService::class);
         $approvalService->approve($movement, $approvers[0]);
         $approvalService->approve($movement, $approvers[1]);
@@ -77,7 +80,8 @@ class EmployeeMovementFinalizationTest extends TestCase
             $this->assertStringContainsString('Level Data Pegawai sudah berubah', $exception->getMessage());
         }
 
-        $this->assertDatabaseCount('demotion_approvals', 2);
+        $this->assertSame(2, $movement->approvals()->where('status', 'Approved')->count());
+        $this->assertDatabaseCount('demotion_approvals', 3);
         $this->assertSame('Pending', $movement->fresh()->verification_status);
         $this->assertNull($movement->fresh()->finalized_at);
         $this->assertNull($movement->fresh()->employee_applied_at);
@@ -89,6 +93,7 @@ class EmployeeMovementFinalizationTest extends TestCase
         [$employee, $movement, $target] = $this->demotion();
         $approvers = User::factory()->count(3)->create(['role' => UserRole::MANAGER->value]);
         $this->configureDemotionApprovers($approvers);
+        $this->submitDemotion($movement);
         $approvalService = app(ApprovalService::class);
         $approvalService->approve($movement, $approvers[0]);
         $approvalService->approve($movement, $approvers[1]);
@@ -101,7 +106,8 @@ class EmployeeMovementFinalizationTest extends TestCase
             $this->assertStringContainsString('sudah berubah', $exception->getMessage());
         }
 
-        $this->assertDatabaseCount('demotion_approvals', 2);
+        $this->assertSame(2, $movement->approvals()->where('status', 'Approved')->count());
+        $this->assertDatabaseCount('demotion_approvals', 3);
         $this->assertSame('Pending', $movement->fresh()->verification_status);
         $this->assertNull($movement->fresh()->finalized_at);
         $this->assertNull($movement->fresh()->employee_applied_at);
@@ -112,6 +118,7 @@ class EmployeeMovementFinalizationTest extends TestCase
         [$employee, $movement, $target] = $this->demotion();
         $approvers = User::factory()->count(3)->create(['role' => UserRole::MANAGER->value]);
         $this->configureDemotionApprovers($approvers);
+        $this->submitDemotion($movement);
         $approvalService = app(ApprovalService::class);
         $approvalService->approve($movement, $approvers[0]);
         $approvalService->approve($movement, $approvers[1]);
@@ -121,7 +128,8 @@ class EmployeeMovementFinalizationTest extends TestCase
         try {
             $approvalService->approve($movement, $approvers[2]);
         } finally {
-            $this->assertDatabaseCount('demotion_approvals', 2);
+            $this->assertSame(2, $movement->approvals()->where('status', 'Approved')->count());
+            $this->assertDatabaseCount('demotion_approvals', 3);
             $this->assertSame($movement->old_position_id, $employee->fresh()->position_id);
             $this->assertSame('Pending', $movement->fresh()->verification_status);
         }
@@ -202,5 +210,13 @@ class EmployeeMovementFinalizationTest extends TestCase
                 'user_id' => $approver->id,
             ]);
         }
+    }
+
+    private function submitDemotion(EmployeeDemotion $movement): void
+    {
+        app(MovementApprovalWorkflowService::class)->submit(
+            $movement,
+            User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]),
+        );
     }
 }

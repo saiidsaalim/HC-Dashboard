@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\ResolvesMovementEmployee;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
+    'employee_id',
     'sap',
     'nama',
     'departemen_lama',
@@ -21,6 +23,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'level_baru',
     'jg_baru',
     'verification_status',
+    'approval_round',
+    'current_approval_step',
+    'submitted_by',
+    'submitted_at',
     'finalized_at',
     'old_directorate_id',
     'new_directorate_id',
@@ -42,9 +48,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 ])]
 class EmployeeDemotion extends Model
 {
+    use ResolvesMovementEmployee;
+
     public function employee(): BelongsTo
     {
-        return $this->belongsTo(Employee::class, 'sap', 'sap');
+        return $this->belongsTo(Employee::class);
     }
 
     public function approvals(): HasMany
@@ -106,6 +114,9 @@ class EmployeeDemotion extends Model
     {
         return [
             'tmt' => 'date',
+            'approval_round' => 'integer',
+            'current_approval_step' => 'integer',
+            'submitted_at' => 'datetime',
             'finalized_at' => 'datetime',
             'employee_applied_at' => 'datetime',
         ];

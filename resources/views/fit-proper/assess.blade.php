@@ -4,7 +4,6 @@
 <div class="space-y-5" data-fp-root>
 <x-ui.page-header :title="$activity->name" :description="'Penilaian oleh '.$examiner->name" eyebrow="Fit & Proper" />
 @include('fit-proper._messages')
-@if($activity->is_simulation)<p class="rounded-xl bg-amber-50 p-4 font-semibold text-amber-900">Data Simulasi</p>@endif
 <div data-fp-assessment-state role="status">@if($examiner->submitted_at)<p class="rounded-xl bg-emerald-50 p-4 text-emerald-900">Penilaian telah dikirim dan terkunci.</p>@elseif($activity->status !== 'Berjalan')<p class="rounded-xl bg-amber-50 p-4 text-amber-900">Penilaian hanya dapat diisi ketika kegiatan Berjalan.</p>@endif</div>
 @if($activity->participants->isEmpty())
 <x-ui.empty-state title="Peserta belum ditambahkan oleh PIC" description="Form penilaian akan tersedia setelah peserta ditambahkan." />

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Services\Personnel\LevelTransitionService;
 use Illuminate\Contracts\Validation\ValidationRule;
 
 abstract class PromotionRequest extends PersonnelActionRequest
@@ -45,5 +46,13 @@ abstract class PromotionRequest extends PersonnelActionRequest
             'level_baru' => 'Level Baru',
             'jg_baru' => 'JG Usulan',
         ];
+    }
+
+    protected function validateLevelTransition(
+        LevelTransitionService $levelTransitionService,
+        string $currentLevel,
+        string $newLevel,
+    ): void {
+        $levelTransitionService->ensurePromotion($currentLevel, $newLevel);
     }
 }

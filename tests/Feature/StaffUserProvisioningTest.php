@@ -6,15 +6,24 @@ use App\Enums\UserRole;
 use App\Models\Employee;
 use App\Models\User;
 use App\Services\Users\StaffUserProvisioningService;
+use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class StaffUserProvisioningTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Notification::fake();
+    }
 
     public function test_unlinked_employees_automatically_appear_as_candidates_without_a_candidate_table(): void
     {
@@ -78,8 +87,9 @@ class StaffUserProvisioningTest extends TestCase
         $this->assertSame('staff@example.com', $user->email);
         $this->assertSame(UserRole::STAFF->value, $user->role);
         $this->assertTrue($user->must_change_password);
-        $this->assertTrue(Hash::check(config('user_provisioning.temporary_password'), $user->password));
+        $this->assertFalse(Hash::check('testing-temporary-password', $user->password));
         $this->assertFalse(Hash::check('manipulated-password', $user->password));
+        Notification::assertSentTo($user, ResetPassword::class);
     }
 
     public function test_bulk_approval_creates_every_candidate_atomically(): void
@@ -103,17 +113,18 @@ class StaffUserProvisioningTest extends TestCase
         }
     }
 
-    public function test_temporary_password_is_read_from_configuration(): void
+    public function test_each_provisioned_user_receives_a_unique_reset_invitation(): void
     {
-        config()->set('user_provisioning.temporary_password', 'configured-temporary-password');
         $superAdmin = $this->superAdmin();
-        $employee = $this->employee('SAP-CONFIG-PASSWORD', 'PN-CONFIG-PASSWORD', 'config.password@example.com');
+        $first = $this->employee('SAP-INVITE-1', 'PN-INVITE-1', 'invite.one@example.com');
+        $second = $this->employee('SAP-INVITE-2', 'PN-INVITE-2', 'invite.two@example.com');
 
-        $this->actingAs($superAdmin)->post(route('konfigurasi-user.candidates.approve', $employee))
-            ->assertRedirect()
-            ->assertSessionHasNoErrors();
+        $this->actingAs($superAdmin)->post(route('konfigurasi-user.candidates.approve', $first))->assertRedirect();
+        $this->actingAs($superAdmin)->post(route('konfigurasi-user.candidates.approve', $second))->assertRedirect();
 
-        $this->assertTrue(Hash::check('configured-temporary-password', $employee->fresh()->user->password));
+        $this->assertNotSame($first->fresh()->user->password, $second->fresh()->user->password);
+        Notification::assertSentTo($first->fresh()->user, ResetPassword::class);
+        Notification::assertSentTo($second->fresh()->user, ResetPassword::class);
     }
 
     public function test_bulk_approval_rolls_back_all_candidates_when_one_is_invalid(): void
@@ -187,18 +198,18 @@ class StaffUserProvisioningTest extends TestCase
             ->assertDontSee('forced@example.com')
             ->assertDontSee($otherUser->email);
 
-        $this->actingAs($staff)->put(route('password.update'), [
-            'current_password' => config('user_provisioning.temporary_password'),
-            'password' => 'new-secure-password',
-            'password_confirmation' => 'new-secure-password',
-        ])->assertRedirect(route('portal'))->assertSessionHasNoErrors();
+        $this->post(route('logout'));
+        $this->resetInvitation($staff, 'new-secure-password');
 
-        $this->assertFalse($staff->fresh()->must_change_password);
+        $staff->refresh();
+        $this->assertFalse($staff->must_change_password);
         $this->assertTrue(Hash::check('new-secure-password', $staff->password));
+        $this->post(route('login'), ['email' => $staff->email, 'password' => 'new-secure-password'])
+            ->assertRedirect(route('portal'));
         $this->actingAs($staff)->get(route('dashboard'))->assertOk();
     }
 
-    public function test_first_login_with_temporary_password_redirects_to_password_form(): void
+    public function test_shared_temporary_password_cannot_authenticate_an_invited_user(): void
     {
         $superAdmin = $this->superAdmin();
         $employee = $this->employee('SAP-LOGIN', 'First Login', 'first.login@example.com');
@@ -207,27 +218,33 @@ class StaffUserProvisioningTest extends TestCase
 
         $this->post(route('login'), [
             'email' => 'first.login@example.com',
-            'password' => config('user_provisioning.temporary_password'),
-        ])->assertRedirect(route('password.first.edit'));
+            'password' => 'testing-temporary-password',
+        ])->assertSessionHasErrors('email');
+        $this->assertGuest();
     }
 
-    public function test_first_password_change_is_still_required_after_logout_and_next_login(): void
+    public function test_invitation_token_cannot_be_reused(): void
     {
         $superAdmin = $this->superAdmin();
         $employee = $this->employee('SAP-LOGOUT', 'First Login Logout', 'first.login.logout@example.com');
         $this->actingAs($superAdmin)->post(route('konfigurasi-user.candidates.approve', $employee));
         $staff = $employee->fresh()->user;
+        $token = $this->invitationToken($staff);
+        $this->post(route('logout'));
 
-        $this->actingAs($staff)->get(route('password.first.edit'))->assertOk();
-        $this->post(route('logout'))->assertRedirectToRoute('login');
-        $this->assertGuest();
-
-        $this->post(route('login'), [
+        $this->post(route('password.store'), [
+            'token' => $token,
             'email' => $staff->email,
-            'password' => config('user_provisioning.temporary_password'),
-        ])->assertRedirect(route('password.first.edit'));
+            'password' => 'new-secure-password',
+            'password_confirmation' => 'new-secure-password',
+        ])->assertRedirect(route('login'));
 
-        $this->assertTrue($staff->fresh()->must_change_password);
+        $this->post(route('password.store'), [
+            'token' => $token,
+            'email' => $staff->email,
+            'password' => 'another-secure-password',
+            'password_confirmation' => 'another-secure-password',
+        ])->assertSessionHasErrors('email');
     }
 
     public function test_staff_and_member_only_see_their_own_user_while_management_roles_keep_current_visibility(): void
@@ -302,6 +319,35 @@ class StaffUserProvisioningTest extends TestCase
     private function superAdmin(): User
     {
         return User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+    }
+
+    private function resetInvitation(User $user, string $password): void
+    {
+        $this->post(route('password.store'), [
+            'token' => $this->invitationToken($user),
+            'email' => $user->email,
+            'password' => $password,
+            'password_confirmation' => $password,
+        ])->assertRedirect(route('login'));
+    }
+
+    private function invitationToken(User $user): string
+    {
+        $token = null;
+
+        Notification::assertSentTo(
+            $user,
+            ResetPassword::class,
+            function (ResetPassword $notification) use (&$token): bool {
+                $token = $notification->token;
+
+                return true;
+            },
+        );
+
+        $this->assertIsString($token);
+
+        return $token;
     }
 
     private function employee(string $sap, ?string $personalNumber, string $email): Employee

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\EmployeeDemotion;
+use App\Services\Personnel\LevelTransitionService;
 
 class StoreDemotionRequest extends PersonnelActionRequest
 {
@@ -12,5 +13,13 @@ class StoreDemotionRequest extends PersonnelActionRequest
     public function authorize(): bool
     {
         return $this->user()?->can('create', EmployeeDemotion::class) ?? false;
+    }
+
+    protected function validateLevelTransition(
+        LevelTransitionService $levelTransitionService,
+        string $currentLevel,
+        string $newLevel,
+    ): void {
+        $levelTransitionService->ensureDemotion($currentLevel, $newLevel);
     }
 }

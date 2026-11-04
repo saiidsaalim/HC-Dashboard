@@ -63,7 +63,7 @@ test('Isolated private Chrome: asynchronous forms, PICs and public examiner link
             "$one=\\App\\Models\\User::factory()->create(['name'=>'PIC Browser Satu','email'=>'pic-one@example.test','role'=>'Staff']);",
             "$two=\\App\\Models\\User::factory()->create(['name'=>'PIC Browser Dua','email'=>'pic-two@example.test','role'=>'Staff']);",
             "$service=app(\\App\\Services\\FitProperService::class);",
-            "$activity=$service->create(['name'=>'SIMULASI BROWSER','target_position'=>'Kepala Fiktif','scheduled_at'=>'2026-10-19','is_simulation'=>true],$admin);",
+            "$activity=$service->create(['name'=>'UJI BROWSER','target_position'=>'Kepala Fiktif','scheduled_at'=>'2026-10-19'],$admin);",
             "$service->assignPics($activity,[$admin->id],$admin);",
             "foreach (['Kandidat Browser Alfa','Kandidat Browser Beta'] as $name) { $service->participant($activity,['name'=>$name,'kpi_year_1'=>4,'kpi_year_2'=>4,'assessment'=>3]); }",
             "echo json_encode(['activity'=>$activity->id,'first'=>$one->id,'second'=>$two->id]);",

@@ -33,7 +33,7 @@ class DemotionController extends Controller
     ): View {
         Gate::authorize('viewAny', EmployeeDemotion::class);
         $search = trim((string) $request->input('search', ''));
-        $filter = in_array($request->input('status'), ['draft', 'waiting', 'final'], true)
+        $filter = in_array($request->input('status'), ['draft', 'waiting', 'approved', 'final'], true)
             ? (string) $request->input('status')
             : 'all';
         $demotionQuery = EmployeeDemotion::query()->with(['employee', 'approvals.manager']);
@@ -53,6 +53,8 @@ class DemotionController extends Controller
             $demotionQuery->where('verification_status', 'Draft');
         } elseif ($filter === 'waiting') {
             $demotionQuery->where('verification_status', 'Pending');
+        } elseif ($filter === 'approved') {
+            $demotionQuery->where('verification_status', 'Approved');
         } elseif ($filter === 'final') {
             $demotionQuery->where('verification_status', 'Final');
         }
@@ -62,7 +64,7 @@ class DemotionController extends Controller
             'totalDemotions' => EmployeeDemotion::query()->count(),
             'pendingDemotions' => EmployeeDemotion::query()->where('verification_status', 'Pending')->count(),
             'approvedDemotionsThisYear' => EmployeeDemotion::query()
-                ->where('verification_status', 'Final')
+                ->whereIn('verification_status', ['Approved', 'Final'])
                 ->whereYear('finalized_at', now()->year)
                 ->count(),
             'search' => $search,
@@ -141,11 +143,12 @@ class DemotionController extends Controller
     }
 
     public function submit(
+        Request $request,
         EmployeeDemotion $employeeDemotion,
         MovementApprovalWorkflowService $workflow,
     ): RedirectResponse {
         Gate::authorize('submit', $employeeDemotion);
-        $workflow->submit($employeeDemotion);
+        $workflow->submit($employeeDemotion, $request->user());
 
         return to_route('demosi')->with('status', 'Demosi berhasil diajukan ke approver Tahap 1.');
     }

@@ -14,7 +14,7 @@
             'Fit & Proper' => 'fit-proper',
             'Mutasi' => 'mutasi',
             'Promosi' => 'promosi',
-            'Laporan' => 'laporan',
+            'Demosi' => 'demosi',
         ];
     @endphp
 

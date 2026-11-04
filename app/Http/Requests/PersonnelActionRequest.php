@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Employee;
+use App\Services\Personnel\LevelTransitionService;
 use App\Services\Personnel\OrganizationHierarchyService;
 use App\Services\Personnel\PersonnelMovementFormDataService;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -82,6 +83,24 @@ abstract class PersonnelActionRequest extends FormRequest
                 return;
             }
 
+            try {
+                $this->validateLevelTransition(
+                    app(LevelTransitionService::class),
+                    (string) $employee->employee_subgroup,
+                    $this->string('level_baru')->toString(),
+                );
+            } catch (ValidationException $exception) {
+                foreach ($exception->errors() as $field => $messages) {
+                    foreach ($messages as $message) {
+                        $validator->errors()->add($field, $message);
+                    }
+                }
+            }
+
+            if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
+
             if (! $this->requiresOrganizationChange()) {
                 return;
             }
@@ -111,4 +130,10 @@ abstract class PersonnelActionRequest extends FormRequest
     {
         return false;
     }
+
+    protected function validateLevelTransition(
+        LevelTransitionService $levelTransitionService,
+        string $currentLevel,
+        string $newLevel,
+    ): void {}
 }

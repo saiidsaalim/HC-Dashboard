@@ -120,6 +120,12 @@ class PermissionRegistry
             ]],
             'other-pages' => ['label' => 'Halaman Lain', 'permissions' => [
                 'fit-proper.view' => ['label' => 'Lihat Fit & Proper', 'roles' => $all],
+                'fit-proper.create' => ['label' => 'Tambah kegiatan Fit & Proper', 'roles' => $management],
+                'fit-proper.update' => ['label' => 'Kelola kegiatan Fit & Proper yang ditugaskan', 'roles' => $all],
+                'fit-proper.delete' => ['label' => 'Hapus kegiatan Fit & Proper', 'roles' => $management],
+                'fit-proper.finalize' => ['label' => 'Ubah dan finalisasi status Fit & Proper', 'roles' => $management],
+                'fit-proper.export' => ['label' => 'Cetak dan ekspor Fit & Proper', 'roles' => $management],
+                'fit-proper.settings' => ['label' => 'Atur standar Fit & Proper', 'roles' => $management],
                 'formation.view' => ['label' => 'Lihat Formasi', 'roles' => $all],
                 'definitive.view' => ['label' => 'Lihat Definitif', 'roles' => $all],
                 'reports.view' => ['label' => 'Lihat Laporan', 'roles' => $all],

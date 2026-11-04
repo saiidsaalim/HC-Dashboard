@@ -15,6 +15,7 @@ use App\Models\Position;
 use App\Models\Section;
 use App\Models\Unit;
 use App\Models\User;
+use App\Services\Employees\EmployeeDeletionService;
 use App\Services\Employees\EmployeeImportStagingService;
 use App\Services\Employees\EmployeeOrganizationSyncService;
 use App\Services\Users\StaffUserProvisioningService;
@@ -24,6 +25,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -335,8 +337,10 @@ class EmployeeController extends Controller
     {
         $this->authorizeImportReview($request);
         $batchId = $batch->getKey();
+        $sourceFile = $batch->source_file;
 
         DB::transaction(fn (): bool => $batch->delete(), 3);
+        Storage::disk('local')->delete($sourceFile);
 
         return to_route('data-pegawai.import.review.index')
             ->with('status', "Batch import #{$batchId} berhasil dihapus.");
@@ -462,16 +466,16 @@ class EmployeeController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Request $request, Employee $employee): RedirectResponse
+    public function destroy(Request $request, Employee $employee, EmployeeDeletionService $deletionService): RedirectResponse
     {
         abort_unless($request->user()?->hasPermission('employees.delete'), 403);
 
-        $employee->delete();
+        $deletionService->delete([$employee->getKey()]);
 
         return to_route('data-pegawai')->with('status', 'Data pegawai berhasil dihapus.');
     }
 
-    public function destroyMany(Request $request): RedirectResponse
+    public function destroyMany(Request $request, EmployeeDeletionService $deletionService): RedirectResponse
     {
         abort_unless($request->user()?->hasPermission('employees.delete'), 403);
 
@@ -480,17 +484,16 @@ class EmployeeController extends Controller
             'employee_ids.*' => ['integer', 'distinct', 'exists:employees,id'],
         ]);
 
-        $deleted = Employee::query()->whereIn('id', $validated['employee_ids'])->delete();
+        $deleted = $deletionService->delete($validated['employee_ids']);
 
         return to_route('data-pegawai')->with('status', "Berhasil menghapus {$deleted} data pegawai.");
     }
 
-    public function destroyAll(Request $request): RedirectResponse
+    public function destroyAll(Request $request, EmployeeDeletionService $deletionService): RedirectResponse
     {
         abort_unless($request->user()?->hasPermission('employees.delete'), 403);
 
-        $deleted = Employee::query()->count();
-        Employee::query()->delete();
+        $deleted = $deletionService->delete(Employee::query()->pluck('id')->all());
 
         return to_route('data-pegawai')->with('status', "Berhasil menghapus seluruh data pegawai ({$deleted} data).");
     }
@@ -517,14 +520,17 @@ class EmployeeController extends Controller
             $data['position_id'] ?? null,
         ];
 
-        if (in_array(null, $organizationIds, true)) {
+        if (in_array(null, array_slice($organizationIds, 0, 3), true)
+            || $organizationIds[4] === null) {
             return $data;
         }
 
         $data['txt_dir'] = Directorate::query()->findOrFail($data['directorate_id'])->name;
         $data['txt_dept'] = Department::query()->findOrFail($data['department_id'])->name;
         $data['txt_biro'] = Unit::query()->findOrFail($data['unit_id'])->name;
-        $data['txt_sect'] = Section::query()->findOrFail($data['section_id'])->name;
+        $data['txt_sect'] = $data['section_id'] !== null
+            ? Section::query()->findOrFail($data['section_id'])->name
+            : null;
         $data['position'] = Position::query()->findOrFail($data['position_id'])->name;
 
         return $data;
@@ -544,7 +550,7 @@ class EmployeeController extends Controller
                     $query->orWhereNull($field)->orWhereRaw("TRIM({$field}) = ''");
                 }
 
-                foreach (['birth_date', 'directorate_id', 'department_id', 'unit_id', 'section_id', 'position_id'] as $field) {
+                foreach (['birth_date', 'directorate_id', 'department_id', 'unit_id', 'position_id'] as $field) {
                     $query->orWhereNull($field);
                 }
             })

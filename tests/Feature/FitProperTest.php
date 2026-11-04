@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\Employee;
 use App\Models\FitProperActivity;
-use App\Models\FitProperExaminer;
 use App\Models\FitProperParticipant;
 use App\Models\FitProperScore;
 use App\Models\FitProperSetting;
@@ -77,10 +76,12 @@ class FitProperTest extends TestCase
         $this->actingAs($admin)->post(route('fit-proper.store'), ['name' => 'Uji manual', 'target_position' => 'Kepala', 'scheduled_at' => '2026-10-19', 'status' => 'Selesai', 'is_simulation' => true])->assertRedirect();
         $a = FitProperActivity::sole();
         $this->assertSame('Draft', $a->status);
-        $this->assertTrue($a->is_simulation);
+        $this->assertFalse($a->is_simulation);
         $employeeCount = Employee::count();
         $this->post(route('fit-proper.participants.store', $a), ['name' => 'Manual Fiktif', 'birth_date' => '1990-01-01', 'current_jg' => 12, 'target_jg' => 10, 'kpi_year_1' => 0, 'kpi_year_2' => 0, 'assessment' => 0, 'cv' => UploadedFile::fake()->create('cv.pdf', 20, 'application/pdf')])->assertRedirect();
         $p = $a->participants()->sole();
+        $cvPath = $p->cv_path;
+        Storage::disk('local')->assertExists($cvPath);
         $this->assertSame($a->id, $p->fit_proper_activity_id);
         $this->assertSame($a->id, $p->activity->id);
         $this->assertFalse(Schema::hasColumn('fit_proper_participants', 'activity_id'));
@@ -101,6 +102,7 @@ class FitProperTest extends TestCase
         $this->assertNull($p->fresh()->kpi());
         $this->delete(route('fit-proper.participants.delete', [$a, $p]))->assertRedirect();
         $this->assertDatabaseMissing('fit_proper_participants', ['id' => $p->id]);
+        Storage::disk('local')->assertMissing($cvPath);
         $this->delete(route('fit-proper.destroy', $a))->assertRedirect();
     }
 
@@ -283,7 +285,9 @@ class FitProperTest extends TestCase
         $this->service()->transition($a, 'Draft');
         $this->assertNull($e->fresh()->submitted_at);
         $this->assertNull($e->fresh()->getRawOriginal('token_hash'));
-        $this->actingAs($this->admin())->delete(route('fit-proper.examiners.delete', [$a, $e]))->assertRedirect();
+        $this->actingAs(User::query()->findOrFail($a->created_by))
+            ->delete(route('fit-proper.examiners.delete', [$a, $e]))
+            ->assertRedirect();
         $this->assertSame(0, FitProperScore::count());
     }
 
@@ -411,38 +415,26 @@ class FitProperTest extends TestCase
             'cv' => UploadedFile::fake()->create('cv.pdf', 20, 'application/pdf'),
         ])->assertRedirect();
         $p = $a->participants()->sole();
+        $cvPath = $p->cv_path;
+        Storage::disk('local')->assertExists($cvPath);
         $other = $this->activity($admin);
         $this->get(route('fit-proper.cv', [$other, $p]))->assertNotFound();
         $this->put(route('fit-proper.participants.update', [$a, $p]), ['name' => $p->name, 'remove_cv' => true])->assertRedirect();
         $this->assertNull($p->fresh()->cv_path);
+        Storage::disk('local')->assertMissing($cvPath);
         $this->get(route('fit-proper.cv', [$a, $p]))->assertNotFound();
     }
 
-    public function test_demo_is_idempotent_and_excluded_from_real_dashboard_statistics(): void
+    public function test_fit_proper_dashboard_uses_operational_database_counts(): void
     {
         $admin = $this->admin();
-        $employees = Employee::count();
-        $users = User::count();
-        $this->artisan('fit-proper:demo', ['--admin' => $admin->email])->assertSuccessful();
-        $this->artisan('fit-proper:demo', ['--admin' => $admin->email])->assertSuccessful();
-        $this->assertSame(3, FitProperActivity::count());
-        $this->assertSame(15, FitProperParticipant::count());
-        $this->assertSame(15, FitProperParticipant::whereNotNull('fit_proper_activity_id')->whereHas('activity')->count());
-        $this->assertSame(9, FitProperExaminer::count());
-        $this->assertSame($employees, Employee::count());
-        $this->assertSame($users, User::count());
-        $a = FitProperActivity::where('status', 'Selesai')->sole();
-        $this->assertTrue($a->final_snapshot['complete']);
-        $this->assertContains(true, array_column($a->final_snapshot['rows'], 'passed'));
-        $this->assertContains(false, array_column($a->final_snapshot['rows'], 'passed'));
         $this->actingAs($admin)->get(route('dashboard'))->assertOk()->assertViewHas('stats', fn ($stats) => $stats[0]['value'] === 0);
-        $real = $this->activity($admin);
-        $this->participant($real);
-        $this->service()->examiner($real, ['name' => 'A']);
-        $this->service()->transition($real, 'Berjalan');
+        $activity = $this->activity($admin);
+        $this->participant($activity);
+        $this->service()->examiner($activity, ['name' => 'A']);
+        $this->service()->transition($activity, 'Berjalan');
         $this->get(route('dashboard'))->assertViewHas('stats', fn ($stats) => $stats[0]['value'] === 1);
-        $this->get(route('fit-proper.print', $a))->assertSee('Data Simulasi');
-        $this->get(route('fit-proper', ['simulation' => '0']))->assertDontSee('SIMULASI FIKTIF');
+        $this->get(route('fit-proper'))->assertOk()->assertDontSee('Data Simulasi');
     }
 
     public function test_bulk_drafts_skip_empty_rows_preserve_omitted_participants_and_ignore_browser_results(): void

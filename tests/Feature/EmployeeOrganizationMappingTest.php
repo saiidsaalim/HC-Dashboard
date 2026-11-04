@@ -542,7 +542,7 @@ class EmployeeOrganizationMappingTest extends TestCase
         $this->assertSame('Senior Manager', $employee->fresh()->employee_subgroup);
     }
 
-    public function test_conflicting_employee_levels_use_deterministic_priority_and_are_logged(): void
+    public function test_conflicting_employee_levels_are_reported_without_changing_the_position(): void
     {
         [, , $position] = $this->organization();
         Employee::create([
@@ -559,7 +559,8 @@ class EmployeeOrganizationMappingTest extends TestCase
 
         $result = app(EmployeeOrganizationSyncService::class)->synchronizePositionLevels([$position->id]);
 
-        $this->assertSame(Position::JOB_LEVEL_MANAGER, $position->fresh()->job_level);
+        $this->assertSame(0, $result['updated']);
+        $this->assertSame(Position::JOB_LEVEL_STAFF, $position->fresh()->job_level);
         $this->assertSame([
             Position::JOB_LEVEL_MANAGER,
             Position::JOB_LEVEL_STAFF,

@@ -193,7 +193,7 @@ class UserManagementTest extends TestCase
         $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
         $this->actingAs($superAdmin)->patch(route('konfigurasi-user.role', $superAdmin), [
             'role' => UserRole::MANAGER->value,
-        ])->assertForbidden();
+        ])->assertRedirect()->assertSessionHasErrors('role');
 
         $this->assertSame(UserRole::STAFF->value, $user->fresh()->role);
         $this->assertSame(UserRole::SUPER_ADMIN->value, $superAdmin->fresh()->role);

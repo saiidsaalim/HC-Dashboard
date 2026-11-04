@@ -3,12 +3,14 @@
 namespace App\Models;
 
 use App\Enums\PromotionStatus;
+use App\Models\Concerns\ResolvesMovementEmployee;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
+    'employee_id',
     'sap',
     'nama',
     'departemen_lama',
@@ -47,9 +49,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 ])]
 class EmployeePromotion extends Model
 {
+    use ResolvesMovementEmployee;
+
     public function employee(): BelongsTo
     {
-        return $this->belongsTo(Employee::class, 'sap', 'sap');
+        return $this->belongsTo(Employee::class);
     }
 
     public function approvals(): HasMany

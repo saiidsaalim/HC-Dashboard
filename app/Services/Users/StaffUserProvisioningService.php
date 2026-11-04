@@ -8,17 +8,16 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use RuntimeException;
 
 class StaffUserProvisioningService
 {
     public function provision(Employee $employee, User $actor): User
     {
-        return DB::transaction(function () use ($employee, $actor): User {
+        $user = DB::transaction(function () use ($employee, $actor): User {
             $lockedEmployee = Employee::query()
                 ->whereKey($employee->getKey())
                 ->lockForUpdate()
@@ -32,11 +31,15 @@ class StaffUserProvisioningService
 
             return $this->createUsers(collect([$lockedEmployee]), $actor)->firstOrFail();
         });
+
+        $this->sendInvitation($user);
+
+        return $user;
     }
 
     public function provisionAll(User $actor, string $expectedBatchToken): int
     {
-        return DB::transaction(function () use ($actor, $expectedBatchToken): int {
+        $users = DB::transaction(function () use ($actor, $expectedBatchToken): Collection {
             $employees = $this->candidateQuery()
                 ->orderBy('id')
                 ->lockForUpdate()
@@ -54,8 +57,12 @@ class StaffUserProvisioningService
                 ]);
             }
 
-            return $this->createUsers($employees, $actor)->count();
+            return $this->createUsers($employees, $actor);
         });
+
+        $users->each(fn (User $user) => $this->sendInvitation($user));
+
+        return $users->count();
     }
 
     /** @return Builder<Employee> */
@@ -71,17 +78,6 @@ class StaffUserProvisioningService
                 ->orderBy('id')
                 ->get(['id', 'personal_number', 'email', 'updated_at']),
         );
-    }
-
-    public function temporaryPassword(): string
-    {
-        $temporaryPassword = config('user_provisioning.temporary_password');
-
-        if (! is_string($temporaryPassword) || $temporaryPassword === '') {
-            throw new RuntimeException('STAFF_TEMPORARY_PASSWORD belum dikonfigurasi.');
-        }
-
-        return $temporaryPassword;
     }
 
     public function synchronizeLinkedUser(Employee $employee): ?User
@@ -163,7 +159,7 @@ class StaffUserProvisioningService
                 ...$candidate['identity'],
                 'employee_id' => $candidate['employee']->id,
                 'role' => UserRole::STAFF->value,
-                'password' => Hash::make($this->temporaryPassword()),
+                'password' => Str::random(64),
                 'must_change_password' => true,
             ]));
         }
@@ -214,6 +210,11 @@ class StaffUserProvisioningService
     private function normalizePersonalNumber(mixed $personalNumber): string
     {
         return preg_replace('/\s+/u', ' ', trim((string) $personalNumber)) ?? '';
+    }
+
+    private function sendInvitation(User $user): void
+    {
+        Password::sendResetLink(['email' => $user->email]);
     }
 
     private function normalizeEmail(mixed $email): string

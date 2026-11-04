@@ -86,7 +86,7 @@
                     </label>
                     <label class="block text-sm font-semibold text-slate-700">Status Promosi
                         <select name="status" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
-                            @foreach (['all' => 'Semua', 'draft' => 'Draft', 'waiting' => 'Menunggu Persetujuan', 'returned' => 'Dikembalikan', 'final' => 'Final', 'mine' => 'Menunggu Persetujuan Saya'] as $value => $label)
+                            @foreach (['all' => 'Semua', 'draft' => 'Draft', 'waiting' => 'Menunggu Persetujuan', 'returned' => 'Dikembalikan', 'approved' => 'Disetujui, menunggu TMT', 'final' => 'Sudah diterapkan', 'mine' => 'Menunggu Persetujuan Saya'] as $value => $label)
                                 <option value="{{ $value }}" @selected($filter === $value)>{{ $label }}</option>
                             @endforeach
                         </select>
@@ -140,11 +140,13 @@
                                     && !$roundApprovals->contains('step_order', $requiredApprovalSteps)
                                         ? $approvedCount
                                         : $requiredApprovalSteps;
-                                $activeConfig = $promotion->current_approval_step ? $approvalConfiguration->get($promotion->current_approval_step) : null;
-                                $activeApprover = $activeConfig?->user;
+                                $activeApproval = $promotion->current_approval_step
+                                    ? $roundApprovals->firstWhere('step_order', $promotion->current_approval_step)
+                                    : null;
+                                $activeApprover = $activeApproval?->manager;
+                                $activeApproverName = $activeApproval?->approver_name_snapshot ?? $activeApprover?->name;
                                 $isActiveApprover = $status === \App\Enums\PromotionStatus::WaitingApproval
                                     && $activeApprover?->id === auth()->id()
-                                    && $approvalConfigurationComplete
                                     && auth()->user()->hasPermission('promotions.approve');
                                 $latestReturn = $promotion->approvals
                                     ->where('status', \App\Enums\PromotionApprovalStatus::Returned)
@@ -179,7 +181,7 @@
                                     @if ($status === \App\Enums\PromotionStatus::WaitingApproval)
                                         <p class="mt-1 text-xs text-slate-600">
                                             Tahap {{ $promotion->current_approval_step }}:
-                                            {{ $activeApprover?->name ?? 'Konfigurasi approver tidak valid' }}
+                                            {{ $activeApproverName ?? 'Snapshot approver tidak tersedia' }}
                                         </p>
                                         @if ($isActiveApprover)
                                             <span class="mt-2 inline-block rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700">Menunggu Persetujuan Anda</span>
@@ -336,7 +338,6 @@
                                     @php
                                         $decision = $promotion->approvals->first(fn ($item) => $item->approval_round === $round && $item->step_order === $step);
                                         $isActive = $round === $promotion->approval_round && $promotion->current_approval_step === $step && $status === \App\Enums\PromotionStatus::WaitingApproval;
-                                        $stepConfig = $isActive ? $approvalConfiguration->get($step) : null;
                                     @endphp
                                     <div class="rounded-xl border p-3 {{ $decision?->status === \App\Enums\PromotionApprovalStatus::Approved ? 'border-emerald-200 bg-emerald-50' : ($isActive ? 'border-sky-200 bg-sky-50' : 'border-slate-200 bg-slate-50') }}">
                                         <div class="flex items-center gap-2.5">
@@ -349,8 +350,6 @@
                                             <p class="mt-2 text-xs font-semibold {{ $decision->status === \App\Enums\PromotionApprovalStatus::Approved ? 'text-emerald-700' : 'text-rose-700' }}">{{ $decision->status->label() }}</p>
                                             <p class="text-xs text-slate-500">{{ ($decision->approved_at ?? $decision->returned_at)?->format('d M Y H:i') }}</p>
                                             @if ($decision->note)<p class="mt-2 whitespace-normal text-xs text-rose-700">Catatan: {{ $decision->note }}</p>@endif
-                                        @elseif ($isActive)
-                                            <p class="mt-2 text-sm font-semibold text-sky-800">{{ $stepConfig?->user?->name ?? 'Konfigurasi approver tidak valid' }}</p><p class="mt-1 text-xs font-semibold text-sky-700">Menunggu persetujuan</p>
                                         @else
                                             <p class="mt-2 text-xs text-slate-500">Belum aktif</p>
                                         @endif

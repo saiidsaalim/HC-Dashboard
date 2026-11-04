@@ -10,7 +10,6 @@ use App\Http\Requests\UpdatePromotionRequest;
 use App\Models\Employee;
 use App\Models\EmployeePromotion;
 use App\Models\PromotionApproval;
-use App\Models\PromotionApprovalConfig;
 use App\Services\Personnel\PersonnelMovementFormDataService;
 use App\Services\Personnel\PersonnelMovementSnapshotService;
 use App\Services\Personnel\PromotionApprovalWorkflowService;
@@ -43,7 +42,7 @@ class PromotionController extends Controller
 
         $search = trim((string) $request->input('search', ''));
         $filter = (string) $request->input('status', 'all');
-        if (! in_array($filter, ['all', 'draft', 'waiting', 'returned', 'final', 'mine'], true)) {
+        if (! in_array($filter, ['all', 'draft', 'waiting', 'returned', 'approved', 'final', 'mine'], true)) {
             $filter = 'all';
         }
 
@@ -68,13 +67,15 @@ class PromotionController extends Controller
             ]),
             'waiting' => $promotionQuery->where('verification_status', PromotionStatus::WaitingApproval->value),
             'returned' => $promotionQuery->where('verification_status', PromotionStatus::Returned->value),
+            'approved' => $promotionQuery->where('verification_status', PromotionStatus::Approved->value),
             'final' => $promotionQuery->where('verification_status', PromotionStatus::Final->value),
             'mine' => $promotionQuery
                 ->where('verification_status', PromotionStatus::WaitingApproval->value)
-                ->whereIn(
-                    'current_approval_step',
-                    PromotionApprovalConfig::query()->where('user_id', $request->user()->id)->select('step_order'),
-                ),
+                ->whereHas('approvals', fn (Builder $query) => $query
+                    ->where('manager_id', $request->user()->id)
+                    ->where('status', PromotionApprovalStatus::Pending->value)
+                    ->whereColumn('promotion_approvals.approval_round', 'employee_promotions.approval_round')
+                    ->whereColumn('promotion_approvals.step_order', 'employee_promotions.current_approval_step')),
             default => null,
         };
 

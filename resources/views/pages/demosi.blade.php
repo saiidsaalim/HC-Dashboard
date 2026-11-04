@@ -107,7 +107,8 @@
                             <option value="all" @selected($filter === 'all')>Semua</option>
                             <option value="draft" @selected($filter === 'draft')>Draft</option>
                             <option value="waiting" @selected($filter === 'waiting')>Menunggu</option>
-                            <option value="final" @selected($filter === 'final')>Final</option>
+                            <option value="approved" @selected($filter === 'approved')>Disetujui, menunggu TMT</option>
+                            <option value="final" @selected($filter === 'final')>Sudah diterapkan</option>
                         </select>
                     </label>
                 </x-ui.filter-panel>
@@ -152,10 +153,13 @@
                         @forelse ($demotions as $demotion)
                             @php
                                 $approvedCount = $demotion->approvals->where('status', 'Approved')->unique('manager_id')->count();
-                                $activeStep = min($approvedCount + 1, 3);
-                                $activeApprover = $approvalConfiguration->get($activeStep)?->user;
-                                $isActiveApprover = $approvalConfigurationComplete
-                                    && $demotion->verification_status === 'Pending'
+                                $activeStep = $demotion->current_approval_step ?? min($approvedCount + 1, 3);
+                                $activeApproval = $demotion->approvals
+                                    ->where('approval_round', $demotion->approval_round)
+                                    ->firstWhere('step_order', $activeStep);
+                                $activeApprover = $activeApproval?->manager;
+                                $activeApproverName = $activeApproval?->approver_name_snapshot ?? $activeApprover?->name;
+                                $isActiveApprover = $demotion->verification_status === 'Pending'
                                     && $activeApprover?->id === auth()->id();
                             @endphp
                             <tr tabindex="0" role="button" aria-label="Lihat detail demosi {{ $demotion->nama }}"
@@ -187,12 +191,14 @@
                                 <td data-label="Workflow" class="px-4 py-3">
                                     <div class="flex flex-col items-start gap-1.5">
                                         @if ($demotion->verification_status === 'Final')
-                                            <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Final</span>
+                                            <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Sudah diterapkan</span>
+                                        @elseif ($demotion->verification_status === 'Approved')
+                                            <span class="rounded-full bg-sky-50 px-3 py-1 text-xs font-bold text-sky-700">Disetujui, menunggu TMT</span>
                                         @elseif ($demotion->verification_status === 'Draft')
                                             <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">Draft</span>
                                         @else
                                             <span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">{{ $approvedCount }}/3 disetujui</span>
-                                            <span class="text-xs text-slate-500">Tahap {{ $activeStep }}: {{ $activeApprover?->name ?? 'Belum dikonfigurasi' }}</span>
+                                            <span class="text-xs text-slate-500">Tahap {{ $activeStep }}: {{ $activeApproverName ?? 'Snapshot approver tidak tersedia' }}</span>
                                         @endif
                                     </div>
                                 </td>
@@ -324,10 +330,9 @@
                             @foreach (range(1, 3) as $step)
                                 @php
                                     $decision = $approvalsByStep->get($step) ?? $legacyApprovals->get($step - 1);
-                                    $configuredApprover = $approvalConfiguration->get($step)?->user;
                                     $isApproved = $decision?->status === 'Approved';
                                     $isCurrent = ! $isApproved && $step === $currentApprovalStep;
-                                    $approverName = $decision?->manager?->name ?? $configuredApprover?->name ?? 'Belum dikonfigurasi';
+                                    $approverName = $decision?->approver_name_snapshot ?? $decision?->manager?->name ?? 'Snapshot approver tidak tersedia';
                                 @endphp
                                 <article class="rounded-xl border p-3 {{ $isApproved ? 'border-emerald-200 bg-emerald-50' : ($isCurrent ? 'border-sky-200 bg-sky-50' : 'border-slate-200 bg-slate-50') }}">
                                     <div class="flex items-start gap-2.5">

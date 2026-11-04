@@ -2,7 +2,6 @@
 
 namespace App\Policies;
 
-use App\Models\DemotionApprovalConfig;
 use App\Models\EmployeeDemotion;
 use App\Models\User;
 
@@ -75,7 +74,7 @@ class EmployeeDemotionPolicy
             return false;
         }
 
-        if ($employeeDemotion->approvals()->where('manager_id', $user->id)->exists()) {
+        if ($employeeDemotion->approvals()->where('approval_round', $employeeDemotion->approval_round)->where('manager_id', $user->id)->where('status', 'Approved')->exists()) {
             return true;
         }
 
@@ -83,14 +82,11 @@ class EmployeeDemotionPolicy
             return false;
         }
 
-        $activeStep = $employeeDemotion->approvals()
-            ->where('status', 'Approved')
-            ->distinct('manager_id')
-            ->count('manager_id') + 1;
-
-        return DemotionApprovalConfig::query()
-            ->where('step_order', $activeStep)
-            ->where('user_id', $user->id)
+        return $employeeDemotion->approvals()
+            ->where('approval_round', $employeeDemotion->approval_round)
+            ->where('step_order', $employeeDemotion->current_approval_step)
+            ->where('manager_id', $user->id)
+            ->where('status', 'Pending')
             ->exists();
     }
 

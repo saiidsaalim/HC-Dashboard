@@ -7,6 +7,7 @@ enum PromotionStatus: string
     case Draft = 'Draft';
     case WaitingApproval = 'Waiting Approval';
     case Returned = 'Returned';
+    case Approved = 'Approved';
     case Final = 'Final';
     case LegacyPending = 'Pending';
 
@@ -16,6 +17,7 @@ enum PromotionStatus: string
             self::Draft => 'Draft',
             self::WaitingApproval => 'Menunggu Persetujuan',
             self::Returned => 'Dikembalikan',
+            self::Approved => 'Disetujui, menunggu TMT',
             self::Final => 'Final',
             self::LegacyPending => 'Pending (data lama)',
         };

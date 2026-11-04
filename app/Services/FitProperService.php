@@ -47,9 +47,8 @@ class FitProperService
     {
         $valid = $this->activityData($data);
 
-        return DB::transaction(function () use ($valid, $actor, $data) {
-            $activityRecord = FitProperActivity::create($valid + ['status' => 'Draft', 'created_by' => $actor?->id, 'standard' => FitProperSetting::current(),
-                'is_simulation' => (bool) ($data['is_simulation'] ?? false), 'demo_key' => $data['demo_key'] ?? null]);
+        return DB::transaction(function () use ($valid, $actor) {
+            $activityRecord = FitProperActivity::create($valid + ['status' => 'Draft', 'created_by' => $actor?->id, 'standard' => FitProperSetting::current()]);
             $this->history($activityRecord, 'Kegiatan dibuat', $actor);
 
             return $activityRecord;
@@ -239,7 +238,7 @@ class FitProperService
                 if (! $recap['complete']) {
                     throw ValidationException::withMessages(['status' => 'Finalisasi ditolak: lengkapi seluruh KPI, asesmen dan kiriman penguji; rata-rata tertinggi harus lebih dari nol.']);
                 }
-                $activityRecord->final_snapshot = $recap + ['activity' => $activityRecord->only(['name', 'target_position', 'department', 'scheduled_at', 'description', 'is_simulation', 'created_by']),
+                $activityRecord->final_snapshot = $recap + ['activity' => $activityRecord->only(['name', 'target_position', 'department', 'scheduled_at', 'description', 'created_by']),
                     'pics' => $activityRecord->pics()->get(['users.id', 'users.name'])->toArray(), 'finalized_by' => $actor?->only(['id', 'name']), 'finalized_at' => now()->toIso8601String()];
                 $activityRecord->finalized_at = now();
                 $activityRecord->examiners()->update(['revoked_at' => now()]);

@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests;
 
+use App\Services\Personnel\LevelTransitionService;
+
 class UpdateDemotionRequest extends PersonnelActionRequest
 {
     /**
@@ -10,5 +12,13 @@ class UpdateDemotionRequest extends PersonnelActionRequest
     public function authorize(): bool
     {
         return $this->user()?->can('update', $this->route('employeeDemotion')) ?? false;
+    }
+
+    protected function validateLevelTransition(
+        LevelTransitionService $levelTransitionService,
+        string $currentLevel,
+        string $newLevel,
+    ): void {
+        $levelTransitionService->ensureDemotion($currentLevel, $newLevel);
     }
 }

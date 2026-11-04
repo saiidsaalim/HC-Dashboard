@@ -23,7 +23,7 @@ class EmployeeMovementFinalizationService
             return;
         }
 
-        $employee = Employee::query()->where('sap', $movement->sap)->lockForUpdate()->first();
+        $employee = Employee::query()->whereKey($movement->employee_id)->lockForUpdate()->first();
         if ($employee === null) {
             throw ValidationException::withMessages([
                 'employee' => 'Data Pegawai untuk usulan ini tidak lagi tersedia.',
@@ -77,7 +77,26 @@ class EmployeeMovementFinalizationService
         ]);
 
         $this->organizationSyncService->synchronizePositionLevels([$oldPositionId, $employee->position_id]);
-        $movement->update(['employee_applied_at' => now()]);
+        $movement->update([
+            'employee_applied_at' => now(),
+            'verification_status' => 'Final',
+        ]);
+    }
+
+    public function applyIfDue(
+        EmployeePromotion|EmployeeDemotion|EmployeeMutation $movement,
+    ): bool {
+        if ($movement->employee_applied_at !== null) {
+            return false;
+        }
+
+        if ($movement->finalized_at === null || $movement->tmt->isFuture()) {
+            return false;
+        }
+
+        $this->apply($movement);
+
+        return true;
     }
 
     private function normalizedId(mixed $value): ?int

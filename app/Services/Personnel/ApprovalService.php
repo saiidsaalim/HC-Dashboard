@@ -28,40 +28,36 @@ class ApprovalService
                 throw new AuthorizationException('Pengajuan belum dikirim ke alur persetujuan.');
             }
 
-            if ($action->approvals()->where('manager_id', $manager->id)->exists()) {
+            if ($action->approvals()
+                ->where('approval_round', $action->approval_round)
+                ->where('manager_id', $manager->id)
+                ->where('status', 'Approved')
+                ->exists()) {
                 return true;
             }
 
-            $configuration = $this->workflow->validConfiguration($action::class, lockForUpdate: true);
             $step = $this->workflow->activeStep($action);
-            if ($configuration->get($step)?->user_id !== $manager->id) {
+            $approval = $action->approvals()
+                ->where('approval_round', $action->approval_round)
+                ->where('step_order', $step)
+                ->lockForUpdate()
+                ->first();
+
+            if ($approval === null || $approval->manager_id !== $manager->id || $approval->status !== 'Pending') {
                 throw new AuthorizationException('Anda bukan approver aktif untuk tahap ini.');
             }
 
-            $approval = $action->approvals()->firstOrCreate(
-                ['manager_id' => $manager->id],
-                [
-                    'step_order' => $step,
-                    'status' => 'Approved',
-                    'approved_at' => now(),
-                ],
-            );
+            $approval->update(['status' => 'Approved', 'approved_at' => now()]);
 
-            if (! $approval->wasRecentlyCreated) {
-                return true;
-            }
-
-            $approvedCount = $action->approvals()
-                ->where('status', 'Approved')
-                ->distinct('manager_id')
-                ->count('manager_id');
-
-            if ($approvedCount >= MovementApprovalWorkflowService::REQUIRED_STEPS) {
-                $this->finalizationService->apply($action);
+            if ($step >= MovementApprovalWorkflowService::REQUIRED_STEPS) {
                 $action->update([
-                    'verification_status' => 'Final',
+                    'verification_status' => 'Approved',
+                    'current_approval_step' => null,
                     'finalized_at' => now(),
                 ]);
+                $this->finalizationService->applyIfDue($action);
+            } else {
+                $action->update(['current_approval_step' => $step + 1]);
             }
 
             return false;

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Employee;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -14,7 +15,9 @@ class MovementLevelMigrationTest extends TestCase
     public function test_movement_level_column_rename_preserves_data_in_both_directions(): void
     {
         $table = 'employee_mutations';
+        $employee = Employee::query()->create(['sap' => 'SAP-MIGRATION']);
         DB::table($table)->insert([
+            'employee_id' => $employee->id,
             'sap' => 'SAP-MIGRATION',
             'nama' => 'Pegawai Migration',
             'departemen_lama' => 'Department Lama',

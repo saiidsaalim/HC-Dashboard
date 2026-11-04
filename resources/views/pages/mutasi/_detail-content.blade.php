@@ -130,10 +130,9 @@
             @foreach (range(1, 3) as $step)
                 @php
                     $decision = $approvalsByStep->get($step) ?? $legacyApprovals->get($step - 1);
-                    $configuredApprover = $approvalConfiguration->get($step)?->user;
                     $isApproved = $decision?->status === 'Approved';
                     $isCurrent = ! $isApproved && $step === $currentApprovalStep;
-                    $approverName = $decision?->manager?->name ?? $configuredApprover?->name ?? 'Belum dikonfigurasi';
+                    $approverName = $decision?->approver_name_snapshot ?? $decision?->manager?->name ?? 'Snapshot approver tidak tersedia';
                 @endphp
                 <article class="rounded-xl border p-3 {{ $isApproved ? 'border-emerald-200 bg-emerald-50' : ($isCurrent ? 'border-sky-200 bg-sky-50' : 'border-slate-200 bg-slate-50') }}">
                     <div class="flex items-start gap-2.5">

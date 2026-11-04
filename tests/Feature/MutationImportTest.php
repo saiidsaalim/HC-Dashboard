@@ -11,6 +11,8 @@ use App\Models\MutationApprovalConfig;
 use App\Models\Position;
 use App\Models\Unit;
 use App\Models\User;
+use App\Services\Personnel\ApprovalService;
+use App\Services\Personnel\MovementApprovalWorkflowService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -81,12 +83,8 @@ class MutationImportTest extends TestCase
                 'user_id' => $approver->id,
             ]);
         }
-        $mutation->approvals()->create([
-            'step_order' => 1,
-            'manager_id' => $approvers[0]->id,
-            'status' => 'Approved',
-            'approved_at' => now(),
-        ]);
+        app(MovementApprovalWorkflowService::class)->submit($mutation, $superAdmin);
+        app(ApprovalService::class)->approve($mutation, $approvers[0]);
 
         $this->actingAs($superAdmin)->get(route('mutasi'))
             ->assertOk()
@@ -104,8 +102,8 @@ class MutationImportTest extends TestCase
     public function test_pending_mutations_card_counts_only_pending_records(): void
     {
         $user = User::factory()->create();
-        EmployeeMutation::create($this->mutationAttributes('SAP013'));
-        EmployeeMutation::create($this->mutationAttributes('SAP014'));
+        EmployeeMutation::create([...$this->mutationAttributes('SAP013'), 'verification_status' => 'Pending']);
+        EmployeeMutation::create([...$this->mutationAttributes('SAP014'), 'verification_status' => 'Pending']);
         EmployeeMutation::create(array_merge($this->mutationAttributes('SAP015'), [
             'verification_status' => 'Final',
             'finalized_at' => now(),
@@ -143,7 +141,7 @@ class MutationImportTest extends TestCase
     {
         $user = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
         $mutation = EmployeeMutation::create([
-            'sap' => 'SAP003',
+            ...$this->mutationAttributes('SAP003'),
             'nama' => 'Dewi Lestari',
             'departemen_lama' => 'Keuangan',
             'jabatan_lama' => 'Staff',
@@ -179,7 +177,10 @@ class MutationImportTest extends TestCase
 
     public function test_mutation_becomes_final_after_three_admin_or_manager_approvals(): void
     {
-        $mutation = EmployeeMutation::create($this->mutationAttributes('SAP008'));
+        $mutation = EmployeeMutation::create([
+            ...$this->mutationAttributes('SAP008'),
+            'tmt' => today()->toDateString(),
+        ]);
         $approvers = collect([
             User::factory()->create(['role' => UserRole::ADMIN->value]),
             User::factory()->create(['role' => UserRole::MANAGER->value]),
@@ -188,6 +189,8 @@ class MutationImportTest extends TestCase
         foreach ($approvers as $step => $approver) {
             MutationApprovalConfig::query()->create(['step_order' => $step + 1, 'user_id' => $approver->id]);
         }
+        $submitter = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        $this->actingAs($submitter)->post(route('mutasi.submit', $mutation))->assertRedirect(route('mutasi'));
 
         foreach ($approvers as $approver) {
             $response = $this->actingAs($approver)->post(route('mutasi.approve', $mutation));

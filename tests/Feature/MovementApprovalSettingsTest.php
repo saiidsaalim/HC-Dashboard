@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Enums\UserRole;
 use App\Models\DemotionApprovalConfig;
+use App\Models\Employee;
 use App\Models\EmployeeMutation;
 use App\Models\MutationApprovalConfig;
 use App\Models\User;
@@ -66,7 +67,9 @@ class MovementApprovalSettingsTest extends TestCase
                 'user_id' => $approver->id,
             ]);
         }
+        $employee = Employee::query()->create(['sap' => 'SAP-WORKFLOW']);
         $mutation = EmployeeMutation::query()->create([
+            'employee_id' => $employee->id,
             'sap' => 'SAP-WORKFLOW',
             'nama' => 'Pegawai Workflow',
             'departemen_lama' => 'Departemen Lama',
@@ -75,6 +78,7 @@ class MovementApprovalSettingsTest extends TestCase
             'jabatan_baru' => 'Posisi Baru',
             'tmt' => '2026-11-02',
         ]);
+        $this->actingAs($superAdmin)->post(route('mutasi.submit', $mutation))->assertRedirect(route('mutasi'));
 
         $this->actingAs($approvers[1])->post(route('mutasi.approve', $mutation))->assertForbidden();
         $this->actingAs($approvers[0])->post(route('mutasi.approve', $mutation))->assertRedirect(route('mutasi'));

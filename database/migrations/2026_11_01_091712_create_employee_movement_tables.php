@@ -13,7 +13,8 @@ return new class extends Migration
     {
         Schema::create('employee_mutations', function (Blueprint $table): void {
             $table->id();
-            $table->string('sap')->index();
+            $table->foreignId('employee_id')->constrained()->restrictOnDelete();
+            $table->string('sap', 50)->index();
             $table->string('nama');
             $table->string('departemen_lama');
             $table->string('jabatan_lama');
@@ -25,7 +26,11 @@ return new class extends Migration
             $table->string('jg_lama')->nullable();
             $table->string('band_baru')->nullable();
             $table->string('jg_baru')->nullable();
-            $table->string('verification_status')->default('Pending');
+            $table->string('verification_status')->default('Draft');
+            $table->unsignedInteger('approval_round')->default(0);
+            $table->unsignedTinyInteger('current_approval_step')->nullable();
+            $table->foreignId('submitted_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('submitted_at')->nullable();
             $table->timestamp('finalized_at')->nullable();
             $table->timestamps();
         });
@@ -33,18 +38,24 @@ return new class extends Migration
         Schema::create('mutation_approvals', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('employee_mutation_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('manager_id')->constrained('users')->cascadeOnDelete();
-            $table->string('status')->default('Approved');
+            $table->unsignedInteger('approval_round')->default(1);
+            $table->unsignedTinyInteger('step_order');
+            $table->foreignId('manager_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->string('approver_name_snapshot')->nullable();
+            $table->string('approver_role_snapshot')->nullable();
+            $table->string('approver_number_snapshot')->nullable();
+            $table->string('status')->default('Pending');
             $table->text('note')->nullable();
             $table->timestamp('approved_at')->nullable();
             $table->timestamps();
 
-            $table->unique(['employee_mutation_id', 'manager_id']);
+            $table->unique(['employee_mutation_id', 'approval_round', 'step_order'], 'mutation_approvals_round_step_unique');
             $table->index(['employee_mutation_id', 'status']);
         });
 
         Schema::create('employee_promotions', function (Blueprint $table): void {
             $table->id();
+            $table->foreignId('employee_id')->constrained()->restrictOnDelete();
             $table->string('sap', 50)->index();
             $table->string('nama');
             $table->string('departemen_lama');
@@ -65,7 +76,6 @@ return new class extends Migration
             $table->timestamp('finalized_at')->nullable();
             $table->timestamps();
 
-            $table->foreign('sap')->references('sap')->on('employees')->cascadeOnUpdate()->restrictOnDelete();
         });
 
         Schema::create('promotion_approvals', function (Blueprint $table): void {
@@ -77,7 +87,7 @@ return new class extends Migration
             $table->string('approver_name_snapshot')->nullable();
             $table->string('approver_role_snapshot')->nullable();
             $table->string('approver_number_snapshot')->nullable();
-            $table->string('status')->default('Approved');
+            $table->string('status')->default('Pending');
             $table->text('note')->nullable();
             $table->timestamp('approved_at')->nullable();
             $table->timestamp('returned_at')->nullable();
@@ -93,13 +103,14 @@ return new class extends Migration
         Schema::create('promotion_approval_configs', function (Blueprint $table): void {
             $table->id();
             $table->unsignedTinyInteger('step_order')->unique();
-            $table->foreignId('user_id')->unique()->constrained('users')->cascadeOnDelete();
+            $table->foreignId('user_id')->nullable()->unique()->constrained('users')->nullOnDelete();
             $table->foreignId('updated_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();
         });
 
         Schema::create('employee_demotions', function (Blueprint $table): void {
             $table->id();
+            $table->foreignId('employee_id')->constrained()->restrictOnDelete();
             $table->string('sap', 50)->index();
             $table->string('nama');
             $table->string('departemen_lama');
@@ -112,23 +123,30 @@ return new class extends Migration
             $table->string('jg_lama');
             $table->string('band_baru');
             $table->string('jg_baru');
-            $table->string('verification_status')->default('Pending');
+            $table->string('verification_status')->default('Draft');
+            $table->unsignedInteger('approval_round')->default(0);
+            $table->unsignedTinyInteger('current_approval_step')->nullable();
+            $table->foreignId('submitted_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->timestamp('submitted_at')->nullable();
             $table->timestamp('finalized_at')->nullable();
             $table->timestamps();
-
-            $table->foreign('sap')->references('sap')->on('employees')->cascadeOnUpdate()->restrictOnDelete();
         });
 
         Schema::create('demotion_approvals', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('employee_demotion_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('manager_id')->constrained('users')->cascadeOnDelete();
-            $table->string('status')->default('Approved');
+            $table->unsignedInteger('approval_round')->default(1);
+            $table->unsignedTinyInteger('step_order');
+            $table->foreignId('manager_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->string('approver_name_snapshot')->nullable();
+            $table->string('approver_role_snapshot')->nullable();
+            $table->string('approver_number_snapshot')->nullable();
+            $table->string('status')->default('Pending');
             $table->text('note')->nullable();
             $table->timestamp('approved_at')->nullable();
             $table->timestamps();
 
-            $table->unique(['employee_demotion_id', 'manager_id']);
+            $table->unique(['employee_demotion_id', 'approval_round', 'step_order'], 'demotion_approvals_round_step_unique');
             $table->index(['employee_demotion_id', 'status']);
         });
     }

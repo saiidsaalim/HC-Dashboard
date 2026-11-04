@@ -33,7 +33,6 @@ class StoreEmployeeRequest extends FormRequest
             ],
             'section_id' => [
                 'nullable', 'integer',
-                Rule::requiredIf(fn (): bool => $this->filled('directorate_id') && $this->filled('position_id')),
                 Rule::exists('sections', 'id')->where('unit_id', $this->input('unit_id')),
             ],
             'position_id' => [
@@ -43,6 +42,8 @@ class StoreEmployeeRequest extends FormRequest
                     ->where(function (QueryBuilder $query): void {
                         if ($this->filled('section_id')) {
                             $query->where('section_id', $this->input('section_id'));
+                        } else {
+                            $query->whereNull('section_id');
                         }
                     }),
             ],

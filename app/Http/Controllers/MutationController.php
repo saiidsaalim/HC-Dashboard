@@ -33,7 +33,7 @@ class MutationController extends Controller
     ): View {
         Gate::authorize('viewAny', EmployeeMutation::class);
         $search = trim((string) $request->input('search', ''));
-        $filter = in_array($request->input('status'), ['draft', 'waiting', 'final'], true)
+        $filter = in_array($request->input('status'), ['draft', 'waiting', 'approved', 'final'], true)
             ? (string) $request->input('status')
             : 'all';
         $mutationQuery = EmployeeMutation::query()->with(['employee', 'approvals.manager']);
@@ -53,6 +53,8 @@ class MutationController extends Controller
             $mutationQuery->where('verification_status', 'Draft');
         } elseif ($filter === 'waiting') {
             $mutationQuery->where('verification_status', 'Pending');
+        } elseif ($filter === 'approved') {
+            $mutationQuery->where('verification_status', 'Approved');
         } elseif ($filter === 'final') {
             $mutationQuery->where('verification_status', 'Final');
         }
@@ -62,7 +64,7 @@ class MutationController extends Controller
             'totalMutations' => EmployeeMutation::query()->count(),
             'pendingMutations' => EmployeeMutation::query()->where('verification_status', 'Pending')->count(),
             'approvedMutationsThisYear' => EmployeeMutation::query()
-                ->where('verification_status', 'Final')
+                ->whereIn('verification_status', ['Approved', 'Final'])
                 ->whereYear('finalized_at', now()->year)
                 ->count(),
             'search' => $search,
@@ -141,11 +143,12 @@ class MutationController extends Controller
     }
 
     public function submit(
+        Request $request,
         EmployeeMutation $employeeMutation,
         MovementApprovalWorkflowService $workflow,
     ): RedirectResponse {
         Gate::authorize('submit', $employeeMutation);
-        $workflow->submit($employeeMutation);
+        $workflow->submit($employeeMutation, $request->user());
 
         return to_route('mutasi')->with('status', 'Mutasi berhasil diajukan ke approver Tahap 1.');
     }

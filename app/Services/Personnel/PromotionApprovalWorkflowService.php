@@ -44,9 +44,11 @@ class PromotionApprovalWorkflowService
             return null;
         }
 
-        $config = $this->configuration()->get($promotion->current_approval_step);
-
-        return $config !== null && $this->isEligible($config->user) ? $config->user : null;
+        return $promotion->approvals()
+            ->where('approval_round', $promotion->approval_round)
+            ->where('step_order', $promotion->current_approval_step)
+            ->where('status', PromotionApprovalStatus::Pending->value)
+            ->first()?->manager;
     }
 
     public function submit(EmployeePromotion $promotion, User $submitter): EmployeePromotion
@@ -60,10 +62,24 @@ class PromotionApprovalWorkflowService
                 ]);
             }
 
-            $this->validConfiguration(lockForUpdate: true);
+            $configuration = $this->validConfiguration(lockForUpdate: true);
+            $approvalRound = ((int) $lockedPromotion->approval_round) + 1;
+
+            foreach ($configuration as $step => $config) {
+                $approver = $config->user;
+                $lockedPromotion->approvals()->create([
+                    'approval_round' => $approvalRound,
+                    'step_order' => $step,
+                    'manager_id' => $approver->id,
+                    'approver_name_snapshot' => $approver->name,
+                    'approver_role_snapshot' => $approver->role,
+                    'approver_number_snapshot' => $approver->employee?->sap,
+                    'status' => PromotionApprovalStatus::Pending->value,
+                ]);
+            }
 
             $lockedPromotion->update([
-                'approval_round' => ((int) $lockedPromotion->approval_round) + 1,
+                'approval_round' => $approvalRound,
                 'current_approval_step' => 1,
                 'submitted_by' => $submitter->id,
                 'submitted_at' => now(),
@@ -89,12 +105,12 @@ class PromotionApprovalWorkflowService
             $this->createDecision($lockedPromotion, $approver, $step, PromotionApprovalStatus::Approved);
 
             if ($step === self::REQUIRED_STEPS) {
-                $this->finalizationService->apply($lockedPromotion);
                 $lockedPromotion->update([
-                    'verification_status' => PromotionStatus::Final->value,
+                    'verification_status' => PromotionStatus::Approved->value,
                     'current_approval_step' => null,
                     'finalized_at' => now(),
                 ]);
+                $this->finalizationService->applyIfDue($lockedPromotion);
             } else {
                 $lockedPromotion->update(['current_approval_step' => $step + 1]);
             }
@@ -163,8 +179,12 @@ class PromotionApprovalWorkflowService
         }
 
         $step = $promotion->current_approval_step;
-        $configuration = $this->validConfiguration(lockForUpdate: true);
-        $configuredApprover = $configuration->get($step)?->user;
+        $configuredApprover = $promotion->approvals()
+            ->where('approval_round', $promotion->approval_round)
+            ->where('step_order', $step)
+            ->where('status', PromotionApprovalStatus::Pending->value)
+            ->lockForUpdate()
+            ->first()?->manager;
 
         if ($configuredApprover?->isNot($approver) ?? true) {
             throw new AuthorizationException('Anda bukan approver aktif untuk tahap ini.');
@@ -178,6 +198,7 @@ class PromotionApprovalWorkflowService
         return $promotion->approvals()
             ->where('approval_round', $promotion->approval_round)
             ->where('manager_id', $approver->id)
+            ->where('status', '!=', PromotionApprovalStatus::Pending->value)
             ->first();
     }
 
@@ -191,18 +212,19 @@ class PromotionApprovalWorkflowService
         $approver->loadMissing('employee');
         $decisionAt = now();
 
-        $promotion->approvals()->create([
-            'approval_round' => $promotion->approval_round,
-            'step_order' => $step,
-            'manager_id' => $approver->id,
-            'status' => $status->value,
-            'note' => $note,
-            'approved_at' => $status === PromotionApprovalStatus::Approved ? $decisionAt : null,
-            'returned_at' => $status === PromotionApprovalStatus::Returned ? $decisionAt : null,
-            'approver_name_snapshot' => $approver->name,
-            'approver_role_snapshot' => $approver->role,
-            'approver_number_snapshot' => $approver->employee?->sap,
-        ]);
+        $promotion->approvals()
+            ->where('approval_round', $promotion->approval_round)
+            ->where('step_order', $step)
+            ->where('manager_id', $approver->id)
+            ->update([
+                'status' => $status->value,
+                'note' => $note,
+                'approved_at' => $status === PromotionApprovalStatus::Approved ? $decisionAt : null,
+                'returned_at' => $status === PromotionApprovalStatus::Returned ? $decisionAt : null,
+                'approver_name_snapshot' => $approver->name,
+                'approver_role_snapshot' => $approver->role,
+                'approver_number_snapshot' => $approver->employee?->sap,
+            ]);
     }
 
     /** @return Collection<int, PromotionApprovalConfig> */

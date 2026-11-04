@@ -188,8 +188,9 @@ class EmployeeOrganizationSyncService
                 Log::warning('Position mempunyai level Employee yang tidak konsisten.', [
                     ...$conflict,
                     'position_name' => $position->name,
-                    'selected_job_level' => $jobLevel,
                 ]);
+
+                continue;
             }
 
             if ($position->job_level === $jobLevel) {

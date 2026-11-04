@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Services\Authorization\RolePermissionCache;
 use App\Services\Authorization\WorkspaceRegistry;
 use App\Services\Users\StaffUserProvisioningService;
+use App\Services\Users\UserAccountService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -30,6 +31,7 @@ class UserManagementController extends Controller
         private RolePermissionCache $rolePermissionCache,
         private WorkspaceRegistry $workspaceRegistry,
         private SyncUserWorkspaceAccess $syncUserWorkspaceAccess,
+        private UserAccountService $userAccountService,
     ) {}
 
     public function index(Request $request): View
@@ -167,9 +169,13 @@ class UserManagementController extends Controller
 
         $newRole = UserRole::from($validated['role']);
 
-        abort_if($actor->is($user) && $newRole !== UserRole::SUPER_ADMIN, 403, 'Anda tidak dapat menurunkan role akun sendiri.');
+        if ($actor->is($user) && $newRole !== UserRole::SUPER_ADMIN) {
+            throw ValidationException::withMessages([
+                'role' => 'Anda tidak dapat menurunkan role akun sendiri.',
+            ]);
+        }
 
-        $user->update(['role' => $newRole->value]);
+        $this->userAccountService->changeRole($user, $newRole);
 
         return back()->with('status', 'Role pengguna berhasil diperbarui.');
     }
@@ -212,7 +218,7 @@ class UserManagementController extends Controller
         abort_if($user->roleEnum() === UserRole::SUPER_ADMIN && $actor->roleEnum() !== UserRole::SUPER_ADMIN, 403);
         abort_if($actor->is($user), 403, 'Anda tidak dapat menghapus akun sendiri.');
 
-        $user->delete();
+        $this->userAccountService->delete($user);
 
         return back()->with('status', 'Pengguna berhasil dihapus.');
     }

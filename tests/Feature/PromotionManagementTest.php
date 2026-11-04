@@ -451,7 +451,7 @@ class PromotionManagementTest extends TestCase
         $this->assertDatabaseCount('promotion_approval_configs', 3);
     }
 
-    public function test_active_three_step_workflow_waits_for_complete_configuration_then_continues_to_step_four(): void
+    public function test_submitted_workflow_keeps_its_approver_snapshot_when_configuration_changes(): void
     {
         $superAdmin = $this->user(UserRole::SUPER_ADMIN);
         $approvers = $this->configureApprovers();
@@ -462,21 +462,12 @@ class PromotionManagementTest extends TestCase
         PromotionApprovalConfig::query()->where('step_order', PromotionApprovalWorkflowService::REQUIRED_STEPS)->delete();
 
         $this->actingAs($approvers[2])->post(route('promosi.approve', $promotion))
-            ->assertSessionHasErrors('approval_config');
-        $this->assertSame(3, $promotion->fresh()->current_approval_step);
-        $this->assertDatabaseCount('promotion_approvals', 2);
-
-        PromotionApprovalConfig::query()->create([
-            'step_order' => PromotionApprovalWorkflowService::REQUIRED_STEPS,
-            'user_id' => $approvers[3]->id,
-            'updated_by' => $superAdmin->id,
-        ]);
-
-        $this->actingAs($approvers[2])->post(route('promosi.approve', $promotion))->assertRedirect(route('promosi'));
+            ->assertRedirect(route('promosi'));
         $this->assertSame(4, $promotion->fresh()->current_approval_step);
         $this->assertSame(PromotionStatus::WaitingApproval->value, $promotion->fresh()->verification_status);
         $this->actingAs($approvers[3])->post(route('promosi.approve', $promotion))->assertRedirect(route('promosi'));
-        $this->assertSame(PromotionStatus::Final->value, $promotion->fresh()->verification_status);
+        $this->assertSame(PromotionStatus::Approved->value, $promotion->fresh()->verification_status);
+        $this->assertDatabaseCount('promotion_approvals', 4);
     }
 
     public function test_approvals_are_sequential_idempotent_and_store_identity_snapshots(): void
@@ -497,7 +488,7 @@ class PromotionManagementTest extends TestCase
         $this->actingAs($approvers[0])->post(route('promosi.approve', $promotion))->assertRedirect(route('promosi'));
         $this->assertSame(2, $promotion->fresh()->current_approval_step);
         $this->actingAs($approvers[0])->post(route('promosi.approve', $promotion))->assertRedirect(route('promosi'));
-        $this->assertDatabaseCount('promotion_approvals', 1);
+        $this->assertDatabaseCount('promotion_approvals', 4);
 
         $this->actingAs($approvers[1])->post(route('promosi.approve', $promotion));
         $this->assertSame(3, $promotion->fresh()->current_approval_step);
@@ -506,12 +497,12 @@ class PromotionManagementTest extends TestCase
         $this->assertSame(PromotionStatus::WaitingApproval->value, $promotion->verification_status);
         $this->assertSame(4, $promotion->current_approval_step);
         $this->assertNull($promotion->finalized_at);
-        $this->assertDatabaseCount('promotion_approvals', 3);
+        $this->assertDatabaseCount('promotion_approvals', 4);
 
         $this->actingAs($approvers[3])->post(route('promosi.approve', $promotion));
 
         $promotion->refresh();
-        $this->assertSame(PromotionStatus::Final->value, $promotion->verification_status);
+        $this->assertSame(PromotionStatus::Approved->value, $promotion->verification_status);
         $this->assertNull($promotion->current_approval_step);
         $this->assertNotNull($promotion->finalized_at);
         $this->assertDatabaseCount('promotion_approvals', PromotionApprovalWorkflowService::REQUIRED_STEPS);
@@ -637,8 +628,8 @@ class PromotionManagementTest extends TestCase
         $this->assertSame(2, $promotion->approval_round);
         $this->assertSame(1, $promotion->current_approval_step);
         $this->assertSame('Position '.$employee->id, $promotion->jabatan_baru);
-        $this->assertSame(2, $promotion->approvals()->where('approval_round', 1)->count());
-        $this->assertSame(0, $promotion->approvals()->where('approval_round', 2)->count());
+        $this->assertSame(4, $promotion->approvals()->where('approval_round', 1)->count());
+        $this->assertSame(4, $promotion->approvals()->where('approval_round', 2)->count());
     }
 
     public function test_waiting_and_final_promotions_are_immutable_and_final_cannot_be_sent_back(): void
@@ -681,7 +672,7 @@ class PromotionManagementTest extends TestCase
         $this->assertSame(1, substr_count($response->getContent(), 'Hapus terpilih'));
     }
 
-    public function test_changing_active_approver_applies_immediately_without_changing_completed_approval(): void
+    public function test_changing_active_approver_only_applies_to_new_submissions(): void
     {
         $superAdmin = $this->user(UserRole::SUPER_ADMIN);
         $approvers = $this->configureApprovers();
@@ -699,8 +690,8 @@ class PromotionManagementTest extends TestCase
             ],
         ]);
 
-        $this->actingAs($approvers[1])->post(route('promosi.approve', $promotion))->assertForbidden();
-        $this->actingAs($replacement)->post(route('promosi.approve', $promotion))->assertRedirect(route('promosi'));
+        $this->actingAs($replacement)->post(route('promosi.approve', $promotion))->assertForbidden();
+        $this->actingAs($approvers[1])->post(route('promosi.approve', $promotion))->assertRedirect(route('promosi'));
         $this->assertDatabaseHas('promotion_approvals', [
             'employee_promotion_id' => $promotion->id,
             'step_order' => 1,
@@ -720,7 +711,7 @@ class PromotionManagementTest extends TestCase
 
         $this->actingAs($approvers[0])->post(route('promosi.approve', $promotion))->assertForbidden();
         $this->assertSame(1, $promotion->fresh()->current_approval_step);
-        $this->assertDatabaseCount('promotion_approvals', 0);
+        $this->assertDatabaseCount('promotion_approvals', 4);
     }
 
     public function test_deleted_configured_user_removes_only_configuration_and_blocks_submission(): void
@@ -732,7 +723,8 @@ class PromotionManagementTest extends TestCase
 
         $this->actingAs($superAdmin)->post(route('promosi.submit', $promotion))
             ->assertSessionHasErrors('approval_config');
-        $this->assertDatabaseCount('promotion_approval_configs', 3);
+        $this->assertDatabaseCount('promotion_approval_configs', 4);
+        $this->assertDatabaseHas('promotion_approval_configs', ['step_order' => 2, 'user_id' => null]);
         $this->assertSame(PromotionStatus::Draft->value, $promotion->fresh()->verification_status);
     }
 
@@ -778,7 +770,7 @@ class PromotionManagementTest extends TestCase
         $promotion->refresh();
         $this->assertSame(1, $promotion->approval_round);
         $this->assertSame(1, $promotion->current_approval_step);
-        $this->assertSame(0, $promotion->approvals()->where('approval_round', 1)->count());
+        $this->assertSame(4, $promotion->approvals()->where('approval_round', 1)->count());
         $this->assertSame(1, $promotion->approvals()->whereNull('approval_round')->count());
     }
 

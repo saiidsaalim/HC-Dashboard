@@ -3,7 +3,6 @@
 namespace App\Policies;
 
 use App\Models\EmployeeMutation;
-use App\Models\MutationApprovalConfig;
 use App\Models\User;
 
 class EmployeeMutationPolicy
@@ -75,7 +74,7 @@ class EmployeeMutationPolicy
             return false;
         }
 
-        if ($employeeMutation->approvals()->where('manager_id', $user->id)->exists()) {
+        if ($employeeMutation->approvals()->where('approval_round', $employeeMutation->approval_round)->where('manager_id', $user->id)->where('status', 'Approved')->exists()) {
             return true;
         }
 
@@ -83,14 +82,11 @@ class EmployeeMutationPolicy
             return false;
         }
 
-        $activeStep = $employeeMutation->approvals()
-            ->where('status', 'Approved')
-            ->distinct('manager_id')
-            ->count('manager_id') + 1;
-
-        return MutationApprovalConfig::query()
-            ->where('step_order', $activeStep)
-            ->where('user_id', $user->id)
+        return $employeeMutation->approvals()
+            ->where('approval_round', $employeeMutation->approval_round)
+            ->where('step_order', $employeeMutation->current_approval_step)
+            ->where('manager_id', $user->id)
+            ->where('status', 'Pending')
             ->exists();
     }
 

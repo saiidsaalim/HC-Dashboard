@@ -34,9 +34,12 @@ class PersonnelMovementValidationTest extends TestCase
     public function test_server_ignores_spoofed_employee_and_organization_snapshots(): void
     {
         [$employee, $target] = $this->employeeAndTarget();
+        $employee->update(['employee_subgroup' => 'B2']);
+        Employee::query()->create(['sap' => 'LEVEL-OPTION-B1', 'employee_subgroup' => 'B1']);
 
         $this->actingAs($this->superAdmin())->post(route('demosi.store'), [
             ...$this->payload($employee, $target),
+            'level_baru' => 'B1',
             'sap' => 'SAP-PALSU',
             'nama' => 'Nama Palsu',
             'departemen_lama' => 'Department Palsu',
@@ -55,8 +58,8 @@ class PersonnelMovementValidationTest extends TestCase
             'departemen_baru' => 'Department Baru',
             'jabatan_lama' => 'Position Lama',
             'jabatan_baru' => 'Position Baru',
-            'level_lama' => 'B1',
-            'level_baru' => 'B2',
+            'level_lama' => 'B2',
+            'level_baru' => 'B1',
         ]);
     }
 

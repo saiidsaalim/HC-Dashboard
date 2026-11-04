@@ -37,21 +37,18 @@ class FitProperController extends Controller
             $query->where(fn ($builder) => $builder->whereHas('pics', fn ($builder) => $builder->where('users.id', $request->user()->id))
                 ->orWhereHas('examiners', fn ($builder) => $builder->where('user_id', $request->user()->id)));
         }
-        $real = (clone $query)->where('is_simulation', false)->count();
-        $demo = (clone $query)->where('is_simulation', true)->count();
+        $activityCount = (clone $query)->count();
         $query->when($request->filled('q'), fn ($builder) => $builder->where('name', 'like', '%'.$request->string('q').'%'))
-            ->when($request->filled('status'), fn ($builder) => $builder->where('status', $request->input('status')))
-            ->when($request->filled('simulation'), fn ($builder) => $builder->where('is_simulation', $request->boolean('simulation')));
+            ->when($request->filled('status'), fn ($builder) => $builder->where('status', $request->input('status')));
 
         return view('fit-proper.index', ['activities' => $query->withCount(['participants', 'examiners', 'examiners as submitted_count' => fn ($builder) => $builder->whereNotNull('submitted_at')])->latest()->paginate(12)->withQueryString(),
-            'realCount' => $real, 'demoCount' => $demo, 'standard' => FitProperSetting::current()]);
+            'activityCount' => $activityCount, 'standard' => FitProperSetting::current()]);
     }
 
     public function store(Request $request): RedirectResponse|JsonResponse
     {
         Gate::authorize('create', FitProperActivity::class);
-        $request->validate(['is_simulation' => 'nullable|boolean']);
-        $activityRecord = $this->service->create($request->except(['demo_key']), $request->user());
+        $activityRecord = $this->service->create($request->all(), $request->user());
 
         if ($request->expectsJson()) {
             return response()->json(['message' => 'Kegiatan dibuat.', 'redirect' => route('fit-proper.show', $activityRecord)], 201);
@@ -130,15 +127,30 @@ class FitProperController extends Controller
     {
         Gate::authorize('manage', $activity);
         $request->validate(['cv' => ['nullable', 'file', 'mimes:pdf', 'max:5120'], 'remove_cv' => 'nullable|boolean']);
-        $this->service->mutate($activity, function ($activityRecord) use ($request, $participant) {
-            $participantRecord = $this->service->participant($activityRecord, $request->all(), $participant, $request->user());
-            if ($request->boolean('remove_cv')) {
-                $participantRecord->update(['cv_path' => null]);
+        $oldPath = $participant?->cv_path;
+        $newPath = $request->hasFile('cv')
+            ? $request->file('cv')->store('fit-proper/cv', 'local')
+            : null;
+
+        try {
+            $this->service->mutate($activity, function ($activityRecord) use ($request, $participant, $newPath) {
+                $participantRecord = $this->service->participant($activityRecord, $request->all(), $participant, $request->user());
+
+                if ($request->boolean('remove_cv') || $newPath !== null) {
+                    $participantRecord->update(['cv_path' => $newPath]);
+                }
+            });
+        } catch (\Throwable $exception) {
+            if ($newPath !== null) {
+                Storage::disk('local')->delete($newPath);
             }
-            if ($request->hasFile('cv')) {
-                $participantRecord->update(['cv_path' => $request->file('cv')->store('fit-proper/cv', 'local')]);
-            }
-        });
+
+            throw $exception;
+        }
+
+        if ($oldPath !== null && ($request->boolean('remove_cv') || $newPath !== null)) {
+            Storage::disk('local')->delete($oldPath);
+        }
 
         return redirect()->route('fit-proper.show', $activity)->with('success', 'Peserta disimpan.');
     }
@@ -147,10 +159,15 @@ class FitProperController extends Controller
     {
         Gate::authorize('manage', $activity);
         abort_unless($participant->fit_proper_activity_id === $activity->id, 404);
+        $cvPath = $participant->cv_path;
         $this->service->mutate($activity, function ($activityRecord) use ($participant, $request) {
             $participant->delete();
             $this->service->history($activityRecord, 'Peserta dihapus', $request->user(), ['participant_id' => $participant->id, 'name' => $participant->name]);
         });
+
+        if ($cvPath !== null) {
+            Storage::disk('local')->delete($cvPath);
+        }
 
         return back();
     }
@@ -343,7 +360,7 @@ class FitProperController extends Controller
         $book = new Spreadsheet;
         $sheet = $book->getActiveSheet()->setTitle('Hasil gabungan');
         $sheet->fromArray([
-            [$activity->name, $activity->is_simulation ? 'Data Simulasi' : 'Data Operasional', $activity->status === 'Selesai' ? 'Final' : 'Sementara'],
+            [$activity->name, $activity->status === 'Selesai' ? 'Final' : 'Sementara'],
             ['Normalisasi FP terhadap peserta tertinggi. Perbandingan dan ranking menggunakan presisi 6 desimal.'],
             ['Standar', json_encode($recap['standard'])],
             ['Nama', 'SAP / Identitas', 'KPI', 'Asesmen', 'Rata FP', 'FP normal', 'Kontribusi KPI', 'Kontribusi asesmen', 'Kontribusi FP', 'Total', 'Rank FP', 'Rank gabungan', 'Kelulusan'],

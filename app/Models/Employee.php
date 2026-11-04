@@ -108,17 +108,17 @@ class Employee extends Model
 
     public function promotions(): HasMany
     {
-        return $this->hasMany(EmployeePromotion::class, 'sap', 'sap');
+        return $this->hasMany(EmployeePromotion::class);
     }
 
     public function demotions(): HasMany
     {
-        return $this->hasMany(EmployeeDemotion::class, 'sap', 'sap');
+        return $this->hasMany(EmployeeDemotion::class);
     }
 
     public function mutations(): HasMany
     {
-        return $this->hasMany(EmployeeMutation::class, 'sap', 'sap');
+        return $this->hasMany(EmployeeMutation::class);
     }
 
     public function user(): HasOne

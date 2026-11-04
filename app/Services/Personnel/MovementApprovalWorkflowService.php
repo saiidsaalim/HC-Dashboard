@@ -46,10 +46,9 @@ class MovementApprovalWorkflowService
 
     public function activeStep(EmployeeMutation|EmployeeDemotion $movement): int
     {
-        return min(
-            $movement->approvals()->where('status', 'Approved')->distinct('manager_id')->count('manager_id') + 1,
-            self::REQUIRED_STEPS,
-        );
+        return (int) ($movement->current_approval_step
+            ?? $movement->approvals()->where('status', 'Pending')->min('step_order')
+            ?? self::REQUIRED_STEPS);
     }
 
     public function currentApprover(EmployeeMutation|EmployeeDemotion $movement): ?User
@@ -58,12 +57,16 @@ class MovementApprovalWorkflowService
             return null;
         }
 
-        return $this->configuration($movement::class)->get($this->activeStep($movement))?->user;
+        return $movement->approvals()
+            ->where('approval_round', $movement->approval_round)
+            ->where('step_order', $this->activeStep($movement))
+            ->where('status', 'Pending')
+            ->first()?->manager;
     }
 
-    public function submit(EmployeeMutation|EmployeeDemotion $movement): void
+    public function submit(EmployeeMutation|EmployeeDemotion $movement, User $submitter): void
     {
-        DB::transaction(function () use ($movement): void {
+        DB::transaction(function () use ($movement, $submitter): void {
             $lockedMovement = $movement::query()->lockForUpdate()->findOrFail($movement->getKey());
 
             if ($lockedMovement->verification_status !== 'Draft') {
@@ -72,9 +75,32 @@ class MovementApprovalWorkflowService
                 ]);
             }
 
-            $this->validConfiguration($lockedMovement::class, lockForUpdate: true);
-            $lockedMovement->update(['verification_status' => 'Pending']);
-        });
+            $configuration = $this->validConfiguration($lockedMovement::class, lockForUpdate: true);
+            $approvalRound = ((int) $lockedMovement->approval_round) + 1;
+
+            foreach ($configuration as $step => $config) {
+                $approver = $config->user;
+                $lockedMovement->approvals()->create([
+                    'approval_round' => $approvalRound,
+                    'step_order' => $step,
+                    'manager_id' => $approver->id,
+                    'approver_name_snapshot' => $approver->name,
+                    'approver_role_snapshot' => $approver->role,
+                    'approver_number_snapshot' => $approver->employee?->sap,
+                    'status' => 'Pending',
+                ]);
+            }
+
+            $lockedMovement->update([
+                'verification_status' => 'Pending',
+                'approval_round' => $approvalRound,
+                'current_approval_step' => 1,
+                'submitted_by' => $submitter->id,
+                'submitted_at' => now(),
+                'finalized_at' => null,
+                'employee_applied_at' => null,
+            ]);
+        }, attempts: 3);
     }
 
     /**

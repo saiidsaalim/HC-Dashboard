@@ -25,6 +25,7 @@ class PersonnelMovementSnapshotService
         $target = $this->organizationHierarchy->validatedTarget($validated);
 
         return [
+            'employee_id' => $employee->getKey(),
             'sap' => $employee->sap,
             'nama' => $employee->name ?: $employee->user?->name ?: $employee->personal_number ?: $employee->sap,
             'old_directorate_id' => $employee->directorate_id,

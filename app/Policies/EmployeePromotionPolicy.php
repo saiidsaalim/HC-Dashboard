@@ -5,7 +5,6 @@ namespace App\Policies;
 use App\Enums\PromotionApprovalStatus;
 use App\Enums\PromotionStatus;
 use App\Models\EmployeePromotion;
-use App\Models\PromotionApprovalConfig;
 use App\Models\User;
 
 class EmployeePromotionPolicy
@@ -83,9 +82,11 @@ class EmployeePromotionPolicy
             return false;
         }
 
-        return PromotionApprovalConfig::query()
+        return $employeePromotion->approvals()
+            ->where('approval_round', $employeePromotion->approval_round)
             ->where('step_order', $employeePromotion->current_approval_step)
-            ->where('user_id', $user->id)
+            ->where('manager_id', $user->id)
+            ->where('status', PromotionApprovalStatus::Pending->value)
             ->exists();
     }
 
