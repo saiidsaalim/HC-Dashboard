@@ -1126,6 +1126,60 @@ html {
 		border-left: 1.5px solid #94a3b8;
 		content: '';
 	}
+
+	.mutation-journey-table {
+		border-collapse: separate;
+		border-spacing: 0 0.75rem;
+	}
+
+	.mutation-journey-table thead th {
+		border-top: 1px solid #cbd5e1;
+		border-bottom: 1px solid #cbd5e1;
+		background: #eef4f8;
+		color: #475569;
+		box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.8);
+	}
+
+	.mutation-journey-table thead th:first-child {
+		border-left: 1px solid #cbd5e1;
+		border-radius: 0.875rem 0 0 0.875rem;
+	}
+
+	.mutation-journey-table thead th:last-child {
+		border-right: 1px solid #cbd5e1;
+		border-radius: 0 0.875rem 0.875rem 0;
+	}
+
+	.mutation-journey-table tbody tr:not(.mutation-journey-empty-row) > td {
+		border-top: 1px solid #e2e8f0;
+		border-bottom: 1px solid #e2e8f0;
+		background: #fff;
+		transition:
+			background-color 160ms ease,
+			border-color 160ms ease;
+	}
+
+	.mutation-journey-table tbody tr:not(.mutation-journey-empty-row) > td:first-child {
+		border-left: 1px solid #e2e8f0;
+		border-radius: 1rem 0 0 1rem;
+	}
+
+	.mutation-journey-table tbody tr:not(.mutation-journey-empty-row) > td:last-child {
+		border-right: 1px solid #e2e8f0;
+		border-radius: 0 1rem 1rem 0;
+	}
+
+	.mutation-journey-table tbody tr:not(.mutation-journey-empty-row):hover > td,
+	.mutation-journey-table tbody tr:not(.mutation-journey-empty-row):focus-visible > td {
+		border-color: #bae6fd;
+		background: #f8fbff;
+	}
+
+	.mutation-journey-table .mutation-journey-empty-row > td {
+		border: 1px dashed #cbd5e1;
+		border-radius: 1rem;
+		background: #f8fafc;
+	}
 }
 
 @media (max-width: 767px) {
@@ -1163,6 +1217,111 @@ html {
 
 	.talent-matrix-detail {
 		margin: 0 1rem 1rem;
+	}
+
+	[data-mutation-journey-table-wrap] {
+		overflow: visible;
+		padding: 0.75rem;
+	}
+
+	.mutation-journey-table {
+		display: block;
+		min-width: 0 !important;
+		border-spacing: 0;
+		white-space: normal !important;
+	}
+
+	.mutation-journey-table colgroup,
+	.mutation-journey-table thead {
+		display: none;
+	}
+
+	.mutation-journey-table tbody {
+		display: grid;
+		gap: 0.875rem;
+	}
+
+	.mutation-journey-table tbody tr {
+		position: relative;
+		display: block;
+		overflow: hidden;
+		border: 1px solid #e2e8f0;
+		border-radius: 1rem;
+		background: #fff;
+		box-shadow: var(--hc-shadow-sm);
+	}
+
+	.mutation-journey-table tbody tr > td,
+	.mutation-journey-table tbody tr:not(.mutation-journey-empty-row) > td,
+	.mutation-journey-table tbody tr:not(.mutation-journey-empty-row) > td:first-child,
+	.mutation-journey-table tbody tr:not(.mutation-journey-empty-row) > td:last-child {
+		display: block;
+		width: 100%;
+		border: 0;
+		border-radius: 0;
+		background: transparent;
+		text-align: left;
+	}
+
+	.mutation-journey-table td[data-label='Pilih'] {
+		position: absolute;
+		top: 0.75rem;
+		right: 0.75rem;
+		z-index: 2;
+		width: auto;
+		padding: 0.5rem;
+	}
+
+	.mutation-journey-table td[data-label='SAP'] {
+		padding: 1rem 3.5rem 0.25rem 1rem;
+	}
+
+	.mutation-journey-table td[data-label='Pegawai'] {
+		padding: 0.25rem 1rem 1rem;
+	}
+
+	.mutation-journey-table td[data-label='SAP']::before,
+	.mutation-journey-table td[data-label='Pegawai']::before {
+		display: block;
+		margin-bottom: 0.2rem;
+		color: #94a3b8;
+		content: attr(data-label);
+		font-size: 0.625rem;
+		font-weight: 800;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+
+	.mutation-journey-table td[data-label='Posisi Saat Ini'],
+	.mutation-journey-table td[data-label='Usulan'],
+	.mutation-journey-table td[data-label='Workflow'],
+	.mutation-journey-table td[data-label='Aksi'] {
+		padding: 0.5rem 1rem;
+	}
+
+	.mutation-journey-table .mutation-journey-arrow {
+		top: -1rem;
+		left: 50%;
+		transform: translateX(-50%) rotate(90deg);
+	}
+
+	.mutation-journey-table td[data-label='Aksi'] {
+		padding-bottom: 1rem;
+	}
+
+	.mutation-journey-table td[data-label='Aksi'] > div {
+		flex-direction: row;
+		flex-wrap: wrap;
+	}
+
+	.mutation-journey-table td[data-label='Aksi'] :is(button, a) {
+		width: auto;
+		flex: 1 1 8rem;
+	}
+
+	.mutation-journey-table .mutation-journey-empty-row > td {
+		padding: 2.5rem 1rem;
+		text-align: center;
 	}
 }
 
@@ -1550,6 +1709,36 @@ html.dark [data-successor-department-card][aria-pressed='true'] {
 	box-shadow:
 		0 0 0 1px rgb(96 165 250 / 0.45),
 		0 12px 28px rgb(2 6 23 / 0.3) !important;
+}
+
+html.dark .mutation-journey-table thead th {
+	border-color: var(--hc-border);
+	background: #172033;
+}
+
+html.dark .mutation-journey-table tbody tr:not(.mutation-journey-empty-row) > td {
+	border-color: var(--hc-border);
+	background: var(--hc-surface);
+}
+
+html.dark .mutation-journey-table tbody tr {
+	border-color: var(--hc-border);
+	background: var(--hc-surface);
+}
+
+html.dark .mutation-journey-table tbody tr:not(.mutation-journey-empty-row):hover > td,
+html.dark .mutation-journey-table tbody tr:not(.mutation-journey-empty-row):focus-visible > td {
+	border-color: #334e68;
+	background: #111c2f;
+}
+
+html.dark .mutation-journey-table .mutation-journey-arrow {
+	border-color: var(--hc-surface);
+}
+
+html.dark .mutation-journey-table .mutation-journey-empty-row > td {
+	border-color: var(--hc-border-strong);
+	background: #172033;
 }
 
 html.dark .talent-matrix-panel {

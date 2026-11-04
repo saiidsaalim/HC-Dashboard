@@ -67,6 +67,13 @@ class MutationImportTest extends TestCase
             ->assertViewHas('search', 'SAP006')
             ->assertViewHas('mutations', fn ($mutations): bool => $mutations->count() === 1
                 && $mutations->first()->sap === 'SAP006')
+            ->assertSee('data-mutation-journey', escape: false)
+            ->assertSee('mutation-journey-table', escape: false)
+            ->assertSee('aria-label="Status workflow Draft"', escape: false)
+            ->assertSee('Posisi saat ini')
+            ->assertSee('Usulan')
+            ->assertSee('Menunggu')
+            ->assertSee('Disetujui')
             ->assertSee('SAP006')
             ->assertSee('Data mutasi terbaru');
     }
