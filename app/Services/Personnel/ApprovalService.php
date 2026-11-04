@@ -63,4 +63,51 @@ class ApprovalService
             return false;
         });
     }
+
+    public function sendBack(
+        EmployeeMutation|EmployeeDemotion $personnelAction,
+        User $manager,
+        string $note,
+    ): bool {
+        return DB::transaction(function () use ($personnelAction, $manager, $note): bool {
+            $action = $personnelAction::query()->lockForUpdate()->findOrFail($personnelAction->getKey());
+
+            if ($action->approvals()
+                ->where('approval_round', $action->approval_round)
+                ->where('manager_id', $manager->id)
+                ->where('status', 'Returned')
+                ->exists()) {
+                return true;
+            }
+
+            if ($action->verification_status !== 'Pending') {
+                throw new AuthorizationException('Pengajuan tidak sedang menunggu keputusan Anda.');
+            }
+
+            $step = $this->workflow->activeStep($action);
+            $approval = $action->approvals()
+                ->where('approval_round', $action->approval_round)
+                ->where('step_order', $step)
+                ->lockForUpdate()
+                ->first();
+
+            if ($approval === null || $approval->manager_id !== $manager->id || $approval->status !== 'Pending') {
+                throw new AuthorizationException('Anda bukan approver aktif untuk tahap ini.');
+            }
+
+            $approval->update([
+                'status' => 'Returned',
+                'note' => $note,
+                'approved_at' => null,
+                'returned_at' => now(),
+            ]);
+
+            $action->update([
+                'verification_status' => 'Returned',
+                'current_approval_step' => null,
+            ]);
+
+            return false;
+        });
+    }
 }

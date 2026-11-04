@@ -71,9 +71,13 @@ class MovementApprovalWorkflowService
         DB::transaction(function () use ($movement, $submitter): void {
             $lockedMovement = $movement::query()->lockForUpdate()->findOrFail($movement->getKey());
 
-            if ($lockedMovement->verification_status !== 'Draft' || $lockedMovement->approvals()->exists()) {
+            $isInitialDraft = $lockedMovement->verification_status === 'Draft'
+                && ! $lockedMovement->approvals()->exists();
+            $isReturned = $lockedMovement->verification_status === 'Returned';
+
+            if (! $isInitialDraft && ! $isReturned) {
                 throw ValidationException::withMessages([
-                    'status' => 'Pengajuan hanya dapat dikirim dari status Draft.',
+                    'status' => 'Pengajuan hanya dapat dikirim dari status Draft atau Dikembalikan.',
                 ]);
             }
 
@@ -86,6 +90,14 @@ class MovementApprovalWorkflowService
                 $approvalRound,
                 $submittedAt,
             );
+
+            $lockedMovement->approvals()
+                ->where('status', 'Pending')
+                ->lockForUpdate()
+                ->update([
+                    'status' => 'Superseded',
+                    'cancelled_at' => $submittedAt,
+                ]);
 
             foreach ($configuration as $step => $config) {
                 $approver = $config->user;

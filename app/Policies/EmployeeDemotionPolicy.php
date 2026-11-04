@@ -37,8 +37,9 @@ class EmployeeDemotionPolicy
     public function update(User $user, EmployeeDemotion $employeeDemotion): bool
     {
         return $user->hasPermission('demotions.update')
-            && $employeeDemotion->verification_status === 'Draft'
-            && ! $employeeDemotion->approvals()->exists();
+            && ($employeeDemotion->verification_status === 'Returned'
+                || ($employeeDemotion->verification_status === 'Draft'
+                    && ! $employeeDemotion->approvals()->exists()));
     }
 
     /**
@@ -54,8 +55,9 @@ class EmployeeDemotionPolicy
     public function submit(User $user, EmployeeDemotion $employeeDemotion): bool
     {
         return $user->hasPermission('demotions.submit')
-            && $employeeDemotion->verification_status === 'Draft'
-            && ! $employeeDemotion->approvals()->exists();
+            && ($employeeDemotion->verification_status === 'Returned'
+                || ($employeeDemotion->verification_status === 'Draft'
+                    && ! $employeeDemotion->approvals()->exists()));
     }
 
     /**
@@ -81,6 +83,32 @@ class EmployeeDemotionPolicy
         }
 
         if ($employeeDemotion->approvals()->where('approval_round', $employeeDemotion->approval_round)->where('manager_id', $user->id)->where('status', 'Approved')->exists()) {
+            return true;
+        }
+
+        if ($employeeDemotion->verification_status !== 'Pending') {
+            return false;
+        }
+
+        return $employeeDemotion->approvals()
+            ->where('approval_round', $employeeDemotion->approval_round)
+            ->where('step_order', $employeeDemotion->current_approval_step)
+            ->where('manager_id', $user->id)
+            ->where('status', 'Pending')
+            ->exists();
+    }
+
+    public function sendBack(User $user, EmployeeDemotion $employeeDemotion): bool
+    {
+        if (! $user->hasPermission('demotions.approve')) {
+            return false;
+        }
+
+        if ($employeeDemotion->approvals()
+            ->where('approval_round', $employeeDemotion->approval_round)
+            ->where('manager_id', $user->id)
+            ->where('status', 'Returned')
+            ->exists()) {
             return true;
         }
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\SendBackDemotionRequest;
 use App\Http\Requests\StoreDemotionRequest;
 use App\Http\Requests\UpdateDemotionRequest;
 use App\Models\Employee;
@@ -33,7 +34,7 @@ class DemotionController extends Controller
     ): View {
         Gate::authorize('viewAny', EmployeeDemotion::class);
         $search = trim((string) $request->input('search', ''));
-        $filter = in_array($request->input('status'), ['draft', 'waiting', 'approved', 'final'], true)
+        $filter = in_array($request->input('status'), ['draft', 'waiting', 'returned', 'approved', 'final'], true)
             ? (string) $request->input('status')
             : 'all';
         $demotionQuery = EmployeeDemotion::query()->with(['employee', 'approvals.manager']);
@@ -53,6 +54,8 @@ class DemotionController extends Controller
             $demotionQuery->where('verification_status', 'Draft');
         } elseif ($filter === 'waiting') {
             $demotionQuery->where('verification_status', 'Pending');
+        } elseif ($filter === 'returned') {
+            $demotionQuery->where('verification_status', 'Returned');
         } elseif ($filter === 'approved') {
             $demotionQuery->where('verification_status', 'Approved');
         } elseif ($filter === 'final') {
@@ -146,6 +149,28 @@ class DemotionController extends Controller
         $workflow->submit($employeeDemotion, $request->user());
 
         return to_route('demosi')->with('status', 'Demosi berhasil diajukan ke approver Tahap 1.');
+    }
+
+    public function sendBack(
+        SendBackDemotionRequest $request,
+        EmployeeDemotion $employeeDemotion,
+        ApprovalService $approvalService,
+    ): RedirectResponse {
+        $manager = $request->user();
+        abort_unless($manager instanceof User, 403);
+
+        $alreadyReturned = $approvalService->sendBack(
+            $employeeDemotion,
+            $manager,
+            $request->string('return_note')->toString(),
+        );
+
+        return to_route('demosi')->with(
+            'status',
+            $alreadyReturned
+                ? 'Keputusan pengembalian Anda untuk putaran ini sudah tercatat.'
+                : 'Demosi dikembalikan untuk diperbaiki.',
+        );
     }
 
     public function print(Request $request, EmployeeDemotion $employeeDemotion): BinaryFileResponse

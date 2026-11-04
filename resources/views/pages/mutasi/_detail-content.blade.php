@@ -1,7 +1,8 @@
 @php
-    $approvedCount = $mutation->approvals->where('status', 'Approved')->unique('manager_id')->count();
+    $currentRoundApprovals = $mutation->approvals->where('approval_round', $mutation->approval_round);
+    $approvedCount = $currentRoundApprovals->where('status', 'Approved')->unique('manager_id')->count();
     $currentApprovalStep = $mutation->verification_status === 'Pending' ? min($approvedCount + 1, 3) : null;
-    $approvalsByStep = $mutation->approvals->whereNotNull('step_order')->keyBy('step_order');
+    $approvalsByStep = $currentRoundApprovals->whereNotNull('step_order')->keyBy('step_order');
     $legacyApprovals = $mutation->approvals->whereNull('step_order')->values();
 @endphp
 
@@ -31,20 +32,23 @@
                 @php
                     $decision = $approvalsByStep->get($step) ?? $legacyApprovals->get($step - 1);
                     $isApproved = $decision?->status === 'Approved';
+                    $isReturned = $decision?->status === 'Returned';
                     $isCurrent = ! $isApproved && $step === $currentApprovalStep;
                     $approverName = $decision?->approver_name_snapshot ?? $decision?->manager?->name ?? 'Snapshot approver tidak tersedia';
                 @endphp
-                <article class="rounded-xl border p-3 {{ $isApproved ? 'border-emerald-200 bg-emerald-50' : ($isCurrent ? 'border-sky-200 bg-sky-50' : 'border-slate-200 bg-slate-50') }}">
+                <article class="rounded-xl border p-3 {{ $isApproved ? 'border-emerald-200 bg-emerald-50' : ($isReturned ? 'border-rose-200 bg-rose-50' : ($isCurrent ? 'border-sky-200 bg-sky-50' : 'border-slate-200 bg-slate-50')) }}">
                     <div class="flex items-start gap-2.5">
-                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold {{ $isApproved ? 'bg-emerald-500 text-white' : ($isCurrent ? 'bg-sky-100 text-sky-700' : 'bg-slate-200 text-slate-500') }}">{{ $isApproved ? '✓' : $step }}</span>
+                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold {{ $isApproved ? 'bg-emerald-500 text-white' : ($isReturned ? 'bg-rose-100 text-rose-700' : ($isCurrent ? 'bg-sky-100 text-sky-700' : 'bg-slate-200 text-slate-500')) }}">{{ $isApproved ? '✓' : $step }}</span>
                         <div class="min-w-0">
                             <p class="text-xs font-bold text-slate-800">Penyetuju {{ $step }}</p>
                             <p class="mt-0.5 truncate text-xs text-slate-600" title="{{ $approverName }}">{{ $approverName }}</p>
-                            <p class="mt-1 text-xs font-semibold {{ $isApproved ? 'text-emerald-700' : ($isCurrent ? 'text-sky-700' : 'text-slate-500') }}">
-                                {{ $isApproved ? 'Disetujui' : ($isCurrent ? 'Menunggu keputusan' : 'Menunggu giliran') }}
+                            <p class="mt-1 text-xs font-semibold {{ $isApproved ? 'text-emerald-700' : ($isReturned ? 'text-rose-700' : ($isCurrent ? 'text-sky-700' : 'text-slate-500')) }}">
+                                {{ $isApproved ? 'Disetujui' : ($isReturned ? 'Dikembalikan' : ($isCurrent ? 'Menunggu keputusan' : 'Menunggu giliran')) }}
                             </p>
                             @if ($isApproved)
                                 <p class="mt-1 text-[11px] text-slate-500">{{ $decision->approved_at?->format('d M Y H:i') ?: 'Waktu tidak tersedia' }}</p>
+                            @elseif ($isReturned)
+                                <p class="mt-1 text-[11px] text-slate-500">{{ $decision->returned_at?->format('d M Y H:i') ?: 'Waktu tidak tersedia' }}</p>
                             @endif
                             @if ($decision?->note)
                                 <p class="mt-1 break-words text-[11px] text-slate-500">{{ $decision->note }}</p>

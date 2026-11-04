@@ -49,7 +49,8 @@ class PersonnelActionGuard
     ): void {
         $editable = $personnelAction instanceof EmployeePromotion
             ? $personnelAction->isEditable()
-            : $personnelAction->verification_status === 'Draft' && ! $personnelAction->approvals()->exists();
+            : $personnelAction->verification_status === 'Returned'
+                || ($personnelAction->verification_status === 'Draft' && ! $personnelAction->approvals()->exists());
 
         if (! $editable) {
             throw ValidationException::withMessages(['status' => 'Pengajuan pada status ini tidak dapat diubah.']);

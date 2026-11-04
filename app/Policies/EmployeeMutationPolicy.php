@@ -37,8 +37,9 @@ class EmployeeMutationPolicy
     public function update(User $user, EmployeeMutation $employeeMutation): bool
     {
         return $user->hasPermission('mutations.update')
-            && $employeeMutation->verification_status === 'Draft'
-            && ! $employeeMutation->approvals()->exists();
+            && ($employeeMutation->verification_status === 'Returned'
+                || ($employeeMutation->verification_status === 'Draft'
+                    && ! $employeeMutation->approvals()->exists()));
     }
 
     /**
@@ -54,8 +55,9 @@ class EmployeeMutationPolicy
     public function submit(User $user, EmployeeMutation $employeeMutation): bool
     {
         return $user->hasPermission('mutations.submit')
-            && $employeeMutation->verification_status === 'Draft'
-            && ! $employeeMutation->approvals()->exists();
+            && ($employeeMutation->verification_status === 'Returned'
+                || ($employeeMutation->verification_status === 'Draft'
+                    && ! $employeeMutation->approvals()->exists()));
     }
 
     /**
@@ -81,6 +83,32 @@ class EmployeeMutationPolicy
         }
 
         if ($employeeMutation->approvals()->where('approval_round', $employeeMutation->approval_round)->where('manager_id', $user->id)->where('status', 'Approved')->exists()) {
+            return true;
+        }
+
+        if ($employeeMutation->verification_status !== 'Pending') {
+            return false;
+        }
+
+        return $employeeMutation->approvals()
+            ->where('approval_round', $employeeMutation->approval_round)
+            ->where('step_order', $employeeMutation->current_approval_step)
+            ->where('manager_id', $user->id)
+            ->where('status', 'Pending')
+            ->exists();
+    }
+
+    public function sendBack(User $user, EmployeeMutation $employeeMutation): bool
+    {
+        if (! $user->hasPermission('mutations.approve')) {
+            return false;
+        }
+
+        if ($employeeMutation->approvals()
+            ->where('approval_round', $employeeMutation->approval_round)
+            ->where('manager_id', $user->id)
+            ->where('status', 'Returned')
+            ->exists()) {
             return true;
         }
 

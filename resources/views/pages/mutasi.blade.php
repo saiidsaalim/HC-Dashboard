@@ -183,6 +183,7 @@
                             <option value="all" @selected($filter === 'all')>Semua</option>
                             <option value="draft" @selected($filter === 'draft')>Draft</option>
                             <option value="waiting" @selected($filter === 'waiting')>Menunggu</option>
+                            <option value="returned" @selected($filter === 'returned')>Dikembalikan</option>
                             <option value="approved" @selected($filter === 'approved')>Disetujui, menunggu TMT</option>
                             <option value="final" @selected($filter === 'final')>Sudah diterapkan</option>
                         </select>
@@ -235,7 +236,8 @@
                                 onclick="if (!event.target.closest('a,button,input,select,textarea,label,form')) document.getElementById('mutation-detail-{{ $mutation->id }}').showModal()"
                                 onkeydown="if ((event.key === 'Enter' || event.key === ' ') && !event.target.closest('a,button,input,select,textarea,label,form')) { event.preventDefault(); document.getElementById('mutation-detail-{{ $mutation->id }}').showModal(); }">
                                 @php
-                                    $approvedCount = $mutation->approvals->where('status', 'Approved')->unique('manager_id')->count();
+                                    $currentRoundApprovals = $mutation->approvals->where('approval_round', $mutation->approval_round);
+                                    $approvedCount = $currentRoundApprovals->where('status', 'Approved')->unique('manager_id')->count();
                                     $activeStep = $mutation->current_approval_step ?? min($approvedCount + 1, 3);
                                     $activeApproval = $mutation->approvals
                                         ->where('approval_round', $mutation->approval_round)
@@ -244,8 +246,9 @@
                                     $activeApproverName = $activeApproval?->approver_name_snapshot ?? $activeApprover?->name;
                                     $isActiveApprover = $mutation->verification_status === 'Pending'
                                         && $activeApprover?->id === auth()->id();
+                                    $latestReturn = $mutation->approvals->where('status', 'Returned')->sortByDesc('id')->first();
                                     $workflowStage = match ($mutation->verification_status) {
-                                        'Draft' => 1,
+                                        'Draft', 'Returned' => 1,
                                         'Pending' => 2,
                                         'Approved', 'Final' => 3,
                                         default => 0,
@@ -316,6 +319,11 @@
                                                 <span class="inline-flex rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-bold text-sky-700 ring-1 ring-sky-200">Menunggu TMT</span>
                                             @elseif ($mutation->verification_status === 'Pending')
                                                 <p class="text-[10px] leading-4 text-slate-500">{{ $approvedCount }}/3 disetujui · Tahap {{ $activeStep }}<br>{{ $activeApproverName ?? 'Snapshot approver tidak tersedia' }}</p>
+                                            @elseif ($mutation->verification_status === 'Returned')
+                                                <span class="inline-flex rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-bold text-rose-700 ring-1 ring-rose-200">Dikembalikan</span>
+                                                @if ($latestReturn?->note)
+                                                    <p class="mt-2 break-words text-[10px] leading-4 text-rose-700">Catatan: {{ $latestReturn->note }}</p>
+                                                @endif
                                             @elseif ($workflowStage === 0)
                                                 <span class="inline-flex rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-bold text-red-700 ring-1 ring-red-200">{{ $mutation->verification_status }}</span>
                                             @endif
@@ -359,9 +367,13 @@
 
     @foreach ($mutations as $mutation)
         @php
-            $activeStep = min($mutation->approvals->where('status', 'Approved')->unique('manager_id')->count() + 1, 3);
+            $activeStep = $mutation->current_approval_step;
+            $activeApproval = $mutation->approvals
+                ->where('approval_round', $mutation->approval_round)
+                ->firstWhere('step_order', $activeStep);
             $isActiveApprover = $approvalConfigurationComplete
-                && $approvalConfiguration->get($activeStep)?->user_id === auth()->id();
+                && $activeApproval?->status === 'Pending'
+                && $activeApproval?->manager_id === auth()->id();
         @endphp
         @if ($canApproveMutations && $mutation->verification_status === 'Pending' && $isActiveApprover)
             <form id="approve-mutation-{{ $mutation->id }}" method="POST"
@@ -374,7 +386,7 @@
         @can('submit', $mutation)
             <form id="submit-mutation-{{ $mutation->id }}" method="POST" action="{{ route('mutasi.submit', $mutation) }}"
                 data-confirm-submit data-confirm-title="Ajukan mutasi ini?"
-                data-confirm-text="Pengajuan akan dikirim kepada approver Tahap 1."
+                data-confirm-text="Pengajuan akan dikirim kepada approver Tahap 1 dalam putaran baru."
                 data-confirm-icon="question" data-confirm-button-text="Ya, ajukan" data-confirm-button-color="#0284c7">
                 @csrf
             </form>
@@ -391,7 +403,7 @@
                 ->implode('');
         @endphp
         <dialog id="mutation-detail-{{ $mutation->id }}"
-            @if (old('_form') === 'edit-mutation-'.$mutation->id) x-init="$el.showModal()" @endif
+            @if (in_array(old('_form'), ['edit-mutation-'.$mutation->id, 'return-mutation-'.$mutation->id], true)) x-init="$el.showModal()" @endif
             aria-labelledby="mutation-detail-title-{{ $mutation->id }}"
             class="w-[calc(100%-1rem)] max-w-7xl overflow-hidden rounded-2xl p-0 shadow-2xl backdrop:bg-slate-950/60 sm:w-[calc(100%-2rem)] sm:rounded-3xl">
             <section class="flex max-h-[calc(100dvh-1rem)] min-h-0 flex-col bg-white sm:max-h-[calc(100dvh-2rem)]">
@@ -417,7 +429,7 @@
                                 <span class="flex h-4 w-4 items-center justify-center rounded-full border border-current text-[10px]" aria-hidden="true">{{ $mutation->employee ? '✓' : '!' }}</span>
                                 Employee {{ $mutation->employee ? 'Tersedia' : 'Tidak Tersedia' }}
                             </span>
-                            <span class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold {{ $statusIsFinal ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200' }}">
+                            <span class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold {{ $statusIsFinal ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : ($mutation->verification_status === 'Returned' ? 'bg-rose-50 text-rose-700 ring-1 ring-rose-200' : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200') }}">
                                 <span class="flex h-4 w-4 items-center justify-center rounded-full border border-current text-[10px]" aria-hidden="true">{{ $statusIsFinal ? '✓' : '·' }}</span>
                                 {{ $mutation->verification_status }}
                             </span>
@@ -425,6 +437,22 @@
                     </div>
 
                     @include('pages.mutasi._detail-content')
+                    @can('sendBack', $mutation)
+                        <form method="POST" action="{{ route('mutasi.send-back', $mutation) }}" class="mt-5 rounded-xl border border-rose-200 bg-rose-50 p-4"
+                            data-confirm-submit data-confirm-title="Kembalikan mutasi ini?"
+                            data-confirm-text="Mutasi akan dikembalikan untuk diperbaiki dan harus diajukan ulang."
+                            data-confirm-button-text="Ya, kembalikan" data-confirm-button-color="#e11d48">
+                            @csrf
+                            <input type="hidden" name="_form" value="return-mutation-{{ $mutation->id }}">
+                            <label for="mutation-return-note-{{ $mutation->id }}" class="text-sm font-semibold text-rose-800">Catatan Send Back</label>
+                            <textarea id="mutation-return-note-{{ $mutation->id }}" name="return_note" rows="3" maxlength="2000" required
+                                class="mt-2 block w-full rounded-xl border-rose-200 text-sm focus:border-rose-400 focus:ring-rose-400">{{ old('_form') === 'return-mutation-'.$mutation->id ? old('return_note') : '' }}</textarea>
+                            @if (old('_form') === 'return-mutation-'.$mutation->id)
+                                @error('return_note')<p class="mt-1 text-xs font-semibold text-rose-700">{{ $message }}</p>@enderror
+                            @endif
+                            <button type="submit" class="mt-3 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700">Kembalikan</button>
+                        </form>
+                    @endcan
                     @can('update', $mutation)
                         <details id="mutation-edit-{{ $mutation->id }}" @if (old('_form') === 'edit-mutation-'.$mutation->id) open @endif
                             class="mt-5 scroll-mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">

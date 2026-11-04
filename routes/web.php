@@ -71,6 +71,7 @@ Route::middleware('auth')->group(function () {
         Route::put('/mutasi/{employeeMutation}', [MutationController::class, 'update'])->middleware('can:mutations.update')->name('mutasi.update');
         Route::post('/mutasi/{employeeMutation}/submit', [MutationController::class, 'submit'])->middleware('can:mutations.submit')->name('mutasi.submit');
         Route::post('/mutasi/{employeeMutation}/approve', [MutationController::class, 'approve'])->middleware('can:mutations.approve')->name('mutasi.approve');
+        Route::post('/mutasi/{employeeMutation}/send-back', [MutationController::class, 'sendBack'])->middleware('can:mutations.approve')->name('mutasi.send-back');
         Route::delete('/mutasi', [MutationController::class, 'destroyMany'])->middleware('can:mutations.delete')->name('mutasi.destroy-many');
         Route::get('/promosi', [PromotionController::class, 'index'])->middleware('can:promotions.view')->name('promosi');
         Route::post('/promosi', [PromotionController::class, 'store'])->middleware('can:promotions.create')->name('promosi.store');
@@ -91,6 +92,7 @@ Route::middleware('auth')->group(function () {
         Route::put('/demosi/{employeeDemotion}', [DemotionController::class, 'update'])->middleware('can:demotions.update')->name('demosi.update');
         Route::post('/demosi/{employeeDemotion}/submit', [DemotionController::class, 'submit'])->middleware('can:demotions.submit')->name('demosi.submit');
         Route::post('/demosi/{employeeDemotion}/approve', [DemotionController::class, 'approve'])->middleware('can:demotions.approve')->name('demosi.approve');
+        Route::post('/demosi/{employeeDemotion}/send-back', [DemotionController::class, 'sendBack'])->middleware('can:demotions.approve')->name('demosi.send-back');
         Route::delete('/demosi', [DemotionController::class, 'destroyMany'])->middleware('can:demotions.delete')->name('demosi.destroy-many');
         Route::view('/formasi', 'pages.formasi')->middleware('can:formation.view')->name('formasi');
         Route::get('/konfigurasi-user', [UserManagementController::class, 'index'])->middleware('can:users.view')->name('konfigurasi-user');
