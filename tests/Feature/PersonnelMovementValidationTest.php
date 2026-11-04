@@ -17,7 +17,7 @@ class PersonnelMovementValidationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_level_options_are_unique_trimmed_and_sorted_from_employee_data(): void
+    public function test_level_options_use_the_official_hierarchy_from_highest_to_lowest(): void
     {
         foreach (['B2', ' B1 ', 'B1', '', null] as $index => $level) {
             Employee::query()->create([
@@ -28,17 +28,24 @@ class PersonnelMovementValidationTest extends TestCase
 
         $this->actingAs($this->superAdmin())->get(route('mutasi'))
             ->assertOk()
-            ->assertViewHas('movementLevels', fn ($levels): bool => $levels->all() === ['B1', 'B2']);
+            ->assertViewHas('movementLevels', fn ($levels): bool => $levels->all() === [
+                'General Manager',
+                'Senior Manager',
+                'Manager',
+                'Associate',
+                'Supervisor',
+                'Non-Eselon',
+            ]);
     }
 
     public function test_server_ignores_spoofed_employee_and_organization_snapshots(): void
     {
         [$employee, $target] = $this->employeeAndTarget();
-        $employee->update(['employee_subgroup' => 'B1']);
+        $employee->update(['employee_subgroup' => 'Manager']);
 
         $this->actingAs($this->superAdmin())->post(route('demosi.store'), [
             ...$this->payload($employee, $target),
-            'level_baru' => 'B2',
+            'level_baru' => 'Associate',
             'sap' => 'SAP-PALSU',
             'nama' => 'Nama Palsu',
             'departemen_lama' => 'Department Palsu',
@@ -57,8 +64,8 @@ class PersonnelMovementValidationTest extends TestCase
             'departemen_baru' => 'Department Baru',
             'jabatan_lama' => 'Position Lama',
             'jabatan_baru' => 'Position Baru',
-            'level_lama' => 'B1',
-            'level_baru' => 'B2',
+            'level_lama' => 'Manager',
+            'level_baru' => 'Associate',
         ]);
     }
 
@@ -74,7 +81,7 @@ class PersonnelMovementValidationTest extends TestCase
         $this->assertDatabaseCount('employee_promotions', 0);
     }
 
-    public function test_level_baru_outside_employee_level_options_is_rejected(): void
+    public function test_level_baru_outside_the_official_hierarchy_is_rejected(): void
     {
         [$employee, $target] = $this->employeeAndTarget();
 
@@ -82,7 +89,7 @@ class PersonnelMovementValidationTest extends TestCase
             ...$this->payload($employee, $target),
             'level_baru' => 'LEVEL-TIDAK-TERDAFTAR',
         ])->assertSessionHasErrors([
-            'level_baru' => 'Level Baru yang dipilih tidak tersedia pada Data Pegawai.',
+            'level_baru' => 'Level Baru harus menggunakan urutan level resmi yang tersedia.',
         ]);
 
         $this->assertDatabaseCount('employee_demotions', 0);
@@ -109,8 +116,8 @@ class PersonnelMovementValidationTest extends TestCase
     private function employeeAndTarget(): array
     {
         Employee::query()->updateOrCreate(
-            ['sap' => 'LEVEL-OPTION-B2'],
-            ['employee_subgroup' => 'B2'],
+            ['sap' => 'LEVEL-OPTION-ASSOCIATE'],
+            ['employee_subgroup' => 'Associate'],
         );
         $oldDirectorate = Directorate::query()->create(['code' => 'OLD-DIR', 'name' => 'Directorate Lama']);
         $oldDepartment = Department::query()->create([
@@ -133,7 +140,7 @@ class PersonnelMovementValidationTest extends TestCase
             'unit_id' => $oldUnit->id,
             'section_id' => $oldSection->id,
             'position_id' => $oldPosition->id,
-            'employee_subgroup' => 'B1',
+            'employee_subgroup' => 'Manager',
         ]);
         $employee->forceFill(['name' => 'Pegawai Resmi'])->save();
 
@@ -175,9 +182,9 @@ class PersonnelMovementValidationTest extends TestCase
         return [
             'tmt' => '2026-11-02',
             'pg' => 'PG-1',
-            'level_lama' => 'B1',
+            'level_lama' => 'Manager',
             'jg_lama' => 'JG-1',
-            'level_baru' => 'B2',
+            'level_baru' => 'Associate',
             'jg_baru' => 'JG-2',
         ];
     }

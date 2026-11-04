@@ -158,9 +158,9 @@ class MutationImportTest extends TestCase
             'jabatan_baru' => 'Supervisor',
             'tmt' => '2026-12-01',
             'pg' => 'PG-1',
-            'level_lama' => 'B1',
+            'level_lama' => 'Manager',
             'jg_lama' => 'JG-1',
-            'level_baru' => 'B2',
+            'level_baru' => 'Associate',
             'jg_baru' => 'JG-2',
         ]);
 
@@ -168,7 +168,7 @@ class MutationImportTest extends TestCase
             ...$this->mutationPayload('SAP003'),
             'tmt' => '2027-01-01',
             'pg' => 'PG-2',
-            'level_baru' => 'B3',
+            'level_baru' => 'Supervisor',
             'jg_baru' => 'JG-3',
         ]);
 
@@ -179,7 +179,7 @@ class MutationImportTest extends TestCase
             'nama' => 'Pegawai SAP003',
             'jabatan_baru' => 'Position Baru SAP003',
             'pg' => 'PG-2',
-            'level_baru' => 'B3',
+            'level_baru' => 'Supervisor',
             'jg_baru' => 'JG-3',
         ]);
     }
@@ -248,8 +248,8 @@ class MutationImportTest extends TestCase
         }
 
         $this->assertIsString($documentXml);
-        $this->assertStringContainsString('Level Lama: B1', $documentXml);
-        $this->assertStringContainsString('Level Baru: B2', $documentXml);
+        $this->assertStringContainsString('Level Lama: Manager', $documentXml);
+        $this->assertStringContainsString('Level Baru: Associate', $documentXml);
     }
 
     public function test_admin_cannot_edit_or_delete_mutations(): void
@@ -283,7 +283,7 @@ class MutationImportTest extends TestCase
         $response = $this->actingAs($user)->post(route('mutasi.store'), [
             ...$this->mutationPayload('SAP002'),
             'tmt' => '2026-11-01',
-            'level_baru' => 'B3',
+            'level_baru' => 'Supervisor',
             'jg_baru' => 'JG-3',
         ]);
 
@@ -338,9 +338,9 @@ class MutationImportTest extends TestCase
             'jabatan_baru' => 'Supervisor',
             'tmt' => '2026-12-01',
             'pg' => 'PG-1',
-            'level_lama' => 'B1',
+            'level_lama' => 'Manager',
             'jg_lama' => 'JG-1',
-            'level_baru' => 'B2',
+            'level_baru' => 'Associate',
             'jg_baru' => 'JG-2',
         ];
     }
@@ -349,12 +349,12 @@ class MutationImportTest extends TestCase
     private function mutationPayload(string $sap): array
     {
         Employee::query()->updateOrCreate(
-            ['sap' => 'LEVEL-OPTION-B2'],
-            ['employee_subgroup' => 'B2'],
+            ['sap' => 'LEVEL-OPTION-ASSOCIATE'],
+            ['employee_subgroup' => 'Associate'],
         );
         Employee::query()->updateOrCreate(
-            ['sap' => 'LEVEL-OPTION-B3'],
-            ['employee_subgroup' => 'B3'],
+            ['sap' => 'LEVEL-OPTION-SUPERVISOR'],
+            ['employee_subgroup' => 'Supervisor'],
         );
         $oldDirectorate = Directorate::query()->firstOrCreate(['code' => 'OLD-DIR-'.$sap], ['name' => 'Directorate Lama '.$sap]);
         $oldDepartment = Department::query()->firstOrCreate(['code' => 'OLD-DEP-'.$sap], [
@@ -364,7 +364,7 @@ class MutationImportTest extends TestCase
         $oldPosition = Position::query()->firstOrCreate(['unit_id' => $oldUnit->id, 'code' => 'OLD-POS-'.$sap], ['name' => 'Position Lama '.$sap]);
         $employee = Employee::query()->firstOrCreate(['sap' => $sap]);
         $employee->update([
-            'employee_subgroup' => 'B1',
+            'employee_subgroup' => 'Manager',
             'position_id_source' => 'POSITION-'.$sap,
             'directorate_id' => $oldDirectorate->id, 'department_id' => $oldDepartment->id,
             'unit_id' => $oldUnit->id, 'position_id' => $oldPosition->id,
@@ -392,9 +392,9 @@ class MutationImportTest extends TestCase
             'new_position_id' => $newPosition->id,
             'tmt' => '2026-12-01',
             'pg' => 'PG-1',
-            'level_lama' => 'B1',
+            'level_lama' => 'Manager',
             'jg_lama' => 'JG-1',
-            'level_baru' => 'B2',
+            'level_baru' => 'Associate',
             'jg_baru' => 'JG-2',
         ];
     }

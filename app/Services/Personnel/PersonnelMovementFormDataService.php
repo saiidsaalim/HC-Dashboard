@@ -12,18 +12,14 @@ use Illuminate\Support\Collection;
 
 class PersonnelMovementFormDataService
 {
+    public function __construct(
+        private readonly LevelTransitionService $levelTransitionService,
+    ) {}
+
     /** @return Collection<int, string> */
     public function levels(): Collection
     {
-        return Employee::query()
-            ->whereNotNull('employee_subgroup')
-            ->where('employee_subgroup', '!=', '')
-            ->pluck('employee_subgroup')
-            ->map(fn (string $level): string => trim($level))
-            ->filter()
-            ->unique()
-            ->sort(SORT_NATURAL | SORT_FLAG_CASE)
-            ->values();
+        return collect($this->levelTransitionService->levels());
     }
 
     /** @return Collection<int, array<string, int|string|null>> */

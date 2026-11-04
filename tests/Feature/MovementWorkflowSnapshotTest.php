@@ -89,17 +89,17 @@ class MovementWorkflowSnapshotTest extends TestCase
     public function test_level_transition_resolver_rejects_wrong_direction_equal_and_incomparable_levels(): void
     {
         $service = app(LevelTransitionService::class);
-        $service->ensurePromotion('B2', 'B1');
-        $service->ensureDemotion('B1', 'B2');
+        $service->ensurePromotion('Supervisor', 'Associate');
+        $service->ensureDemotion('Associate', 'Supervisor');
         $service->ensureDemotion('General Manager', 'Senior Manager');
         $service->ensurePromotion('Manager', 'Senior Manager');
 
         foreach ([
-            fn () => $service->ensurePromotion('B1', 'B2'),
-            fn () => $service->ensureDemotion('B2', 'B1'),
-            fn () => $service->ensurePromotion('B1', 'B1'),
+            fn () => $service->ensurePromotion('Manager', 'Associate'),
+            fn () => $service->ensureDemotion('Supervisor', 'Associate'),
+            fn () => $service->ensurePromotion('Manager', 'Manager'),
             fn () => $service->ensurePromotion('B1', 'Manager'),
-            fn () => $service->ensurePromotion('B5', 'B4'),
+            fn () => $service->ensurePromotion('Staff', 'Supervisor'),
         ] as $invalidTransition) {
             try {
                 $invalidTransition();

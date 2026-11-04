@@ -2,18 +2,33 @@
 
 namespace App\Services\Personnel;
 
-use App\Models\Position;
 use Illuminate\Validation\ValidationException;
 
 class LevelTransitionService
 {
+    /** @var array<string, int> */
+    public const LEVEL_PRIORITIES = [
+        'General Manager' => 1,
+        'Senior Manager' => 2,
+        'Manager' => 3,
+        'Associate' => 4,
+        'Supervisor' => 5,
+        'Non-Eselon' => 6,
+    ];
+
+    /** @return array<int, string> */
+    public function levels(): array
+    {
+        return array_keys(self::LEVEL_PRIORITIES);
+    }
+
     public function ensurePromotion(string $currentLevel, string $newLevel): void
     {
         $comparison = $this->compare($currentLevel, $newLevel);
 
         if ($comparison === null) {
             throw ValidationException::withMessages([
-                'level_baru' => 'Level Lama dan Level Baru tidak dapat dibandingkan. Gunakan level Band B1-B4 atau level struktural resmi.',
+                'level_baru' => 'Level Lama dan Level Baru tidak dapat dibandingkan. Gunakan urutan level resmi: General Manager, Senior Manager, Manager, Associate, Supervisor, atau Non-Eselon.',
             ]);
         }
 
@@ -30,7 +45,7 @@ class LevelTransitionService
 
         if ($comparison === null) {
             throw ValidationException::withMessages([
-                'level_baru' => 'Level Lama dan Level Baru tidak dapat dibandingkan. Gunakan level Band B1-B4 atau level struktural resmi.',
+                'level_baru' => 'Level Lama dan Level Baru tidak dapat dibandingkan. Gunakan urutan level resmi: General Manager, Senior Manager, Manager, Associate, Supervisor, atau Non-Eselon.',
             ]);
         }
 
@@ -47,19 +62,8 @@ class LevelTransitionService
      */
     public function compare(string $currentLevel, string $newLevel): ?int
     {
-        $currentLevel = trim($currentLevel);
-        $newLevel = trim($newLevel);
-
-        if (strcasecmp($currentLevel, $newLevel) === 0) {
-            return 0;
-        }
-
-        if (Position::isValidJobLevel($currentLevel) && Position::isValidJobLevel($newLevel)) {
-            return Position::jobLevelPriority($currentLevel) <=> Position::jobLevelPriority($newLevel);
-        }
-
-        $currentRank = $this->codedLevelRank($currentLevel);
-        $newRank = $this->codedLevelRank($newLevel);
+        $currentRank = $this->levelPriority($currentLevel);
+        $newRank = $this->levelPriority($newLevel);
 
         if ($currentRank === null || $newRank === null) {
             return null;
@@ -68,12 +72,26 @@ class LevelTransitionService
         return $currentRank <=> $newRank;
     }
 
-    private function codedLevelRank(string $level): ?int
+    private function levelPriority(string $level): ?int
     {
-        if (preg_match('/^(?:BAND\s*|B)[\s-]*([1-4])$/i', $level, $matches) !== 1) {
+        $normalizedLevel = preg_replace('/\s+/', ' ', trim($level));
+        if ($normalizedLevel === null) {
             return null;
         }
 
-        return (int) $matches[1];
+        $normalizedLevel = preg_replace('/\s*-\s*/', ' ', $normalizedLevel);
+        if ($normalizedLevel === null) {
+            return null;
+        }
+
+        foreach (self::LEVEL_PRIORITIES as $officialLevel => $priority) {
+            $normalizedOfficialLevel = str_replace('-', ' ', $officialLevel);
+
+            if (strcasecmp($normalizedLevel, $normalizedOfficialLevel) === 0) {
+                return $priority;
+            }
+        }
+
+        return null;
     }
 }

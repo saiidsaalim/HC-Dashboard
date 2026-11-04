@@ -833,8 +833,8 @@ class PromotionManagementTest extends TestCase
         $this->assertStringContainsString('Keuangan', $xml);
         $this->assertStringContainsString('Supervisor', $xml);
         $this->assertStringContainsString('PG-1', $xml);
-        $this->assertStringContainsString('Level Lama: B2', $xml);
-        $this->assertStringContainsString('Level Baru: B1', $xml);
+        $this->assertStringContainsString('Level Lama: Associate', $xml);
+        $this->assertStringContainsString('Level Baru: Manager', $xml);
         $this->assertStringContainsString('JG Usulan: JG-2', $xml);
         $this->assertStringContainsString('Approver Cetak 1', $xml);
         $this->assertStringContainsString('Approver Cetak 4', $xml);
@@ -930,7 +930,7 @@ class PromotionManagementTest extends TestCase
     /** @param array<string, mixed> $attributes */
     private function employee(string $sap, array $attributes = []): Employee
     {
-        return Employee::query()->create(['sap' => $sap, 'employee_subgroup' => 'B2', ...$attributes]);
+        return Employee::query()->create(['sap' => $sap, 'employee_subgroup' => 'Associate', ...$attributes]);
     }
 
     /** @param array<string, mixed> $overrides */
@@ -954,8 +954,8 @@ class PromotionManagementTest extends TestCase
     private function payload(Employee $employee, array $overrides = []): array
     {
         Employee::query()->updateOrCreate(
-            ['sap' => 'LEVEL-OPTION-B1'],
-            ['employee_subgroup' => 'B1'],
+            ['sap' => 'LEVEL-OPTION-MANAGER'],
+            ['employee_subgroup' => 'Manager'],
         );
         $employee->refresh();
         $directorate = $employee->organizationDirectorate;
@@ -1032,9 +1032,9 @@ class PromotionManagementTest extends TestCase
             'jabatan_baru' => 'Supervisor',
             'tmt' => '2026-12-01',
             'pg' => 'PG-1',
-            'level_lama' => 'B2',
+            'level_lama' => 'Associate',
             'jg_lama' => 'JG-1',
-            'level_baru' => 'B1',
+            'level_baru' => 'Manager',
             'jg_baru' => 'JG-2',
         ];
     }

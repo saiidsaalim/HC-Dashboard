@@ -51,7 +51,7 @@ abstract class PersonnelActionRequest extends FormRequest
     {
         return [
             'level_baru.required' => 'Level Baru wajib dipilih.',
-            'level_baru.in' => 'Level Baru yang dipilih tidak tersedia pada Data Pegawai.',
+            'level_baru.in' => 'Level Baru harus menggunakan urutan level resmi yang tersedia.',
         ];
     }
 
