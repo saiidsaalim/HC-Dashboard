@@ -21,27 +21,67 @@ Laravel is a web application framework with expressive, elegant syntax. We belie
 
 Laravel is accessible, powerful, and provides tools required for large, robust applications.
 
-## Sinkronisasi Hak Akses
+## Setup dan Deployment
 
-Definisi permission dan baseline hak akses role disimpan di `PermissionRegistry`. Setelah menarik pembaruan biasa, jalankan:
+Definisi permission berada di `PermissionRegistry`. `permissions:sync` idempotent, tidak menjalankan seeder secara tersembunyi, dan mempertahankan konfigurasi role yang sudah disimpan. Opsi `--apply-defaults` hanya digunakan secara eksplisit ketika baseline role memang hendak diterapkan.
+
+### Setup development baru
+
+Pastikan `APP_ENV=local` atau `testing` dan database adalah database development lokal, lalu jalankan:
 
 ```bash
-git pull origin main
+composer install
+php artisan migrate:fresh --seed
+php artisan permissions:sync
+npm install
+npm run build
+```
+
+Seeder berisi akun dan password contoh. Jangan gunakan database production atau database eksternal untuk perintah tersebut.
+
+### Reset development setelah perubahan schema ini
+
+Migration awal movement pernah diubah selama fase development. Karena migration yang sudah tercatat tidak dijalankan ulang oleh `php artisan migrate`, lakukan reset satu kali hanya jika data development boleh dihapus:
+
+```bash
+php artisan optimize:clear
+php artisan migrate:fresh --seed
+php artisan permissions:sync
+```
+
+Perintah ini menghapus seluruh data pada database aktif. Jangan jalankan jika environment atau target database meragukan.
+
+### Update development biasa
+
+Setelah schema development sudah di-reset satu kali, pembaruan biasa menggunakan:
+
+```bash
 composer install
 php artisan migrate
 php artisan permissions:sync
 php artisan optimize:clear
+npm install
+npm run build
 ```
 
-Untuk pertama kali menyamakan database lokal dengan baseline tim, tinjau perubahan lalu terapkan secara eksplisit:
+Database yang sudah berisi data nyata tidak boleh memakai `migrate:fresh`. Perubahan schema berikutnya wajib menggunakan forward migration yang aman dan telah diuji.
+
+### Deployment production baru
+
+Gunakan database production kosong dan jalankan:
 
 ```bash
-php artisan permissions:sync --dry-run
+composer install --no-dev --optimize-autoloader
+php artisan migrate --force
 php artisan permissions:sync --apply-defaults
-php artisan optimize:clear
+php artisan optimize
+npm ci
+npm run build
 ```
 
-Setelah sinkronisasi, logout lalu login kembali. Jangan menggunakan `migrate:fresh` atau `db:wipe` untuk menyinkronkan hak akses karena kedua command tersebut menghapus data lokal.
+Tinjau dan konfirmasi penerapan baseline role oleh `permissions:sync --apply-defaults`. Untuk update production berikutnya, gunakan `permissions:sync` tanpa opsi tersebut agar konfigurasi role tersimpan tidak ditimpa.
+
+Jangan pernah menjalankan `php artisan db:seed`, `php artisan migrate --seed`, atau `php artisan migrate:fresh --seed` di production. Akun Super Admin production harus dibuat melalui prosedur aman terpisah, bukan melalui `DatabaseSeeder`.
 
 ## Learning Laravel
 

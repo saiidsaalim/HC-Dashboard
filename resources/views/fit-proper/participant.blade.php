@@ -19,6 +19,9 @@
 $direct = in_array($key,['name','sap','birth_date','kpi_year_1','kpi_year_2','assessment']);
 $value = old($key, $participant ? ($direct ? ($key==='birth_date' ? $participant->birth_date?->toDateString() : $participant->$key) : ($participant->profile[$key] ?? '')) : ($key==='target_position' ? $activity->target_position : ''));
 $numeric = in_array($key,['current_jg','target_jg','kpi_year_1','kpi_year_2','assessment']);
+if ($numeric && $value !== null && $value !== '') {
+    $value = rtrim(rtrim(number_format((float) $value, 6, '.', ''), '0'), '.');
+}
 @endphp
 <label class="block text-sm font-medium">{{ $label }}
 @if(in_array($key,['experience','training','achievement','assessment_notes','education_background']))

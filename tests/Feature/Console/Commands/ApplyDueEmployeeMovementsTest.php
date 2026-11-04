@@ -9,7 +9,9 @@ use App\Models\EmployeeMutation;
 use App\Models\Position;
 use App\Models\Unit;
 use App\Services\Personnel\PersonnelMovementSnapshotService;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 class ApplyDueEmployeeMovementsTest extends TestCase
@@ -23,7 +25,9 @@ class ApplyDueEmployeeMovementsTest extends TestCase
         [$pendingEmployee, $pendingMovement] = $this->movement('PENDING', today(), 'Pending');
 
         $this->artisan('personnel:apply-due-movements')
-            ->expectsOutput('1 perubahan pegawai diterapkan.')
+            ->expectsOutput('Berhasil diterapkan: 1')
+            ->expectsOutput('Dilewati: 2')
+            ->expectsOutput('Gagal: 0')
             ->assertSuccessful();
 
         $dueMovement->refresh();
@@ -38,10 +42,47 @@ class ApplyDueEmployeeMovementsTest extends TestCase
 
         $appliedAt = $dueMovement->employee_applied_at;
         $this->artisan('personnel:apply-due-movements')
-            ->expectsOutput('0 perubahan pegawai diterapkan.')
+            ->expectsOutput('Berhasil diterapkan: 0')
+            ->expectsOutput('Dilewati: 3')
+            ->expectsOutput('Gagal: 0')
             ->assertSuccessful();
 
         $this->assertTrue($appliedAt->equalTo($dueMovement->fresh()->employee_applied_at));
+    }
+
+    public function test_failed_stale_movement_does_not_block_the_next_valid_movement(): void
+    {
+        [$staleEmployee, $staleMovement] = $this->movement('STALE', today(), 'Approved');
+        [$validEmployee, $validMovement] = $this->movement('VALID', today(), 'Approved');
+        $staleEmployee->update(['employee_subgroup' => 'B4']);
+        Log::spy();
+
+        $this->artisan('personnel:apply-due-movements')
+            ->expectsOutput('Berhasil diterapkan: 1')
+            ->expectsOutput('Dilewati: 0')
+            ->expectsOutput('Gagal: 1')
+            ->assertFailed();
+
+        $this->assertSame('Approved', $staleMovement->fresh()->verification_status);
+        $this->assertNull($staleMovement->fresh()->employee_applied_at);
+        $this->assertSame('Final', $validMovement->fresh()->verification_status);
+        $this->assertSame($validMovement->new_position_id, $validEmployee->fresh()->position_id);
+        Log::shouldHaveReceived('error')->once()->withArgs(function (string $message, array $context) use ($staleMovement): bool {
+            return $message === 'Gagal menerapkan personnel movement.'
+                && $context['movement_id'] === $staleMovement->id
+                && $context['movement_type'] === 'EmployeeMutation'
+                && $context['employee_id'] === $staleMovement->employee_id
+                && ! array_key_exists('sap', $context);
+        });
+    }
+
+    public function test_scheduler_prevents_overlapping_runs(): void
+    {
+        $event = collect(app(Schedule::class)->events())
+            ->first(fn ($scheduledEvent): bool => str_contains($scheduledEvent->command ?? '', 'personnel:apply-due-movements'));
+
+        $this->assertNotNull($event);
+        $this->assertTrue($event->withoutOverlapping);
     }
 
     /** @return array{Employee, EmployeeMutation} */

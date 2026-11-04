@@ -123,7 +123,19 @@ class EmployeePromotion extends Model
 
     public function isEditable(): bool
     {
-        return $this->statusEnum()->canBeEdited();
+        return $this->statusEnum() === PromotionStatus::Returned
+            || ($this->statusEnum() === PromotionStatus::Draft && ! $this->approvals()->exists());
+    }
+
+    public function isDeletable(): bool
+    {
+        return $this->statusEnum()->canBeDeleted() && ! $this->approvals()->exists();
+    }
+
+    public function isSubmittable(): bool
+    {
+        return $this->statusEnum() === PromotionStatus::Returned
+            || ($this->statusEnum() === PromotionStatus::Draft && ! $this->approvals()->exists());
     }
 
     protected function casts(): array

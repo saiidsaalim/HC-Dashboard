@@ -36,7 +36,9 @@ class EmployeeMutationPolicy
      */
     public function update(User $user, EmployeeMutation $employeeMutation): bool
     {
-        return $user->hasPermission('mutations.update') && $employeeMutation->verification_status !== 'Final';
+        return $user->hasPermission('mutations.update')
+            && $employeeMutation->verification_status === 'Draft'
+            && ! $employeeMutation->approvals()->exists();
     }
 
     /**
@@ -44,12 +46,16 @@ class EmployeeMutationPolicy
      */
     public function delete(User $user, EmployeeMutation $employeeMutation): bool
     {
-        return $user->hasPermission('mutations.delete') && $employeeMutation->verification_status !== 'Final';
+        return $user->hasPermission('mutations.delete')
+            && $employeeMutation->verification_status === 'Draft'
+            && ! $employeeMutation->approvals()->exists();
     }
 
     public function submit(User $user, EmployeeMutation $employeeMutation): bool
     {
-        return $user->hasPermission('mutations.submit') && $employeeMutation->verification_status === 'Draft';
+        return $user->hasPermission('mutations.submit')
+            && $employeeMutation->verification_status === 'Draft'
+            && ! $employeeMutation->approvals()->exists();
     }
 
     /**

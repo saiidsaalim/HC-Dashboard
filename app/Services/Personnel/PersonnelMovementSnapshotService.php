@@ -3,6 +3,11 @@
 namespace App\Services\Personnel;
 
 use App\Models\Employee;
+use App\Models\EmployeeDemotion;
+use App\Models\EmployeeMutation;
+use App\Models\EmployeePromotion;
+use App\Models\User;
+use Carbon\CarbonInterface;
 
 class PersonnelMovementSnapshotService
 {
@@ -66,6 +71,60 @@ class PersonnelMovementSnapshotService
             'jg_lama' => $validated['jg_lama'] ?? null,
             'level_baru' => $validated['level_baru'] ?? null,
             'jg_baru' => $validated['jg_baru'] ?? null,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public function forApprovalRound(
+        EmployeeMutation|EmployeePromotion|EmployeeDemotion $movement,
+        User $submitter,
+        int $approvalRound,
+        CarbonInterface $submittedAt,
+    ): array {
+        $submitter->loadMissing('employee');
+
+        return [
+            'employee_id' => $movement->employee_id,
+            'sap' => $movement->sap,
+            'employee_name' => $movement->nama,
+            'old_organization' => [
+                'directorate_id' => $movement->old_directorate_id,
+                'directorate' => $movement->direktorat_lama,
+                'department_id' => $movement->old_department_id,
+                'department' => $movement->departemen_lama,
+                'unit_id' => $movement->old_unit_id,
+                'unit' => $movement->unit_lama,
+                'section_id' => $movement->old_section_id,
+                'section' => $movement->section_lama,
+                'position_id' => $movement->old_position_id,
+                'position' => $movement->jabatan_lama,
+            ],
+            'new_organization' => [
+                'directorate_id' => $movement->new_directorate_id,
+                'directorate' => $movement->direktorat_baru,
+                'department_id' => $movement->new_department_id,
+                'department' => $movement->departemen_baru,
+                'unit_id' => $movement->new_unit_id,
+                'unit' => $movement->unit_baru,
+                'section_id' => $movement->new_section_id,
+                'section' => $movement->section_baru,
+                'position_id' => $movement->new_position_id,
+                'position' => $movement->jabatan_baru,
+            ],
+            'old_level' => $movement->level_lama,
+            'new_level' => $movement->level_baru,
+            'old_jg' => $movement->jg_lama,
+            'new_jg' => $movement->jg_baru,
+            'pg' => $movement->pg,
+            'tmt' => $movement->tmt?->toDateString(),
+            'submitted_at' => $submittedAt->toIso8601String(),
+            'submitter' => [
+                'id' => $submitter->id,
+                'name' => $submitter->name,
+                'role' => $submitter->role,
+                'sap' => $submitter->employee?->sap,
+            ],
+            'approval_round' => $approvalRound,
         ];
     }
 }

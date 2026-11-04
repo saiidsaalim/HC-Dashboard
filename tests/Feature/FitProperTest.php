@@ -25,8 +25,16 @@ class FitProperTest extends TestCase
 
     protected function migrateDatabases(): void
     {
-        $this->assertSame('sqlite', config('database.default'));
-        $this->assertSame(':memory:', DB::connection()->getDatabaseName());
+        $connection = config('database.default');
+        $database = DB::connection()->getDatabaseName();
+
+        if ($connection === 'sqlite') {
+            $this->assertSame(':memory:', $database);
+        } else {
+            $this->assertSame('mysql', $connection);
+            $this->assertStringEndsWith('_testing', $database);
+        }
+
         $this->artisan('migrate', ['--no-interaction' => true])->assertExitCode(0);
     }
 
@@ -138,13 +146,13 @@ class FitProperTest extends TestCase
         $this->actingAs($pic)->get(route('fit-proper.show', $a))->assertOk();
         $this->get(route('fit-proper.show', $other))->assertForbidden();
         $this->post(route('fit-proper.store'), [])->assertForbidden();
-        $this->put(route('fit-proper.pics', $a), ['users' => [$pic->id]])->assertForbidden();
+        $this->put(route('fit-proper.pics', $a), ['users' => [$pic->id]])->assertSessionHasErrors('users');
         $this->actingAs($examiner)->get(route('fit-proper.show', $a))->assertRedirect(route('fit-proper.assess', [$a, $e]));
         $this->get(route('fit-proper.assess', [$a, $e]))->assertOk();
         $this->get(route('fit-proper.print', $a))->assertForbidden();
         $this->post(route('fit-proper.participants.store', $a), ['name' => 'Tidak boleh'])->assertForbidden();
         $this->actingAs($pic)->get(route('fit-proper.assess', [$a, $e]))->assertForbidden();
-        $this->post(route('fit-proper.transition', $a), ['status' => 'Selesai'])->assertForbidden();
+        $this->post(route('fit-proper.finalize', $a))->assertForbidden();
     }
 
     public function test_tokens_invalid_expired_revoked_reissued_and_finalized(): void
@@ -355,7 +363,7 @@ class FitProperTest extends TestCase
             $this->get($link)->assertOk()->assertSee('Fiktif Satu')->assertSee('Fiktif Dua');
             $this->post($link, $this->scores($activity, 4) + ['intent' => 'submit'])->assertRedirect();
         }
-        $this->actingAs($admin)->post(route('fit-proper.transition', $activity), ['status' => 'Selesai'])->assertRedirect();
+        $this->actingAs($admin)->post(route('fit-proper.finalize', $activity))->assertRedirect();
         $activity->refresh();
         $this->assertSame('Selesai', $activity->status);
         $this->assertTrue($activity->final_snapshot['complete']);

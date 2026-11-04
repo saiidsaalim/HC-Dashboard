@@ -21,30 +21,12 @@ class PersonnelActionGuard
                 ->lockForUpdate()
                 ->findOrFail($personnelAction->getKey());
 
-            $this->ensureNotFinal($lockedPersonnelAction);
+            $this->ensureEditable($lockedPersonnelAction);
             $lockedPersonnelAction->fill($attributes);
-            $materialChanged = $lockedPersonnelAction->isDirty([
-                'sap',
-                'employee_id',
-                'old_directorate_id', 'old_department_id', 'old_unit_id', 'old_section_id', 'old_position_id',
-                'new_directorate_id', 'new_department_id', 'new_unit_id', 'new_section_id', 'new_position_id',
-                'tmt', 'pg', 'level_lama', 'jg_lama', 'level_baru', 'jg_baru',
-            ]);
-            $approvalsReset = $materialChanged && $lockedPersonnelAction->approvals()->exists();
-
-            if ($approvalsReset) {
-                $lockedPersonnelAction->approvals()->delete();
-                $lockedPersonnelAction->forceFill([
-                    'verification_status' => 'Draft',
-                    'current_approval_step' => null,
-                    'finalized_at' => null,
-                    'employee_applied_at' => null,
-                ]);
-            }
-
+            $changed = $lockedPersonnelAction->isDirty();
             $lockedPersonnelAction->save();
 
-            return $approvalsReset;
+            return $changed;
         });
     }
 
@@ -55,19 +37,35 @@ class PersonnelActionGuard
             $personnelActions = (clone $query)->lockForUpdate()->get();
 
             foreach ($personnelActions as $personnelAction) {
-                $this->ensureNotFinal($personnelAction);
+                $this->ensureDeletable($personnelAction);
             }
 
             return $query->delete();
         });
     }
 
-    private function ensureNotFinal(
+    private function ensureEditable(
         EmployeeMutation|EmployeePromotion|EmployeeDemotion $personnelAction,
     ): void {
-        if ($personnelAction->verification_status === 'Final') {
+        $editable = $personnelAction instanceof EmployeePromotion
+            ? $personnelAction->isEditable()
+            : $personnelAction->verification_status === 'Draft' && ! $personnelAction->approvals()->exists();
+
+        if (! $editable) {
+            throw ValidationException::withMessages(['status' => 'Pengajuan pada status ini tidak dapat diubah.']);
+        }
+    }
+
+    private function ensureDeletable(
+        EmployeeMutation|EmployeePromotion|EmployeeDemotion $personnelAction,
+    ): void {
+        $deletable = $personnelAction instanceof EmployeePromotion
+            ? $personnelAction->isDeletable()
+            : $personnelAction->verification_status === 'Draft' && ! $personnelAction->approvals()->exists();
+
+        if (! $deletable) {
             throw ValidationException::withMessages([
-                'status' => 'Pengajuan yang sudah Final tidak dapat diubah atau dihapus.',
+                'status' => 'Hanya pengajuan Draft yang belum pernah dikirim yang dapat dihapus.',
             ]);
         }
     }

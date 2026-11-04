@@ -18,7 +18,10 @@ class PromotionApprovalWorkflowService
 {
     public const REQUIRED_STEPS = 4;
 
-    public function __construct(private readonly EmployeeMovementFinalizationService $finalizationService) {}
+    public function __construct(
+        private readonly EmployeeMovementFinalizationService $finalizationService,
+        private readonly PersonnelMovementSnapshotService $snapshotService,
+    ) {}
 
     /** @return Collection<int, PromotionApprovalConfig> */
     public function configuration(): Collection
@@ -56,7 +59,7 @@ class PromotionApprovalWorkflowService
         return DB::transaction(function () use ($promotion, $submitter): EmployeePromotion {
             $lockedPromotion = EmployeePromotion::query()->lockForUpdate()->findOrFail($promotion->id);
 
-            if (! $lockedPromotion->statusEnum()->canBeSubmitted()) {
+            if (! $lockedPromotion->isSubmittable()) {
                 throw ValidationException::withMessages([
                     'status' => 'Promosi hanya dapat diajukan dari status Draft atau Dikembalikan.',
                 ]);
@@ -64,6 +67,21 @@ class PromotionApprovalWorkflowService
 
             $configuration = $this->validConfiguration(lockForUpdate: true);
             $approvalRound = ((int) $lockedPromotion->approval_round) + 1;
+            $submittedAt = now();
+            $submissionSnapshot = $this->snapshotService->forApprovalRound(
+                $lockedPromotion,
+                $submitter,
+                $approvalRound,
+                $submittedAt,
+            );
+
+            $lockedPromotion->approvals()
+                ->where('status', PromotionApprovalStatus::Pending->value)
+                ->lockForUpdate()
+                ->update([
+                    'status' => PromotionApprovalStatus::Superseded->value,
+                    'cancelled_at' => $submittedAt,
+                ]);
 
             foreach ($configuration as $step => $config) {
                 $approver = $config->user;
@@ -74,6 +92,7 @@ class PromotionApprovalWorkflowService
                     'approver_name_snapshot' => $approver->name,
                     'approver_role_snapshot' => $approver->role,
                     'approver_number_snapshot' => $approver->employee?->sap,
+                    'submission_snapshot' => $submissionSnapshot,
                     'status' => PromotionApprovalStatus::Pending->value,
                 ]);
             }
@@ -82,7 +101,7 @@ class PromotionApprovalWorkflowService
                 'approval_round' => $approvalRound,
                 'current_approval_step' => 1,
                 'submitted_by' => $submitter->id,
-                'submitted_at' => now(),
+                'submitted_at' => $submittedAt,
                 'verification_status' => PromotionStatus::WaitingApproval->value,
                 'finalized_at' => null,
             ]);

@@ -32,11 +32,7 @@ class FitProperController extends Controller
 
     public function index(Request $request): View
     {
-        $query = FitProperActivity::query();
-        if (! $request->user()->canManageRbac()) {
-            $query->where(fn ($builder) => $builder->whereHas('pics', fn ($builder) => $builder->where('users.id', $request->user()->id))
-                ->orWhereHas('examiners', fn ($builder) => $builder->where('user_id', $request->user()->id)));
-        }
+        $query = FitProperActivity::query()->accessibleTo($request->user());
         $activityCount = (clone $query)->count();
         $query->when($request->filled('q'), fn ($builder) => $builder->where('name', 'like', '%'.$request->string('q').'%'))
             ->when($request->filled('status'), fn ($builder) => $builder->where('status', $request->input('status')));
@@ -60,19 +56,25 @@ class FitProperController extends Controller
     public function show(Request $request, FitProperActivity $activity): View|RedirectResponse
     {
         Gate::authorize('view', $activity);
-        if (! Gate::allows('manage', $activity)) {
-            return redirect()->route('fit-proper.assess', [$activity, $activity->examiners()->where('user_id', $request->user()->id)->sole()]);
+        if (! Gate::allows('update', $activity)) {
+            $examiner = $activity->examiners()->where('user_id', $request->user()->id)->first();
+
+            if ($examiner !== null) {
+                return redirect()->route('fit-proper.assess', [$activity, $examiner]);
+            }
         }
         $activity->load(['participants', 'pics', 'examiners.scores']);
 
-        return view('fit-proper.show', ['activity' => $activity, 'users' => User::orderBy('name')->get(['id', 'name', 'email']),
+        return view('fit-proper.show', ['activity' => $activity, 'users' => Gate::allows('update', $activity)
+            ? User::orderBy('name')->get(['id', 'name', 'email'])
+            : collect(),
             'recap' => $activity->final_snapshot ?? $this->service->calculation->recap($activity),
             'histories' => $activity->histories()->orderByDesc('id')->get()]);
     }
 
     public function update(Request $request, FitProperActivity $activity): RedirectResponse|JsonResponse
     {
-        Gate::authorize('manage', $activity);
+        Gate::authorize('update', $activity);
         $this->service->mutate($activity, function ($activityRecord) use ($request) {
             $activityRecord->update($this->service->activityData($request->all()));
             $this->service->history($activityRecord, 'Kegiatan diperbarui', $request->user());
@@ -83,7 +85,7 @@ class FitProperController extends Controller
 
     public function destroy(Request $request, FitProperActivity $activity): RedirectResponse
     {
-        Gate::authorize('manage', $activity);
+        Gate::authorize('delete', $activity);
         $this->service->mutate($activity, function ($activityRecord) {
             abort_if($activityRecord->participants()->exists() || $activityRecord->examiners()->exists(), 422, 'Hapus peserta dan penguji terlebih dahulu.');
             $activityRecord->delete();
@@ -94,7 +96,7 @@ class FitProperController extends Controller
 
     public function settings(Request $request): RedirectResponse
     {
-        Gate::authorize('create', FitProperActivity::class);
+        Gate::authorize('settings', FitProperActivity::class);
         $standard = $this->service->standard($request->all());
         DB::transaction(function () use ($standard) {
             FitProperSetting::updateOrCreate(['id' => 1], ['standard' => $standard]);
@@ -106,7 +108,7 @@ class FitProperController extends Controller
     public function employees(Request $request): JsonResponse
     {
         $activity = FitProperActivity::findOrFail($request->integer('activity'));
-        Gate::authorize('manage', $activity);
+        Gate::authorize('update', $activity);
         $term = $request->validate(['q' => 'required|string|min:2|max:100'])['q'];
 
         return response()->json(Employee::query()->where(fn ($builder) => $builder->where('name', 'like', '%'.$term.'%')
@@ -116,7 +118,7 @@ class FitProperController extends Controller
 
     public function participantForm(FitProperActivity $activity, ?FitProperParticipant $participant = null): View
     {
-        Gate::authorize('manage', $activity);
+        Gate::authorize('update', $activity);
         abort_unless($activity->status === 'Draft', 403);
         abort_if($participant && $participant->fit_proper_activity_id !== $activity->id, 404);
 
@@ -125,7 +127,7 @@ class FitProperController extends Controller
 
     public function saveParticipant(Request $request, FitProperActivity $activity, ?FitProperParticipant $participant = null): RedirectResponse
     {
-        Gate::authorize('manage', $activity);
+        Gate::authorize('update', $activity);
         $request->validate(['cv' => ['nullable', 'file', 'mimes:pdf', 'max:5120'], 'remove_cv' => 'nullable|boolean']);
         $oldPath = $participant?->cv_path;
         $newPath = $request->hasFile('cv')
@@ -157,7 +159,7 @@ class FitProperController extends Controller
 
     public function deleteParticipant(Request $request, FitProperActivity $activity, FitProperParticipant $participant): RedirectResponse
     {
-        Gate::authorize('manage', $activity);
+        Gate::authorize('update', $activity);
         abort_unless($participant->fit_proper_activity_id === $activity->id, 404);
         $cvPath = $participant->cv_path;
         $this->service->mutate($activity, function ($activityRecord) use ($participant, $request) {
@@ -174,7 +176,7 @@ class FitProperController extends Controller
 
     public function pics(Request $request, FitProperActivity $activity): RedirectResponse|JsonResponse
     {
-        Gate::authorize('create', FitProperActivity::class);
+        Gate::authorize('update', $activity);
         $valid = $request->validate(['users' => 'required|array|min:1', 'users.*' => 'integer|distinct|exists:users,id']);
         $this->service->assignPics($activity, $valid['users'] ?? [], $request->user());
 
@@ -183,7 +185,7 @@ class FitProperController extends Controller
 
     public function deletePic(Request $request, FitProperActivity $activity, User $user): RedirectResponse|JsonResponse
     {
-        Gate::authorize('create', FitProperActivity::class);
+        Gate::authorize('update', $activity);
         $this->service->removePic($activity, $user, $request->user());
 
         return $this->mutationResponse($request, $activity, 'PIC dilepas.');
@@ -191,7 +193,7 @@ class FitProperController extends Controller
 
     public function examiner(Request $request, FitProperActivity $activity): RedirectResponse|JsonResponse
     {
-        Gate::authorize('manage', $activity);
+        Gate::authorize('update', $activity);
         [$examiner, $token] = $this->service->mutate($activity, function ($lockedActivity) use ($request) {
             $examiner = $this->service->examiner($lockedActivity, $request->all(), $request->user());
 
@@ -205,7 +207,7 @@ class FitProperController extends Controller
 
     public function deleteExaminer(Request $request, FitProperActivity $activity, FitProperExaminer $examiner): RedirectResponse|JsonResponse
     {
-        Gate::authorize('manage', $activity);
+        Gate::authorize('update', $activity);
         abort_unless($examiner->activity_id === $activity->id, 404);
         $this->service->mutate($activity, function ($activityRecord) use ($examiner, $request) {
             $examiner->delete();
@@ -217,7 +219,7 @@ class FitProperController extends Controller
 
     public function token(Request $request, FitProperActivity $activity, FitProperExaminer $examiner): RedirectResponse|JsonResponse
     {
-        Gate::authorize('manage', $activity);
+        Gate::authorize('update', $activity);
         if ($request->boolean('revoke')) {
             $this->service->mutate($activity, function ($activityRecord) use ($examiner, $request) {
                 abort_unless($examiner->activity_id === $activityRecord->id, 404);
@@ -247,12 +249,25 @@ class FitProperController extends Controller
 
     public function transition(Request $request, FitProperActivity $activity): RedirectResponse|JsonResponse
     {
-        Gate::authorize($request->input('status') === 'Selesai' ? 'finalize' : 'manage', $activity);
-        $this->service->transition($activity, (string) $request->input('status'), $request->user());
+        Gate::authorize('update', $activity);
+        $status = (string) $request->input('status');
+        abort_if($status === 'Selesai', 403, 'Gunakan aksi finalisasi untuk menyelesaikan kegiatan.');
+        $this->service->transition($activity, $status, $request->user());
 
         return $this->mutationResponse($request, $activity, 'Status diperbarui.', [
             'structure_changed' => true,
-            'invalidate_links' => $request->input('status') !== 'Berjalan',
+            'invalidate_links' => $status !== 'Berjalan',
+        ]);
+    }
+
+    public function finalize(Request $request, FitProperActivity $activity): RedirectResponse|JsonResponse
+    {
+        Gate::authorize('finalize', $activity);
+        $this->service->transition($activity, 'Selesai', $request->user());
+
+        return $this->mutationResponse($request, $activity, 'Kegiatan berhasil difinalisasi.', [
+            'structure_changed' => true,
+            'invalidate_links' => true,
         ]);
     }
 
@@ -348,14 +363,14 @@ class FitProperController extends Controller
 
     public function report(FitProperActivity $activity): View
     {
-        Gate::authorize('manage', $activity);
+        Gate::authorize('export', $activity);
 
         return view('fit-proper.print', ['activity' => $activity, 'recap' => $activity->final_snapshot ?? $this->service->calculation->recap($activity)]);
     }
 
     public function export(FitProperActivity $activity): StreamedResponse
     {
-        Gate::authorize('manage', $activity);
+        Gate::authorize('export', $activity);
         $recap = $activity->final_snapshot ?? $this->service->calculation->recap($activity);
         $book = new Spreadsheet;
         $sheet = $book->getActiveSheet()->setTitle('Hasil gabungan');

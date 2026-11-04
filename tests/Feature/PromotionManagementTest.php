@@ -630,6 +630,10 @@ class PromotionManagementTest extends TestCase
         $this->assertSame('Position '.$employee->id, $promotion->jabatan_baru);
         $this->assertSame(4, $promotion->approvals()->where('approval_round', 1)->count());
         $this->assertSame(4, $promotion->approvals()->where('approval_round', 2)->count());
+        $this->assertSame(2, $promotion->approvals()->where('approval_round', 1)->where('status', PromotionApprovalStatus::Superseded->value)->count());
+        $this->assertSame('SAP-RESUBMIT', $promotion->approvals()->where('approval_round', 1)->firstOrFail()->submission_snapshot['sap']);
+        $this->assertSame(1, $promotion->approvals()->where('approval_round', 1)->firstOrFail()->submission_snapshot['approval_round']);
+        $this->assertSame(2, $promotion->approvals()->where('approval_round', 2)->firstOrFail()->submission_snapshot['approval_round']);
     }
 
     public function test_waiting_and_final_promotions_are_immutable_and_final_cannot_be_sent_back(): void
@@ -642,13 +646,15 @@ class PromotionManagementTest extends TestCase
 
         $this->actingAs($superAdmin)->put(route('promosi.update', $promotion), $this->payload($employee))->assertForbidden();
         $this->actingAs($superAdmin)->delete(route('promosi.destroy-many'), ['promotion_ids' => [$promotion->id]])
-            ->assertSessionHasErrors('status');
+            ->assertForbidden();
 
         foreach ($approvers as $approver) {
             $this->actingAs($approver)->post(route('promosi.approve', $promotion));
         }
 
         $this->actingAs($superAdmin)->put(route('promosi.update', $promotion), $this->payload($employee))->assertForbidden();
+        $this->actingAs($superAdmin)->delete(route('promosi.destroy-many'), ['promotion_ids' => [$promotion->id]])
+            ->assertForbidden();
         $this->actingAs($approvers[3])->post(route('promosi.send-back', $promotion), ['return_note' => 'Terlambat'])
             ->assertForbidden();
     }
@@ -753,7 +759,7 @@ class PromotionManagementTest extends TestCase
             ->assertDontSee('Buat Promosi');
     }
 
-    public function test_legacy_pending_can_start_new_round_without_counting_legacy_approvals(): void
+    public function test_legacy_pending_cannot_start_a_new_approval_round(): void
     {
         $superAdmin = $this->user(UserRole::SUPER_ADMIN);
         $legacyApprover = $this->user(UserRole::MANAGER, 'Approver Lama');
@@ -766,11 +772,11 @@ class PromotionManagementTest extends TestCase
             'approved_at' => now(),
         ]);
 
-        $this->actingAs($superAdmin)->post(route('promosi.submit', $promotion))->assertRedirect(route('promosi'));
+        $this->actingAs($superAdmin)->post(route('promosi.submit', $promotion))->assertForbidden();
         $promotion->refresh();
-        $this->assertSame(1, $promotion->approval_round);
-        $this->assertSame(1, $promotion->current_approval_step);
-        $this->assertSame(4, $promotion->approvals()->where('approval_round', 1)->count());
+        $this->assertSame(0, $promotion->approval_round);
+        $this->assertNull($promotion->current_approval_step);
+        $this->assertSame(0, $promotion->approvals()->where('approval_round', 1)->count());
         $this->assertSame(1, $promotion->approvals()->whereNull('approval_round')->count());
     }
 
@@ -812,8 +818,8 @@ class PromotionManagementTest extends TestCase
         $this->assertStringContainsString('Keuangan', $xml);
         $this->assertStringContainsString('Supervisor', $xml);
         $this->assertStringContainsString('PG-1', $xml);
-        $this->assertStringContainsString('Level Lama: B1', $xml);
-        $this->assertStringContainsString('Level Baru: B2', $xml);
+        $this->assertStringContainsString('Level Lama: B2', $xml);
+        $this->assertStringContainsString('Level Baru: B1', $xml);
         $this->assertStringContainsString('JG Usulan: JG-2', $xml);
         $this->assertStringContainsString('Approver Cetak 1', $xml);
         $this->assertStringContainsString('Approver Cetak 4', $xml);
@@ -909,7 +915,7 @@ class PromotionManagementTest extends TestCase
     /** @param array<string, mixed> $attributes */
     private function employee(string $sap, array $attributes = []): Employee
     {
-        return Employee::query()->create(['sap' => $sap, 'employee_subgroup' => 'B1', ...$attributes]);
+        return Employee::query()->create(['sap' => $sap, 'employee_subgroup' => 'B2', ...$attributes]);
     }
 
     /** @param array<string, mixed> $overrides */
@@ -933,8 +939,8 @@ class PromotionManagementTest extends TestCase
     private function payload(Employee $employee, array $overrides = []): array
     {
         Employee::query()->updateOrCreate(
-            ['sap' => 'LEVEL-OPTION-B2'],
-            ['employee_subgroup' => 'B2'],
+            ['sap' => 'LEVEL-OPTION-B1'],
+            ['employee_subgroup' => 'B1'],
         );
         $employee->refresh();
         $directorate = $employee->organizationDirectorate;
@@ -1011,9 +1017,9 @@ class PromotionManagementTest extends TestCase
             'jabatan_baru' => 'Supervisor',
             'tmt' => '2026-12-01',
             'pg' => 'PG-1',
-            'level_lama' => 'B1',
+            'level_lama' => 'B2',
             'jg_lama' => 'JG-1',
-            'level_baru' => 'B2',
+            'level_baru' => 'B1',
             'jg_baru' => 'JG-2',
         ];
     }

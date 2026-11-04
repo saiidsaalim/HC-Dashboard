@@ -17,6 +17,8 @@ class MovementApprovalWorkflowService
 {
     public const REQUIRED_STEPS = 3;
 
+    public function __construct(private readonly PersonnelMovementSnapshotService $snapshotService) {}
+
     /**
      * @param  class-string<EmployeeMutation|EmployeeDemotion>  $movementClass
      * @return Collection<int, MutationApprovalConfig|DemotionApprovalConfig>
@@ -69,7 +71,7 @@ class MovementApprovalWorkflowService
         DB::transaction(function () use ($movement, $submitter): void {
             $lockedMovement = $movement::query()->lockForUpdate()->findOrFail($movement->getKey());
 
-            if ($lockedMovement->verification_status !== 'Draft') {
+            if ($lockedMovement->verification_status !== 'Draft' || $lockedMovement->approvals()->exists()) {
                 throw ValidationException::withMessages([
                     'status' => 'Pengajuan hanya dapat dikirim dari status Draft.',
                 ]);
@@ -77,6 +79,13 @@ class MovementApprovalWorkflowService
 
             $configuration = $this->validConfiguration($lockedMovement::class, lockForUpdate: true);
             $approvalRound = ((int) $lockedMovement->approval_round) + 1;
+            $submittedAt = now();
+            $submissionSnapshot = $this->snapshotService->forApprovalRound(
+                $lockedMovement,
+                $submitter,
+                $approvalRound,
+                $submittedAt,
+            );
 
             foreach ($configuration as $step => $config) {
                 $approver = $config->user;
@@ -87,6 +96,7 @@ class MovementApprovalWorkflowService
                     'approver_name_snapshot' => $approver->name,
                     'approver_role_snapshot' => $approver->role,
                     'approver_number_snapshot' => $approver->employee?->sap,
+                    'submission_snapshot' => $submissionSnapshot,
                     'status' => 'Pending',
                 ]);
             }
@@ -96,7 +106,7 @@ class MovementApprovalWorkflowService
                 'approval_round' => $approvalRound,
                 'current_approval_step' => 1,
                 'submitted_by' => $submitter->id,
-                'submitted_at' => now(),
+                'submitted_at' => $submittedAt,
                 'finalized_at' => null,
                 'employee_applied_at' => null,
             ]);

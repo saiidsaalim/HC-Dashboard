@@ -112,7 +112,7 @@
                         </select>
                     </label>
                 </x-ui.filter-panel>
-                @if ($canDeleteDemotions && $demotions->contains(fn($demotion): bool => $demotion->verification_status !== 'Final'))
+                @if ($canDeleteDemotions && $demotions->contains(fn($demotion): bool => auth()->user()->can('delete', $demotion)))
                     <div class="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
                         <label class="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-600">
                             <input id="select-all-demotions" type="checkbox"
@@ -168,11 +168,11 @@
                                 onkeydown="if ((event.key === 'Enter' || event.key === ' ') && !event.target.closest('a,button,input,select,textarea,label,form')) { event.preventDefault(); document.getElementById('demotion-detail-{{ $demotion->id }}').showModal(); }">
                                 @if ($canDeleteDemotions)
                                     <td data-label="Pilih" class="px-4 py-3 text-center">
-                                        @if ($demotion->verification_status !== 'Final')
+                                        @can('delete', $demotion)
                                             <input type="checkbox" name="demotion_ids[]" value="{{ $demotion->id }}"
                                                 class="demotion-checkbox rounded border-slate-300 text-slate-950 focus:ring-amber-400"
                                                 onchange="document.getElementById('select-all-demotions').checked = document.querySelectorAll('.demotion-checkbox').length > 0 && document.querySelectorAll('.demotion-checkbox:not(:checked)').length === 0">
-                                        @endif
+                                        @endcan
                                     </td>
                                 @endif
                                 <td data-label="SAP" class="px-4 py-3 font-semibold text-slate-700">{{ $demotion->sap }}</td>
@@ -356,7 +356,7 @@
                         </div>
                     </section>
 
-                    @if ($canUpdateDemotions && ! $statusIsFinal)
+                    @can('update', $demotion)
                     <details id="demotion-edit-{{ $demotion->id }}" @if (old('_form') === 'edit-demotion-'.$demotion->id) open @endif
                         class="mt-5 scroll-mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
                         <summary class="cursor-pointer font-display text-sm font-bold text-slate-800">Edit Data Demosi</summary>
@@ -365,18 +365,18 @@
                             'formKey' => 'edit-demotion-'.$demotion->id, 'submitLabel' => 'Simpan Perubahan',
                         ])
                     </details>
-                    @endif
+                    @endcan
                 </div>
                 <footer class="flex flex-none flex-col-reverse gap-3 border-t border-slate-200 bg-white/95 px-4 py-4 backdrop-blur sm:flex-row sm:justify-end sm:px-6 lg:px-8">
                     <button type="button" onclick="this.closest('dialog').close()" class="ui-button ui-button-secondary w-full sm:w-auto">Tutup</button>
-                    @if ($canUpdateDemotions && ! $statusIsFinal)
+                    @can('update', $demotion)
                         <button type="button"
                             onclick="const panel = document.getElementById('demotion-edit-{{ $demotion->id }}'); panel.open = true; panel.scrollIntoView({ behavior: 'smooth', block: 'start' });"
                             class="ui-button ui-button-primary w-full sm:w-auto">
                             <x-dashboard-icon name="edit" class="h-4 w-4" />
                             Edit Data
                         </button>
-                    @endif
+                    @endcan
                 </footer>
             </section>
         </dialog>

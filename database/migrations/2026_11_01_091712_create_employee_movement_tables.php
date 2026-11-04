@@ -44,9 +44,11 @@ return new class extends Migration
             $table->string('approver_name_snapshot')->nullable();
             $table->string('approver_role_snapshot')->nullable();
             $table->string('approver_number_snapshot')->nullable();
+            $table->json('submission_snapshot')->nullable();
             $table->string('status')->default('Pending');
             $table->text('note')->nullable();
             $table->timestamp('approved_at')->nullable();
+            $table->timestamp('cancelled_at')->nullable();
             $table->timestamps();
 
             $table->unique(['employee_mutation_id', 'approval_round', 'step_order'], 'mutation_approvals_round_step_unique');
@@ -87,10 +89,12 @@ return new class extends Migration
             $table->string('approver_name_snapshot')->nullable();
             $table->string('approver_role_snapshot')->nullable();
             $table->string('approver_number_snapshot')->nullable();
+            $table->json('submission_snapshot')->nullable();
             $table->string('status')->default('Pending');
             $table->text('note')->nullable();
             $table->timestamp('approved_at')->nullable();
             $table->timestamp('returned_at')->nullable();
+            $table->timestamp('cancelled_at')->nullable();
             $table->timestamps();
 
             $table->unique(
@@ -141,9 +145,11 @@ return new class extends Migration
             $table->string('approver_name_snapshot')->nullable();
             $table->string('approver_role_snapshot')->nullable();
             $table->string('approver_number_snapshot')->nullable();
+            $table->json('submission_snapshot')->nullable();
             $table->string('status')->default('Pending');
             $table->text('note')->nullable();
             $table->timestamp('approved_at')->nullable();
+            $table->timestamp('cancelled_at')->nullable();
             $table->timestamps();
 
             $table->unique(['employee_demotion_id', 'approval_round', 'step_order'], 'demotion_approvals_round_step_unique');

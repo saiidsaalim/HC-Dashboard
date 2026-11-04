@@ -16,6 +16,8 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Route;
 use LogicException;
 use Tests\TestCase;
 
@@ -45,6 +47,49 @@ class PermissionSynchronizationTest extends TestCase
         $this->assertSame(0, $second['relations_removed']);
         $this->assertSame($permissionCount, Permission::query()->count());
         $this->assertSame($pivotCount, DB::table('permission_role')->count());
+    }
+
+    public function test_route_gate_registry_and_stored_permissions_are_consistent(): void
+    {
+        $registryKeys = array_keys(PermissionRegistry::permissions());
+        $routePermissionKeys = collect(Route::getRoutes()->getRoutes())
+            ->flatMap(fn ($route): array => $route->gatherMiddleware())
+            ->filter(fn (string $middleware): bool => str_starts_with($middleware, 'can:'))
+            ->map(fn (string $middleware): string => explode(',', substr($middleware, 4))[0])
+            ->filter(fn (string $ability): bool => str_contains($ability, '.'))
+            ->unique()
+            ->values();
+
+        foreach ($routePermissionKeys as $permissionKey) {
+            $this->assertContains($permissionKey, $registryKeys, "Permission route {$permissionKey} belum terdaftar.");
+        }
+
+        foreach ($registryKeys as $permissionKey) {
+            $this->assertTrue(Gate::has($permissionKey), "Gate {$permissionKey} belum didefinisikan.");
+        }
+
+        $this->synchronizer()->synchronize();
+        $this->assertEqualsCanonicalizing($registryKeys, Permission::query()->pluck('key')->all());
+    }
+
+    public function test_fit_proper_routes_use_the_action_permission_matrix(): void
+    {
+        $expected = [
+            'fit-proper' => 'fit-proper.view',
+            'fit-proper.store' => 'fit-proper.create',
+            'fit-proper.settings' => 'fit-proper.settings',
+            'fit-proper.update' => 'fit-proper.update',
+            'fit-proper.destroy' => 'fit-proper.delete',
+            'fit-proper.transition' => 'fit-proper.update',
+            'fit-proper.finalize' => 'fit-proper.finalize',
+            'fit-proper.print' => 'fit-proper.export',
+            'fit-proper.excel' => 'fit-proper.export',
+        ];
+
+        foreach ($expected as $routeName => $permission) {
+            $middleware = Route::getRoutes()->getByName($routeName)?->gatherMiddleware() ?? [];
+            $this->assertContains("can:{$permission}", $middleware, "Route {$routeName} tidak memakai {$permission}.");
+        }
     }
 
     public function test_sync_updates_permission_metadata_by_stable_key(): void

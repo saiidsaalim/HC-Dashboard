@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['employee_demotion_id', 'approval_round', 'step_order', 'manager_id', 'approver_name_snapshot', 'approver_role_snapshot', 'approver_number_snapshot', 'status', 'note', 'approved_at'])]
+#[Fillable(['employee_demotion_id', 'approval_round', 'step_order', 'manager_id', 'approver_name_snapshot', 'approver_role_snapshot', 'approver_number_snapshot', 'submission_snapshot', 'status', 'note', 'approved_at', 'cancelled_at'])]
 class DemotionApproval extends Model
 {
     protected function casts(): array
@@ -15,6 +15,8 @@ class DemotionApproval extends Model
             'step_order' => 'integer',
             'approval_round' => 'integer',
             'approved_at' => 'datetime',
+            'cancelled_at' => 'datetime',
+            'submission_snapshot' => 'array',
         ];
     }
 

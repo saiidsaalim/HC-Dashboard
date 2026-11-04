@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -35,5 +36,18 @@ class FitProperActivity extends Model
     public function histories(): Builder
     {
         return DB::table('fit_proper_histories')->where('activity_id', $this->id);
+    }
+
+    public function scopeAccessibleTo(EloquentBuilder $query, User $user): EloquentBuilder
+    {
+        if ($user->isSuperAdmin() || $user->hasPermission('fit-proper.view-all')) {
+            return $query;
+        }
+
+        return $query->where(function (EloquentBuilder $builder) use ($user): void {
+            $builder->where('created_by', $user->id)
+                ->orWhereHas('pics', fn (EloquentBuilder $pics): EloquentBuilder => $pics->where('users.id', $user->id))
+                ->orWhereHas('examiners', fn (EloquentBuilder $examiners): EloquentBuilder => $examiners->where('user_id', $user->id));
+        });
     }
 }

@@ -23,7 +23,7 @@ class FinalPersonnelActionProtectionTest extends TestCase
     use RefreshDatabase;
 
     #[DataProvider('personnelModules')]
-    public function test_authorized_user_can_update_pending_record(
+    public function test_pending_record_cannot_be_updated(
         string $modelClass,
         string $indexRoute,
         string $updateRoute,
@@ -35,7 +35,7 @@ class FinalPersonnelActionProtectionTest extends TestCase
 
         $this->actingAs($superAdmin)
             ->put(route($updateRoute, $personnelAction), $this->validPayload('100001', 'Nama Diperbarui', $modelClass))
-            ->assertRedirectToRoute($indexRoute);
+            ->assertForbidden();
 
         $this->assertDatabaseHas($personnelAction->getTable(), [
             'id' => $personnelAction->getKey(),
@@ -44,7 +44,7 @@ class FinalPersonnelActionProtectionTest extends TestCase
     }
 
     #[DataProvider('personnelModules')]
-    public function test_authorized_user_can_delete_pending_record(
+    public function test_pending_record_cannot_be_deleted(
         string $modelClass,
         string $indexRoute,
         string $updateRoute,
@@ -56,9 +56,9 @@ class FinalPersonnelActionProtectionTest extends TestCase
 
         $this->actingAs($superAdmin)
             ->delete(route($destroyRoute), [$idsField => [$personnelAction->getKey()]])
-            ->assertRedirectToRoute($indexRoute);
+            ->assertForbidden();
 
-        $this->assertDatabaseMissing($personnelAction->getTable(), [
+        $this->assertDatabaseHas($personnelAction->getTable(), [
             'id' => $personnelAction->getKey(),
         ]);
     }
@@ -102,11 +102,7 @@ class FinalPersonnelActionProtectionTest extends TestCase
             ->from(route($indexRoute))
             ->delete(route($destroyRoute), [$idsField => [$personnelAction->getKey()]]);
 
-        if ($modelClass === EmployeePromotion::class) {
-            $response->assertRedirect(route($indexRoute))->assertSessionHasErrors('status');
-        } else {
-            $response->assertForbidden();
-        }
+        $response->assertForbidden();
 
         $this->assertDatabaseHas($personnelAction->getTable(), [
             'id' => $personnelAction->getKey(),
@@ -132,11 +128,7 @@ class FinalPersonnelActionProtectionTest extends TestCase
                 $idsField => [$pendingAction->getKey(), $finalAction->getKey()],
             ]);
 
-        if ($modelClass === EmployeePromotion::class) {
-            $response->assertRedirect(route($indexRoute))->assertSessionHasErrors('status');
-        } else {
-            $response->assertForbidden();
-        }
+        $response->assertForbidden();
 
         $this->assertDatabaseHas($pendingAction->getTable(), ['id' => $pendingAction->getKey()]);
         $this->assertDatabaseHas($finalAction->getTable(), ['id' => $finalAction->getKey()]);
@@ -157,9 +149,9 @@ class FinalPersonnelActionProtectionTest extends TestCase
         $this->actingAs($superAdmin)
             ->get(route($indexRoute))
             ->assertOk()
-            ->assertSee('action="'.route($updateRoute, $pendingAction).'"', escape: false)
+            ->assertDontSee('action="'.route($updateRoute, $pendingAction).'"', escape: false)
             ->assertDontSee('action="'.route($updateRoute, $finalAction).'"', escape: false)
-            ->assertSee('name="'.$idsField.'[]" value="'.$pendingAction->getKey().'"', escape: false)
+            ->assertDontSee('name="'.$idsField.'[]" value="'.$pendingAction->getKey().'"', escape: false)
             ->assertDontSee('name="'.$idsField.'[]" value="'.$finalAction->getKey().'"', escape: false);
     }
 
@@ -199,9 +191,13 @@ class FinalPersonnelActionProtectionTest extends TestCase
         $employee = Employee::create(['sap' => $sap, 'employee_subgroup' => 'Level 1']);
         $employee->forceFill(['name' => 'Nama Awal'])->save();
 
+        $effectiveStatus = $modelClass === EmployeePromotion::class && $status === 'Pending'
+            ? 'Waiting Approval'
+            : $status;
+
         return $modelClass::query()->create([
             ...$this->validPayload($sap, 'Nama Awal', $modelClass),
-            'verification_status' => $status,
+            'verification_status' => $effectiveStatus,
             'finalized_at' => $status === 'Final' ? now() : null,
         ]);
     }

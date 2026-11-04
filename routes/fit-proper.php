@@ -17,7 +17,8 @@ Route::middleware(['auth', 'can:workspace.hc-od-career-management.view'])->prefi
     Route::get('/{activity}', [F::class, 'show'])->middleware('can:fit-proper.view')->name('.show');
     Route::put('/{activity}', [F::class, 'update'])->middleware('can:fit-proper.update')->name('.update');
     Route::delete('/{activity}', [F::class, 'destroy'])->middleware('can:fit-proper.delete')->name('.destroy');
-    Route::post('/{activity}/transition', [F::class, 'transition'])->middleware('can:fit-proper.finalize')->name('.transition');
+    Route::post('/{activity}/transition', [F::class, 'transition'])->middleware('can:fit-proper.update')->name('.transition');
+    Route::post('/{activity}/finalize', [F::class, 'finalize'])->middleware('can:fit-proper.finalize')->name('.finalize');
     Route::put('/{activity}/pics', [F::class, 'pics'])->middleware('can:fit-proper.update')->name('.pics');
     Route::delete('/{activity}/pics/{user}', [F::class, 'deletePic'])->middleware('can:fit-proper.update')->name('.pics.delete');
     Route::post('/{activity}/examiners', [F::class, 'examiner'])->middleware('can:fit-proper.update')->name('.examiners');

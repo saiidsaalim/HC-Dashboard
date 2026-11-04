@@ -248,7 +248,7 @@ class RolePermissionTest extends TestCase
         $deleteCount = 0;
 
         DB::listen(function ($query) use (&$deleteCount): void {
-            if (str_starts_with(strtolower($query->sql), 'delete from "permission_role"')) {
+            if (preg_match('/^delete from [`"]?permission_role[`"]?/i', $query->sql) === 1) {
                 $deleteCount++;
 
                 if ($deleteCount === 3) {

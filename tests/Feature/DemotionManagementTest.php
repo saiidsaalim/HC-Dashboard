@@ -184,8 +184,8 @@ class DemotionManagementTest extends TestCase
 
         $this->assertStringContainsString('Demosi', $documentText);
         $this->assertStringContainsString('SAP207', $documentText);
-        $this->assertStringContainsString('Level Lama: B2', $documentText);
-        $this->assertStringContainsString('Level Baru: B1', $documentText);
+        $this->assertStringContainsString('Level Lama: B1', $documentText);
+        $this->assertStringContainsString('Level Baru: B2', $documentText);
         $this->assertStringNotContainsString('[PEGAWAI]', $documentText);
     }
 
@@ -210,8 +210,8 @@ class DemotionManagementTest extends TestCase
     private function demotionAttributes(string $sap): array
     {
         Employee::query()->updateOrCreate(
-            ['sap' => 'LEVEL-OPTION-B1'],
-            ['employee_subgroup' => 'B1'],
+            ['sap' => 'LEVEL-OPTION-B2'],
+            ['employee_subgroup' => 'B2'],
         );
         $employee = Employee::query()->firstOrCreate(['sap' => $sap]);
         $directorate = Directorate::query()->firstOrCreate(['code' => 'DIR-'.$sap], ['name' => 'Directorate '.$sap]);
@@ -228,7 +228,7 @@ class DemotionManagementTest extends TestCase
             'code' => 'POS-'.$sap,
         ], ['name' => 'Position '.$sap]);
         $employee->update([
-            'employee_subgroup' => 'B2',
+            'employee_subgroup' => 'B1',
             'directorate_id' => $directorate->id,
             'department_id' => $department->id,
             'unit_id' => $unit->id,
@@ -256,10 +256,10 @@ class DemotionManagementTest extends TestCase
             'jabatan_baru' => 'Staff',
             'tmt' => '2026-12-01',
             'pg' => 'PG-1',
-            'level_lama' => 'B2',
-            'jg_lama' => 'JG-2',
-            'level_baru' => 'B1',
-            'jg_baru' => 'JG-1',
+            'level_lama' => 'B1',
+            'jg_lama' => 'JG-1',
+            'level_baru' => 'B2',
+            'jg_baru' => 'JG-2',
         ];
     }
 }

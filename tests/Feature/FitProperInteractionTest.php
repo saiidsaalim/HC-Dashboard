@@ -57,8 +57,8 @@ class FitProperInteractionTest extends TestCase
         $this->putJson(route('fit-proper.pics', $activity), ['users' => [$first->id]])->assertOk();
         $response = $this->putJson(route('fit-proper.pics', $activity), ['users' => [$second->id]]);
         $response->assertOk()->assertJsonStructure(['html', 'message']);
-        $this->assertStringContainsString($first->name, $response->json('html'));
-        $this->assertStringContainsString($second->name, $response->json('html'));
+        $this->assertStringContainsString(e($first->name), $response->json('html'));
+        $this->assertStringContainsString(e($second->name), $response->json('html'));
         $this->assertSame(2, $activity->pics()->count());
         $this->putJson(route('fit-proper.pics', $activity), ['users' => [$first->id]])->assertUnprocessable()->assertJsonValidationErrors('users');
         $this->putJson(route('fit-proper.pics', $activity), ['users' => [$outsider->id, $outsider->id]])->assertUnprocessable();
@@ -70,11 +70,11 @@ class FitProperInteractionTest extends TestCase
             $this->get(route('fit-proper'))->assertSee($activity->name);
         }
         $this->actingAs($outsider)->get(route('fit-proper.show', $activity))->assertForbidden();
-        $this->actingAs($first)->deleteJson(route('fit-proper.pics.delete', [$activity, $second]))->assertForbidden();
+        $this->actingAs($first)->deleteJson(route('fit-proper.pics.delete', [$activity, $second]))->assertOk();
         $this->actingAs($admin)->deleteJson(route('fit-proper.pics.delete', [$activity, $first]))->assertOk();
-        $this->assertSame([$second->id], $activity->pics()->pluck('users.id')->all());
+        $this->assertSame([], $activity->pics()->pluck('users.id')->all());
         $this->actingAs($first)->get(route('fit-proper.show', $activity))->assertForbidden();
-        $this->actingAs($second)->get(route('fit-proper.show', $activity))->assertOk();
+        $this->actingAs($second)->get(route('fit-proper.show', $activity))->assertForbidden();
     }
 
     public function test_new_link_is_public_preserves_login_and_supports_draft_submit_and_scoped_cv(): void
@@ -143,7 +143,7 @@ class FitProperInteractionTest extends TestCase
         $this->get($link)->assertOk();
         $values = array_fill_keys(array_keys(FitProperCalculationService::INDICATORS), 4);
         $service->saveScores($examiner, ['scores' => [$participant->id => $values]], true);
-        $response = $this->postJson(route('fit-proper.transition', $activity), ['status' => 'Selesai'])->assertOk()->assertJsonPath('invalidate_links', true);
+        $response = $this->postJson(route('fit-proper.finalize', $activity))->assertOk()->assertJsonPath('invalidate_links', true);
         $this->assertStringContainsString('Seluruh penilaian terkunci', $response->json('html'));
         $this->get($link)->assertNotFound()->assertSee('Kegiatan sudah selesai');
         $this->postJson($link, ['intent' => 'draft', 'scores' => [$participant->id => $values]])->assertNotFound();

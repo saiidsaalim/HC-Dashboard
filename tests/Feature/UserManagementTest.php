@@ -4,9 +4,14 @@ namespace Tests\Feature;
 
 use App\Enums\UserRole;
 use App\Models\Employee;
+use App\Models\EmployeePromotion;
+use App\Models\PromotionApproval;
+use App\Models\PromotionApprovalConfig;
 use App\Models\User;
+use App\Services\Users\UserAccountService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class UserManagementTest extends TestCase
@@ -92,6 +97,77 @@ class UserManagementTest extends TestCase
 
         $response->assertRedirect();
         $this->assertNull($user->fresh());
+    }
+
+    public function test_configured_approver_cannot_be_deleted_or_downgraded(): void
+    {
+        $approver = User::factory()->create(['role' => UserRole::MANAGER->value]);
+        PromotionApprovalConfig::query()->create(['step_order' => 1, 'user_id' => $approver->id]);
+        $service = app(UserAccountService::class);
+
+        foreach ([
+            fn () => $service->delete($approver),
+            fn () => $service->changeRole($approver, UserRole::STAFF),
+        ] as $action) {
+            try {
+                $action();
+                $this->fail('Approver konfigurasi seharusnya dilindungi.');
+            } catch (ValidationException $exception) {
+                $this->assertStringContainsString('Promosi', $exception->getMessage());
+                $this->assertStringContainsString('langkah 1', $exception->getMessage());
+            }
+        }
+
+        $this->assertSame(UserRole::MANAGER->value, $approver->fresh()->role);
+    }
+
+    public function test_current_approver_cannot_be_deleted_but_historical_approver_can(): void
+    {
+        $activeApprover = User::factory()->create(['role' => UserRole::MANAGER->value]);
+        $activeMovement = $this->promotionForApproverTest('ACTIVE', 'Waiting Approval', 1);
+        PromotionApproval::query()->create([
+            'employee_promotion_id' => $activeMovement->id,
+            'approval_round' => 1,
+            'step_order' => 1,
+            'manager_id' => $activeApprover->id,
+            'approver_name_snapshot' => $activeApprover->name,
+            'approver_role_snapshot' => $activeApprover->role,
+            'status' => 'Pending',
+        ]);
+        $service = app(UserAccountService::class);
+
+        try {
+            $service->delete($activeApprover);
+            $this->fail('Approver aktif seharusnya tidak dapat dihapus.');
+        } catch (ValidationException $exception) {
+            $this->assertStringContainsString('approver aktif Promosi', $exception->getMessage());
+        }
+
+        $historicalEmployee = Employee::query()->create(['sap' => 'APPROVER-HISTORICAL']);
+        $historicalApprover = User::factory()->create([
+            'employee_id' => $historicalEmployee->id,
+            'role' => UserRole::MANAGER->value,
+        ]);
+        $historicalMovement = $this->promotionForApproverTest('HISTORICAL', 'Final', 1);
+        $approval = PromotionApproval::query()->create([
+            'employee_promotion_id' => $historicalMovement->id,
+            'approval_round' => 1,
+            'step_order' => 1,
+            'manager_id' => $historicalApprover->id,
+            'approver_name_snapshot' => $historicalApprover->name,
+            'approver_role_snapshot' => $historicalApprover->role,
+            'approver_number_snapshot' => $historicalEmployee->sap,
+            'status' => 'Approved',
+            'approved_at' => now(),
+        ]);
+
+        $service->delete($historicalApprover);
+
+        $approval->refresh();
+        $this->assertNull($approval->manager_id);
+        $this->assertSame($historicalApprover->name, $approval->approver_name_snapshot);
+        $this->assertSame(UserRole::MANAGER->value, $approval->approver_role_snapshot);
+        $this->assertSame('APPROVER-HISTORICAL', $approval->approver_number_snapshot);
     }
 
     public function test_user_cannot_delete_their_own_account_from_user_management(): void
@@ -217,5 +293,29 @@ class UserManagementTest extends TestCase
         ])->assertRedirect();
 
         $this->actingAs($user->fresh())->get(route('wla.staff.index'))->assertForbidden();
+    }
+
+    private function promotionForApproverTest(string $suffix, string $status, int $round): EmployeePromotion
+    {
+        $employee = Employee::query()->create(['sap' => "WORKFLOW-{$suffix}"]);
+
+        return EmployeePromotion::query()->create([
+            'employee_id' => $employee->id,
+            'sap' => $employee->sap,
+            'nama' => "Pegawai {$suffix}",
+            'departemen_lama' => 'Departemen Lama',
+            'departemen_baru' => 'Departemen Baru',
+            'jabatan_lama' => 'Jabatan Lama',
+            'jabatan_baru' => 'Jabatan Baru',
+            'tmt' => today(),
+            'pg' => 'PG-1',
+            'level_lama' => 'B2',
+            'jg_lama' => 'JG-2',
+            'level_baru' => 'B1',
+            'jg_baru' => 'JG-1',
+            'verification_status' => $status,
+            'approval_round' => $round,
+            'current_approval_step' => $status === 'Waiting Approval' ? 1 : null,
+        ]);
     }
 }

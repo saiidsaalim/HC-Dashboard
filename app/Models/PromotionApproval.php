@@ -19,6 +19,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'approver_name_snapshot',
     'approver_role_snapshot',
     'approver_number_snapshot',
+    'submission_snapshot',
+    'cancelled_at',
 ])]
 class PromotionApproval extends Model
 {
@@ -27,6 +29,8 @@ class PromotionApproval extends Model
         return [
             'approved_at' => 'datetime',
             'returned_at' => 'datetime',
+            'cancelled_at' => 'datetime',
+            'submission_snapshot' => 'array',
             'approval_round' => 'integer',
             'step_order' => 'integer',
             'status' => PromotionApprovalStatus::class,

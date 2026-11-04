@@ -138,7 +138,7 @@
                     </label>
                 </x-ui.filter-panel>
                 <div class="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
-                    @if ($canDeleteMutations && $mutations->contains(fn($mutation): bool => $mutation->verification_status !== 'Final'))
+                    @if ($canDeleteMutations && $mutations->contains(fn($mutation): bool => auth()->user()->can('delete', $mutation)))
                         <label class="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-600">
                             <input id="select-all-mutations" type="checkbox"
                                 onchange="document.querySelectorAll('.mutation-checkbox').forEach((checkbox) => checkbox.checked = this.checked)"
@@ -194,11 +194,11 @@
                                 @endphp
                                 @if ($canDeleteMutations)
                                     <td data-label="Pilih" class="px-4 py-3 text-center align-middle">
-                                        @if ($mutation->verification_status !== 'Final')
+                                        @can('delete', $mutation)
                                             <input type="checkbox" name="mutation_ids[]" value="{{ $mutation->id }}"
                                                 class="mutation-checkbox rounded border-slate-300 text-slate-950 focus:ring-amber-400"
                                                 onchange="document.getElementById('select-all-mutations').checked = document.querySelectorAll('.mutation-checkbox').length > 0 && document.querySelectorAll('.mutation-checkbox:not(:checked)').length === 0">
-                                        @endif
+                                        @endcan
                                     </td>
                                 @endif
                                 <td data-label="SAP" class="px-4 py-3 align-middle font-semibold text-slate-700">
@@ -329,7 +329,7 @@
                     </div>
 
                     @include('pages.mutasi._detail-content')
-                    @if ($canUpdateMutations && ! $statusIsFinal)
+                    @can('update', $mutation)
                         <details id="mutation-edit-{{ $mutation->id }}" @if (old('_form') === 'edit-mutation-'.$mutation->id) open @endif
                             class="mt-5 scroll-mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
                             <summary class="cursor-pointer font-display text-sm font-bold text-slate-800">Edit Data Mutasi</summary>
@@ -338,18 +338,18 @@
                                 'formKey' => 'edit-mutation-'.$mutation->id, 'submitLabel' => 'Simpan Perubahan',
                             ])
                         </details>
-                    @endif
+                    @endcan
                 </div>
                 <footer class="flex flex-none flex-col-reverse gap-3 border-t border-slate-200 bg-white/95 px-4 py-4 backdrop-blur sm:flex-row sm:justify-end sm:px-6 lg:px-8">
                     <button type="button" onclick="this.closest('dialog').close()" class="ui-button ui-button-secondary w-full sm:w-auto">Tutup</button>
-                    @if ($canUpdateMutations && ! $statusIsFinal)
+                    @can('update', $mutation)
                         <button type="button"
                             onclick="const panel = document.getElementById('mutation-edit-{{ $mutation->id }}'); panel.open = true; panel.scrollIntoView({ behavior: 'smooth', block: 'start' });"
                             class="ui-button ui-button-primary w-full sm:w-auto">
                             <x-dashboard-icon name="edit" class="h-4 w-4" />
                             Edit Data
                         </button>
-                    @endif
+                    @endcan
                 </footer>
             </section>
         </dialog>

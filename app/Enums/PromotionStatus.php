@@ -25,11 +25,16 @@ enum PromotionStatus: string
 
     public function canBeEdited(): bool
     {
-        return in_array($this, [self::Draft, self::Returned, self::LegacyPending], true);
+        return in_array($this, [self::Draft, self::Returned], true);
     }
 
     public function canBeSubmitted(): bool
     {
         return $this->canBeEdited();
+    }
+
+    public function canBeDeleted(): bool
+    {
+        return $this === self::Draft;
     }
 }

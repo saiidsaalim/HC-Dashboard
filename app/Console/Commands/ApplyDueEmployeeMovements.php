@@ -12,6 +12,9 @@ use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
+use Throwable;
 
 #[Signature('personnel:apply-due-movements')]
 #[Description('Apply approved personnel movements whose effective date has arrived')]
@@ -23,30 +26,64 @@ class ApplyDueEmployeeMovements extends Command
     public function handle(EmployeeMovementFinalizationService $finalizationService): int
     {
         $applied = 0;
+        $skipped = 0;
+        $failed = 0;
 
-        foreach ([EmployeeMutation::class, EmployeePromotion::class, EmployeeDemotion::class] as $movementClass) {
+        foreach ($this->movementDefinitions() as $movementClass => $statuses) {
             /** @var Builder<Model> $query */
             $query = $movementClass::query()
-                ->where('verification_status', 'Approved')
-                ->whereNotNull('finalized_at')
-                ->whereNull('employee_applied_at')
-                ->whereDate('tmt', '<=', today());
+                ->whereIn('verification_status', $statuses);
 
-            $query->chunkById(100, function ($movements) use ($finalizationService, &$applied): void {
+            $query->chunkById(100, function ($movements) use ($finalizationService, &$applied, &$skipped, &$failed): void {
                 foreach ($movements as $movement) {
-                    DB::transaction(function () use ($movement, $finalizationService, &$applied): void {
-                        $lockedMovement = $movement->newQuery()->lockForUpdate()->findOrFail($movement->getKey());
+                    try {
+                        $wasApplied = DB::transaction(function () use ($movement, $finalizationService): bool {
+                            $lockedMovement = $movement->newQuery()
+                                ->lockForUpdate()
+                                ->find($movement->getKey());
 
-                        if ($finalizationService->applyIfDue($lockedMovement)) {
-                            $applied++;
-                        }
-                    }, attempts: 3);
+                            return $lockedMovement !== null
+                                && $finalizationService->applyIfDue($lockedMovement);
+                        }, attempts: 3);
+
+                        $wasApplied ? $applied++ : $skipped++;
+                    } catch (Throwable $exception) {
+                        $failed++;
+                        Log::error('Gagal menerapkan personnel movement.', [
+                            'movement_id' => $movement->getKey(),
+                            'movement_type' => class_basename($movement),
+                            'employee_id' => $movement->employee_id,
+                            'message' => $this->safeMessage($exception),
+                        ]);
+                    }
                 }
             });
         }
 
-        $this->info("{$applied} perubahan pegawai diterapkan.");
+        $this->line("Berhasil diterapkan: {$applied}");
+        $this->line("Dilewati: {$skipped}");
+        $this->line("Gagal: {$failed}");
 
-        return self::SUCCESS;
+        return $failed === 0 ? self::SUCCESS : self::FAILURE;
+    }
+
+    /** @return array<class-string<Model>, array<int, string>> */
+    private function movementDefinitions(): array
+    {
+        return [
+            EmployeeMutation::class => ['Pending', 'Approved', 'Final'],
+            EmployeePromotion::class => ['Waiting Approval', 'Approved', 'Final'],
+            EmployeeDemotion::class => ['Pending', 'Approved', 'Final'],
+        ];
+    }
+
+    private function safeMessage(Throwable $exception): string
+    {
+        if ($exception instanceof ValidationException) {
+            return collect($exception->errors())->flatten()->first()
+                ?? 'Validasi penerapan movement gagal.';
+        }
+
+        return 'Penerapan movement gagal karena kesalahan internal.';
     }
 }

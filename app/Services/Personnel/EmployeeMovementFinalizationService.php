@@ -2,6 +2,7 @@
 
 namespace App\Services\Personnel;
 
+use App\Enums\PromotionStatus;
 use App\Models\Employee;
 use App\Models\EmployeeDemotion;
 use App\Models\EmployeeMutation;
@@ -19,6 +20,12 @@ class EmployeeMovementFinalizationService
     public function apply(
         EmployeePromotion|EmployeeDemotion|EmployeeMutation $movement,
     ): void {
+        if ($movement->verification_status !== PromotionStatus::Approved->value) {
+            throw ValidationException::withMessages([
+                'status' => 'Hanya perubahan berstatus Approved yang dapat diterapkan.',
+            ]);
+        }
+
         if ($movement->employee_applied_at !== null) {
             return;
         }
@@ -90,7 +97,9 @@ class EmployeeMovementFinalizationService
             return false;
         }
 
-        if ($movement->finalized_at === null || $movement->tmt->isFuture()) {
+        if ($movement->verification_status !== PromotionStatus::Approved->value
+            || $movement->finalized_at === null
+            || $movement->tmt->isFuture()) {
             return false;
         }
 

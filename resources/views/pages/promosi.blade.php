@@ -110,7 +110,7 @@
         </div>
 
         <form id="bulk-delete-promotions" method="POST" action="{{ route('promosi.destroy-many') }}"
-            data-confirm-submit data-confirm-title="Hapus data terpilih?" data-confirm-text="Hanya Draft dan data Dikembalikan yang dapat dihapus."
+            data-confirm-submit data-confirm-title="Hapus data terpilih?" data-confirm-text="Hanya Draft yang belum pernah diajukan yang dapat dihapus."
             data-confirm-button-text="Ya, hapus" data-confirm-button-color="#dc2626" data-confirm-require-checkbox=".promotion-checkbox"
             data-confirm-empty-text="Centang minimal satu usulan Promosi.">
             @csrf

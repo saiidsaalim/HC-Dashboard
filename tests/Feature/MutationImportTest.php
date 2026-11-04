@@ -96,7 +96,7 @@ class MutationImportTest extends TestCase
             ->assertSee($approvers[1]->name)
             ->assertSee('Disetujui')
             ->assertSee('Menunggu keputusan')
-            ->assertSee('Edit Data');
+            ->assertDontSee('Edit Data');
     }
 
     public function test_pending_mutations_card_counts_only_pending_records(): void

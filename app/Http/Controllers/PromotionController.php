@@ -10,6 +10,7 @@ use App\Http\Requests\UpdatePromotionRequest;
 use App\Models\Employee;
 use App\Models\EmployeePromotion;
 use App\Models\PromotionApproval;
+use App\Services\Personnel\PersonnelActionGuard;
 use App\Services\Personnel\PersonnelMovementFormDataService;
 use App\Services\Personnel\PersonnelMovementSnapshotService;
 use App\Services\Personnel\PromotionApprovalWorkflowService;
@@ -22,10 +23,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use ZipArchive;
@@ -122,26 +121,20 @@ class PromotionController extends Controller
     public function update(
         UpdatePromotionRequest $request,
         EmployeePromotion $employeePromotion,
+        PersonnelActionGuard $personnelActionGuard,
         PersonnelMovementSnapshotService $snapshotService,
     ): RedirectResponse {
         $employee = Employee::query()->findOrFail($request->integer('employee_id'));
 
-        DB::transaction(function () use ($employeePromotion, $employee, $request, $snapshotService): void {
-            $lockedPromotion = EmployeePromotion::query()->lockForUpdate()->findOrFail($employeePromotion->id);
-
-            if (! $lockedPromotion->isEditable()) {
-                throw ValidationException::withMessages([
-                    'status' => 'Promosi yang sedang diproses atau sudah Final tidak dapat diubah.',
-                ]);
-            }
-
-            $lockedPromotion->update($snapshotService->fromEmployee($employee, $request->validated()));
-        });
+        $personnelActionGuard->update(
+            $employeePromotion,
+            $snapshotService->fromEmployee($employee, $request->validated()),
+        );
 
         return to_route('promosi')->with('status', 'Data promosi berhasil diperbarui.');
     }
 
-    public function destroyMany(Request $request): RedirectResponse
+    public function destroyMany(Request $request, PersonnelActionGuard $personnelActionGuard): RedirectResponse
     {
         Gate::authorize('promotions.delete');
 
@@ -150,22 +143,14 @@ class PromotionController extends Controller
             'promotion_ids.*' => ['integer', 'distinct', 'exists:employee_promotions,id'],
         ]);
 
-        $deleted = DB::transaction(function () use ($validated, $request): int {
-            $promotions = EmployeePromotion::query()
-                ->whereIn('id', $validated['promotion_ids'])
-                ->lockForUpdate()
-                ->get();
+        $promotions = EmployeePromotion::query()->whereIn('id', $validated['promotion_ids'])->get();
+        foreach ($promotions as $promotion) {
+            Gate::authorize('delete', $promotion);
+        }
 
-            foreach ($promotions as $promotion) {
-                if ($request->user()->cannot('delete', $promotion)) {
-                    throw ValidationException::withMessages([
-                        'status' => 'Hanya Promosi Draft atau Dikembalikan yang dapat dihapus.',
-                    ]);
-                }
-            }
-
-            return EmployeePromotion::query()->whereKey($promotions->modelKeys())->delete();
-        });
+        $deleted = $personnelActionGuard->deleteMany(
+            EmployeePromotion::query()->whereIn('id', $validated['promotion_ids']),
+        );
 
         return to_route('promosi')->with('status', "Berhasil menghapus {$deleted} data promosi.");
     }

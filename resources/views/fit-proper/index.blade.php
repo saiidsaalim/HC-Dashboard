@@ -16,6 +16,8 @@
 </tbody></table></div>{{ $activities->links() }}
 @can('create',\App\Models\FitProperActivity::class)
 <details class="rounded-xl border border-slate-200 bg-white p-5" @if(old('name')) open @endif><summary class="cursor-pointer font-display text-lg font-bold">Tambah kegiatan</summary><form data-fp-async method="POST" action="{{ route('fit-proper.store') }}" class="mt-4">@include('fit-proper._activity-form',['activity'=>null])</form></details>
+@endcan
+@can('settings',\App\Models\FitProperActivity::class)
 <details class="rounded-xl border border-slate-200 bg-white p-5"><summary class="cursor-pointer font-display text-lg font-bold">Pengaturan standar penilaian</summary>
 <p class="my-3 text-sm text-slate-600">Berlaku hanya untuk kegiatan baru. Bobot disimpan sebagai pecahan: 0,10 = 10%. Jumlah bobot harus 1.</p>
 <form method="POST" action="{{ route('fit-proper.settings') }}">@csrf @method('PUT')<div class="grid gap-4 sm:grid-cols-3">

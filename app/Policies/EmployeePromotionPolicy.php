@@ -31,12 +31,12 @@ class EmployeePromotionPolicy
 
     public function delete(User $user, EmployeePromotion $employeePromotion): bool
     {
-        return $user->hasPermission('promotions.delete') && $employeePromotion->isEditable();
+        return $user->hasPermission('promotions.delete') && $employeePromotion->isDeletable();
     }
 
     public function submit(User $user, EmployeePromotion $employeePromotion): bool
     {
-        return $user->hasPermission('promotions.submit') && $employeePromotion->statusEnum()->canBeSubmitted();
+        return $user->hasPermission('promotions.submit') && $employeePromotion->isSubmittable();
     }
 
     public function approve(User $user, EmployeePromotion $employeePromotion): bool

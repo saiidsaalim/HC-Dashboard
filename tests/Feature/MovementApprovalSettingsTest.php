@@ -80,6 +80,11 @@ class MovementApprovalSettingsTest extends TestCase
         ]);
         $this->actingAs($superAdmin)->post(route('mutasi.submit', $mutation))->assertRedirect(route('mutasi'));
 
+        $this->actingAs($superAdmin)->put(route('mutasi.update', $mutation), [])->assertForbidden();
+        $this->actingAs($superAdmin)->delete(route('mutasi.destroy-many'), [
+            'mutation_ids' => [$mutation->id],
+        ])->assertForbidden();
+
         $this->actingAs($approvers[1])->post(route('mutasi.approve', $mutation))->assertForbidden();
         $this->actingAs($approvers[0])->post(route('mutasi.approve', $mutation))->assertRedirect(route('mutasi'));
         $this->assertDatabaseHas('mutation_approvals', [

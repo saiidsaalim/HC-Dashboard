@@ -9,7 +9,15 @@ class LevelTransitionService
 {
     public function ensurePromotion(string $currentLevel, string $newLevel): void
     {
-        if ($this->compare($currentLevel, $newLevel) !== 1) {
+        $comparison = $this->compare($currentLevel, $newLevel);
+
+        if ($comparison === null) {
+            throw ValidationException::withMessages([
+                'level_baru' => 'Level Lama dan Level Baru tidak dapat dibandingkan. Gunakan level Band B1-B4 atau level struktural resmi.',
+            ]);
+        }
+
+        if ($comparison !== 1) {
             throw ValidationException::withMessages([
                 'level_baru' => 'Level Baru promosi harus lebih tinggi daripada Level Lama.',
             ]);
@@ -18,7 +26,15 @@ class LevelTransitionService
 
     public function ensureDemotion(string $currentLevel, string $newLevel): void
     {
-        if ($this->compare($currentLevel, $newLevel) !== -1) {
+        $comparison = $this->compare($currentLevel, $newLevel);
+
+        if ($comparison === null) {
+            throw ValidationException::withMessages([
+                'level_baru' => 'Level Lama dan Level Baru tidak dapat dibandingkan. Gunakan level Band B1-B4 atau level struktural resmi.',
+            ]);
+        }
+
+        if ($comparison !== -1) {
             throw ValidationException::withMessages([
                 'level_baru' => 'Level Baru demosi harus lebih rendah daripada Level Lama.',
             ]);
@@ -26,9 +42,10 @@ class LevelTransitionService
     }
 
     /**
-     * Returns 1 when the new level is higher, -1 when lower, and 0 when equal or incomparable.
+     * Returns 1 when the new level is higher, -1 when lower, 0 when equal,
+     * and null when the levels cannot be compared.
      */
-    public function compare(string $currentLevel, string $newLevel): int
+    public function compare(string $currentLevel, string $newLevel): ?int
     {
         $currentLevel = trim($currentLevel);
         $newLevel = trim($newLevel);
@@ -44,23 +61,19 @@ class LevelTransitionService
         $currentRank = $this->codedLevelRank($currentLevel);
         $newRank = $this->codedLevelRank($newLevel);
 
-        if ($currentRank === null || $newRank === null || $currentRank['prefix'] !== $newRank['prefix']) {
-            return 0;
-        }
-
-        return $newRank['rank'] <=> $currentRank['rank'];
-    }
-
-    /** @return array{prefix: string, rank: int}|null */
-    private function codedLevelRank(string $level): ?array
-    {
-        if (preg_match('/^([A-Z]+)[\s-]*(\d+)$/i', $level, $matches) !== 1) {
+        if ($currentRank === null || $newRank === null) {
             return null;
         }
 
-        return [
-            'prefix' => strtoupper($matches[1]),
-            'rank' => (int) $matches[2],
-        ];
+        return $currentRank <=> $newRank;
+    }
+
+    private function codedLevelRank(string $level): ?int
+    {
+        if (preg_match('/^(?:BAND\s*|B)[\s-]*([1-4])$/i', $level, $matches) !== 1) {
+            return null;
+        }
+
+        return (int) $matches[1];
     }
 }

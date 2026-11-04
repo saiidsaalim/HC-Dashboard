@@ -36,7 +36,9 @@ class EmployeeDemotionPolicy
      */
     public function update(User $user, EmployeeDemotion $employeeDemotion): bool
     {
-        return $user->hasPermission('demotions.update') && $employeeDemotion->verification_status !== 'Final';
+        return $user->hasPermission('demotions.update')
+            && $employeeDemotion->verification_status === 'Draft'
+            && ! $employeeDemotion->approvals()->exists();
     }
 
     /**
@@ -44,12 +46,16 @@ class EmployeeDemotionPolicy
      */
     public function delete(User $user, EmployeeDemotion $employeeDemotion): bool
     {
-        return $user->hasPermission('demotions.delete') && $employeeDemotion->verification_status !== 'Final';
+        return $user->hasPermission('demotions.delete')
+            && $employeeDemotion->verification_status === 'Draft'
+            && ! $employeeDemotion->approvals()->exists();
     }
 
     public function submit(User $user, EmployeeDemotion $employeeDemotion): bool
     {
-        return $user->hasPermission('demotions.submit') && $employeeDemotion->verification_status === 'Draft';
+        return $user->hasPermission('demotions.submit')
+            && $employeeDemotion->verification_status === 'Draft'
+            && ! $employeeDemotion->approvals()->exists();
     }
 
     /**

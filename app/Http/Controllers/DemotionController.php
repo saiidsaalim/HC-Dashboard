@@ -94,17 +94,12 @@ class DemotionController extends Controller
         PersonnelMovementSnapshotService $snapshotService,
     ): RedirectResponse {
         $employee = Employee::query()->findOrFail($request->integer('employee_id'));
-        $approvalsReset = $personnelActionGuard->update(
+        $personnelActionGuard->update(
             $employeeDemotion,
             $snapshotService->fromEmployee($employee, $request->validated()),
         );
 
-        return to_route('demosi')->with(
-            'status',
-            $approvalsReset
-                ? 'Data demosi diperbarui dan persetujuan lama direset karena isi usulan berubah.'
-                : 'Data demosi berhasil diperbarui.',
-        );
+        return to_route('demosi')->with('status', 'Data demosi berhasil diperbarui.');
     }
 
     public function destroyMany(Request $request, PersonnelActionGuard $personnelActionGuard): RedirectResponse

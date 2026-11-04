@@ -94,17 +94,12 @@ class MutationController extends Controller
         PersonnelMovementSnapshotService $snapshotService,
     ): RedirectResponse {
         $employee = Employee::query()->findOrFail($request->integer('employee_id'));
-        $approvalsReset = $personnelActionGuard->update(
+        $personnelActionGuard->update(
             $employeeMutation,
             $snapshotService->fromEmployee($employee, $request->validated()),
         );
 
-        return to_route('mutasi')->with(
-            'status',
-            $approvalsReset
-                ? 'Data mutasi diperbarui dan persetujuan lama direset karena isi usulan berubah.'
-                : 'Data mutasi berhasil diperbarui.',
-        );
+        return to_route('mutasi')->with('status', 'Data mutasi berhasil diperbarui.');
     }
 
     public function destroyMany(Request $request, PersonnelActionGuard $personnelActionGuard): RedirectResponse
