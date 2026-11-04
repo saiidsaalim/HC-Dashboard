@@ -68,7 +68,16 @@ class WlaAssessmentTest extends TestCase
 
         $this->actingAs($data['user'])->get(route('wla'))
             ->assertOk()
-            ->assertSee('Tanggal Assessment')
+            ->assertSee('data-wla-dashboard', false)
+            ->assertSee('Ringkasan WLA')
+            ->assertSee('Distribusi Beban Kerja per Unit')
+            ->assertSee('Tren Total Beban Kerja')
+            ->assertSee('FTE vs Rekomendasi')
+            ->assertSee('Belum tersedia WLA Final untuk dianalisis.')
+            ->assertSee('<th class="w-16 px-4 py-3.5">No</th>', false)
+            ->assertDontSee($assessment->assessment_code)
+            ->assertSee('<th class="px-4 py-3.5">Tanggal</th>', false)
+            ->assertDontSee('Tanggal Assessment')
             ->assertSee('datetime="2026-10-29"', false)
             ->assertSee('29 Oct 2026');
         $this->assertSame(2026, $assessment->fresh()->period);
@@ -80,6 +89,68 @@ class WlaAssessmentTest extends TestCase
             ->assertSee('bukan sumber formula WLA');
         $this->get(route('wla.show', $assessment))->assertOk()->assertSee($assessment->assessment_code);
         $this->get(route('wla.edit', $assessment))->assertOk()->assertSee('Efficiency Factor');
+    }
+
+    public function test_assessment_index_renders_final_snapshot_kpis_and_chart_payloads(): void
+    {
+        $data = $this->context();
+        $assessment = $this->createAssessment($data);
+        $assessment->forceFill([
+            'status' => WlaAssessmentStatus::Final,
+            'final_snapshot' => [
+                'assessment_code' => $assessment->assessment_code,
+                'period' => 2026,
+                'department' => ['name' => 'Operations'],
+                'unit' => ['name' => 'Production'],
+                'position' => ['name' => 'Operator'],
+                'schedule' => ['name' => 'Dayshift'],
+                'calendar' => ['year' => 2026],
+                'efficiency_factor' => '0.9000',
+                'total_annual_workload' => '1500.0000',
+                'fte' => '2.500000',
+                'recommended_employees' => 3,
+                'activities' => [['activity_name' => 'Inspect equipment']],
+            ],
+        ])->save();
+
+        $this->actingAs($data['user'])->get(route('wla'))
+            ->assertOk()
+            ->assertSee('1 WLA Final')
+            ->assertSee('1.500,0')
+            ->assertSee('2,5')
+            ->assertSee('data-wla-distribution-chart', false)
+            ->assertSee('data-wla-comparison-chart', false)
+            ->assertSee('Minimal dua periode WLA Final diperlukan untuk menampilkan tren.')
+            ->assertDontSee('data-wla-trend-chart', false);
+    }
+
+    public function test_assessment_index_filters_every_displayed_record_by_year(): void
+    {
+        $data = $this->context();
+        $assessment2026 = $this->createAssessment($data);
+        $assessment2026->forceFill(['created_at' => '2026-02-10 08:00:00'])->save();
+        $assessment2025 = WlaAssessment::query()->create([
+            ...$this->payload($data, ['period' => 2025]),
+            'assessment_code' => 'WLA-2025-000002',
+            'status' => WlaAssessmentStatus::Draft,
+            'created_by' => $data['user']->id,
+        ]);
+        $assessment2025->forceFill(['created_at' => '2025-01-15 08:00:00'])->save();
+
+        $this->actingAs($data['user'])->get(route('wla', ['year' => 2025]))
+            ->assertOk()
+            ->assertViewHas('selectedYear', 2025)
+            ->assertViewHas('assessments', fn ($assessments): bool => $assessments->total() === 1
+                && $assessments->sole()->is($assessment2025))
+            ->assertSee('<option value="2025" selected>2025</option>', false)
+            ->assertSee('15 Jan 2025')
+            ->assertDontSee('10 Feb 2026')
+            ->assertSee('assessment tahun 2025');
+
+        $this->from(route('wla'))
+            ->get(route('wla', ['year' => 2024]))
+            ->assertRedirect(route('wla'))
+            ->assertSessionHasErrors('year');
     }
 
     public function test_assessment_uses_directorate_and_section_to_scope_organization_choices(): void

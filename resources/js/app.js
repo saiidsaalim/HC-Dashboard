@@ -3,6 +3,7 @@
 import Alpine from 'alpinejs';
 import { gsap } from 'gsap';
 import './fit-proper';
+import { initializeWlaDashboard } from './wla-dashboard';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
@@ -350,6 +351,7 @@ async function initializeEmployeeDashboardAnimations() {
 
 document.addEventListener('DOMContentLoaded', () => {
     void initializeEmployeeDashboardAnimations();
+    void initializeWlaDashboard();
 });
 
 async function confirmFormAction(form) {

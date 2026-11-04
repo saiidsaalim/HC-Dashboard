@@ -30,6 +30,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class WlaAssessmentController extends Controller
@@ -41,17 +42,46 @@ class WlaAssessmentController extends Controller
         private WlaFinalSpreadsheet $wlaFinalSpreadsheet,
     ) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
         Gate::authorize('viewAny', WlaAssessment::class);
 
-        $assessments = WlaAssessment::query()
+        $availableYears = WlaAssessment::query()
+            ->select('period')
+            ->distinct()
+            ->orderByDesc('period')
+            ->pluck('period')
+            ->map(fn (mixed $year): int => (int) $year)
+            ->values();
+        $selectedYear = $request->filled('year') ? $request->integer('year') : null;
+
+        if ($selectedYear !== null && ! $availableYears->containsStrict($selectedYear)) {
+            throw ValidationException::withMessages([
+                'year' => 'Tahun assessment yang dipilih tidak tersedia.',
+            ]);
+        }
+
+        $assessmentQuery = WlaAssessment::query()
+            ->when($selectedYear !== null, fn (Builder $query): Builder => $query->where('period', $selectedYear));
+
+        $assessments = (clone $assessmentQuery)
             ->with(['department', 'unit', 'position', 'workSchedule', 'workCalendar', 'creator'])
             ->orderByDesc('period')
             ->orderByDesc('id')
-            ->paginate(15);
+            ->paginate(15)
+            ->withQueryString();
+        $analyticsAssessments = (clone $assessmentQuery)
+            ->where('status', WlaAssessmentStatus::Final->value)
+            ->orderBy('period')
+            ->orderBy('id')
+            ->get(['id', 'period', 'department_id', 'unit_id', 'position_id', 'status', 'final_snapshot']);
 
-        return view('wla.index', compact('assessments'));
+        return view('wla.index', compact(
+            'analyticsAssessments',
+            'assessments',
+            'availableYears',
+            'selectedYear',
+        ));
     }
 
     public function create(): View
