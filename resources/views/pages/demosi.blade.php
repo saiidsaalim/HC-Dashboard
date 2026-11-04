@@ -10,30 +10,61 @@
         $canDeleteDemotions = auth()->user()->hasPermission('demotions.delete');
         $canApproveDemotions = auth()->user()->hasPermission('demotions.approve');
         $canPrintDemotions = auth()->user()->hasPermission('demotions.print');
+        $hasDeletableDemotions = $canDeleteDemotions
+            && $demotions->contains(fn ($demotion): bool => auth()->user()->can('delete', $demotion));
     @endphp
-    <div x-data="{ open: @js(old('_form') === 'create-demotion') }">
+    <div data-mutation-journey x-data="{
+        open: @js(old('_form') === 'create-demotion'),
+        openModal() {
+            this.open = true;
+            this.$nextTick(() => this.$refs.demotionModal?.querySelector('[type=search]')?.focus());
+        },
+        closeModal() {
+            this.open = false;
+            this.$nextTick(() => this.$refs.openDemotion?.focus());
+        },
+        trapFocus(event) {
+            const focusable = [...this.$refs.demotionModal.querySelectorAll(
+                'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]',
+            )].filter((element) => element.offsetParent !== null);
+            if (focusable.length === 0) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault(); last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault(); first.focus();
+            }
+        },
+    }" x-init="if (open) $nextTick(() => $refs.demotionModal?.querySelector('[type=search]')?.focus())">
         <x-ui.page-header title="Daftar Demosi" eyebrow="Talent movement"
             description="Kelola proses penurunan jabatan dan evaluasi kinerja pegawai.">
             <x-slot:actions>
                 @if ($canManageDemotionApprovals)
                     <a href="{{ route('demosi.approval-settings.edit') }}"
-                        class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-center text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+                        class="ui-button ui-button-secondary">
                         Pengaturan Persetujuan
                     </a>
                 @endif
                 @if ($canCreateDemotions)
-                    <button type="button" @click="open = true"
-                    class="rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700">
-                    Buat Demosi
+                    <button type="button" x-ref="openDemotion" @click="openModal()"
+                        class="ui-button ui-button-primary">
+                        <span class="text-lg leading-none" aria-hidden="true">+</span>
+                        Buat Demosi
                     </button>
                 @endif
             </x-slot:actions>
         </x-ui.page-header>
 
         @if (session('status'))
-            <div
-                class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-                {{ session('status') }}
+            <div class="mb-6 flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 text-sm font-semibold text-emerald-800 sm:px-5"
+                role="status">
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white shadow-sm" aria-hidden="true">
+                    <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2.2">
+                        <path d="m5 10 3 3 7-7" stroke-linecap="round" stroke-linejoin="round" />
+                    </svg>
+                </span>
+                <span>{{ session('status') }}</span>
             </div>
         @endif
         @if ($errors->any())
@@ -48,23 +79,25 @@
         @endif
 
         @if (!$approvalConfigurationComplete)
-            <div class="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
-                Konfigurasi tiga approver Demosi belum lengkap. Pengajuan dan persetujuan belum dapat diproses.
+            <div class="mb-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3.5 text-sm font-medium text-amber-800 sm:px-5">
+                <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700" aria-hidden="true">!</span>
+                <span class="pt-1">Konfigurasi tiga approver Demosi belum lengkap. Pengajuan dan persetujuan belum dapat diproses.</span>
             </div>
         @endif
 
         @if ($canCreateDemotions)
-        <div x-cloak x-show="open" x-transition.opacity @keydown.escape.window="open = false"
+        <div x-cloak x-show="open" x-transition.opacity @keydown.escape.window="if (open) closeModal()"
             class="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950/60 p-2 backdrop-blur-sm sm:p-4"
-            @click.self="open = false">
-            <section class="flex max-h-[calc(100dvh-1rem)] w-full max-w-7xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl" role="dialog"
+            @click.self="closeModal()">
+            <section x-ref="demotionModal" @keydown.tab="trapFocus($event)"
+                class="flex max-h-[calc(100dvh-1rem)] w-full max-w-7xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl" role="dialog"
                 aria-modal="true" aria-labelledby="manual-demotion-title" aria-describedby="manual-demotion-description">
                 <div class="flex flex-none items-start justify-between gap-4 border-b border-slate-200 bg-white px-4 py-4 sm:px-6 sm:py-5 lg:px-7">
                     <div>
                         <h3 id="manual-demotion-title" class="font-display text-xl font-bold text-slate-950 sm:text-2xl">Tambah Data Demosi</h3>
                         <p id="manual-demotion-description" class="mt-1 text-sm leading-6 text-slate-500">Lengkapi data utama dan bandingkan organisasi saat ini dengan organisasi tujuan sebelum menyimpan.</p>
                     </div>
-                    <button type="button" @click="open = false" aria-label="Tutup modal Tambah Data Demosi"
+                    <button type="button" @click="closeModal()" aria-label="Tutup modal Tambah Data Demosi"
                         class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-2xl leading-none text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500">&times;</button>
                 </div>
                 @include('pages.demosi._form', [
@@ -76,32 +109,74 @@
         @endif
     </div>
 
-    <div class="grid gap-5 md:grid-cols-3">
-        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p class="text-sm text-slate-500">Total usulan</p>
-            <p class="mt-2 font-display text-3xl font-bold text-slate-950">{{ $totalDemotions }}</p>
-        </div>
-        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p class="text-sm text-slate-500">Menunggu persetujuan</p>
-            <p class="mt-2 font-display text-3xl font-bold text-amber-600">{{ $pendingDemotions }}</p>
-        </div>
-        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p class="text-sm text-slate-500">Disetujui tahun ini</p>
-            <p class="mt-2 font-display text-3xl font-bold text-emerald-600">{{ $approvedDemotionsThisYear }}</p>
-        </div>
+    <div class="relative grid gap-4 md:grid-cols-2 xl:grid-cols-3" aria-label="Ringkasan demosi">
+        <article class="relative z-10 flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 ring-1 ring-sky-100">
+                <x-dashboard-icon name="document" class="h-7 w-7" />
+            </span>
+            <div>
+                <p class="text-sm font-semibold text-slate-500">Total data demosi</p>
+                <p class="mt-1 font-display text-3xl font-bold text-slate-950">{{ $totalDemotions }}</p>
+            </div>
+        </article>
+        <span class="absolute left-1/3 top-1/2 z-20 hidden h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-sky-700 shadow-sm xl:flex" aria-hidden="true">&rarr;</span>
+        <article class="relative z-10 flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 ring-1 ring-amber-100">
+                <svg class="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <circle cx="12" cy="12" r="8.5" />
+                    <path d="M12 7v5l3.5 2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+            </span>
+            <div>
+                <p class="text-sm font-semibold text-slate-500">Menunggu persetujuan</p>
+                <p class="mt-1 font-display text-3xl font-bold text-amber-600">{{ $pendingDemotions }}</p>
+            </div>
+        </article>
+        <span class="absolute left-2/3 top-1/2 z-20 hidden h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-sky-700 shadow-sm xl:flex" aria-hidden="true">&rarr;</span>
+        <article class="relative z-10 flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:col-span-2 xl:col-span-1">
+            <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100">
+                <svg class="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <circle cx="12" cy="12" r="8.5" />
+                    <path d="m8 12 2.5 2.5L16 9" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+            </span>
+            <div>
+                <p class="text-sm font-semibold text-slate-500">Disetujui tahun ini</p>
+                <p class="mt-1 font-display text-3xl font-bold text-emerald-600">{{ $approvedDemotionsThisYear }}</p>
+            </div>
+        </article>
     </div>
 
-    <div class="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div class="flex w-full flex-col items-stretch justify-between gap-4 p-4 sm:p-6 xl:flex-row xl:items-center">
-            <h3 class="font-display text-lg font-bold text-slate-950">Usulan demosi terbaru</h3>
-            <div class="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+    <section data-mutation-journey class="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="flex w-full flex-col gap-4 border-b border-slate-200 p-4 sm:p-5 xl:flex-row xl:items-center xl:justify-between">
+            <div class="flex items-center gap-3">
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700 ring-1 ring-sky-100">
+                    <x-dashboard-icon name="arrows" class="h-5 w-5" />
+                </span>
+                <div>
+                    <h3 class="font-display text-lg font-bold text-slate-950">Data demosi terbaru</h3>
+                    <p class="mt-0.5 text-xs text-slate-500">Pantau perjalanan posisi dan status persetujuan pegawai.</p>
+                </div>
+            </div>
+            <div class="flex flex-col items-stretch gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-end">
+                <form method="GET" action="{{ route('demosi') }}" class="relative w-full lg:w-80">
+                    @if ($filter !== 'all')
+                        <input type="hidden" name="status" value="{{ $filter }}">
+                    @endif
+                    <label for="demotion-quick-search" class="sr-only">Cari data demosi</label>
+                    <svg class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                        <circle cx="8.5" cy="8.5" r="5.5" />
+                        <path d="m13 13 4 4" stroke-linecap="round" />
+                    </svg>
+                    <input id="demotion-quick-search" name="search" value="{{ $search }}" type="search"
+                        placeholder="Cari pegawai, SAP, posisi, atau usulan..."
+                        class="ui-input w-full py-2.5 pl-10 pr-4 text-sm">
+                </form>
                 <x-ui.filter-panel id="demotion-filters" title="Filter Demosi" class="w-full sm:w-auto"
                     :action="route('demosi')" :reset-href="route('demosi')" :active="$search !== '' || $filter !== 'all'">
-                    <label for="demotion-search" class="block text-sm font-semibold text-slate-700">Pencarian
-                        <input id="demotion-search" name="search" value="{{ $search }}" type="search"
-                            placeholder="Cari SAP, nama, jabatan..."
-                            class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
-                    </label>
+                    @if ($search !== '')
+                        <input type="hidden" name="search" value="{{ $search }}">
+                    @endif
                     <label for="demotion-status" class="block text-sm font-semibold text-slate-700">Status
                         <select id="demotion-status" name="status" class="mt-1 block w-full rounded-lg border-slate-300 text-sm">
                             <option value="all" @selected($filter === 'all')>Semua</option>
@@ -113,19 +188,22 @@
                         </select>
                     </label>
                 </x-ui.filter-panel>
-                @if ($canDeleteDemotions && $demotions->contains(fn($demotion): bool => auth()->user()->can('delete', $demotion)))
-                    <div class="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
-                        <label class="flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-600">
+                <div class="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
+                    @if ($canDeleteDemotions)
+                        <label class="flex items-center gap-2 text-sm font-semibold {{ $hasDeletableDemotions ? 'cursor-pointer text-slate-600' : 'cursor-not-allowed text-slate-400' }}">
                             <input id="select-all-demotions" type="checkbox"
-                                onchange="document.querySelectorAll('.demotion-checkbox').forEach((checkbox) => checkbox.checked = this.checked)"
-                                class="rounded border-slate-300 text-slate-950 focus:ring-amber-400">
+                                @disabled(!$hasDeletableDemotions)
+                                onchange="document.querySelectorAll('.demotion-checkbox:not(:disabled)').forEach((checkbox) => checkbox.checked = this.checked)"
+                                class="rounded border-slate-300 text-sky-700 focus:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50">
                             Pilih semua
                         </label>
                         <button type="submit" form="bulk-delete-demotions"
-                            class="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700">Hapus
-                            terpilih</button>
-                    </div>
-                @endif
+                            @disabled(!$hasDeletableDemotions)
+                            class="ui-button ui-button-danger">
+                            Hapus terpilih
+                        </button>
+                    @endif
+                </div>
             </div>
         </div>
         <form id="bulk-delete-demotions" method="POST" action="{{ route('demosi.destroy-many') }}"
@@ -134,10 +212,10 @@
             data-confirm-empty-text="Centang minimal satu usulan demosi.">
             @csrf
             @method('DELETE')
-            <div class="overflow-x-auto">
-                <table class="w-full min-w-[73rem] table-fixed text-left text-sm whitespace-nowrap">
+            <div data-mutation-journey-table-wrap class="overflow-x-auto px-3 pb-2 sm:px-4">
+                <table class="w-full min-w-[73rem] table-fixed text-left text-sm whitespace-nowrap mutation-journey-table">
                     <x-personnel-movement-table-columns :show-selection-column="$canDeleteDemotions" />
-                    <thead class="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wider text-slate-400">
+                    <thead class="text-xs font-bold uppercase tracking-wider text-slate-600">
                         <tr>
                             @if ($canDeleteDemotions)
                                 <th class="w-12 px-4 py-3 text-center align-middle">Pilih</th>
@@ -150,7 +228,7 @@
                             <th class="w-48 px-4 py-3 text-center">Aksi</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-slate-100">
+                    <tbody>
                         @forelse ($demotions as $demotion)
                             @php
                                 $currentRoundApprovals = $demotion->approvals->where('approval_round', $demotion->approval_round);
@@ -164,74 +242,118 @@
                                 $isActiveApprover = $demotion->verification_status === 'Pending'
                                     && $activeApprover?->id === auth()->id();
                                 $latestReturn = $demotion->approvals->where('status', 'Returned')->sortByDesc('id')->first();
+                                $workflowStage = match ($demotion->verification_status) {
+                                    'Draft', 'Returned' => 1,
+                                    'Pending' => 2,
+                                    'Approved', 'Final' => 3,
+                                    default => 0,
+                                };
                             @endphp
                             <tr tabindex="0" role="button" aria-label="Lihat detail demosi {{ $demotion->nama }}"
-                                class="cursor-pointer transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-400"
+                                class="cursor-pointer transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
                                 onclick="if (!event.target.closest('a,button,input,select,textarea,label,form')) document.getElementById('demotion-detail-{{ $demotion->id }}').showModal()"
                                 onkeydown="if ((event.key === 'Enter' || event.key === ' ') && !event.target.closest('a,button,input,select,textarea,label,form')) { event.preventDefault(); document.getElementById('demotion-detail-{{ $demotion->id }}').showModal(); }">
                                 @if ($canDeleteDemotions)
-                                    <td data-label="Pilih" class="px-4 py-3 text-center">
+                                    <td data-label="Pilih" class="px-4 py-4 text-center align-middle">
                                         @can('delete', $demotion)
                                             <input type="checkbox" name="demotion_ids[]" value="{{ $demotion->id }}"
-                                                class="demotion-checkbox rounded border-slate-300 text-slate-950 focus:ring-amber-400"
+                                                class="demotion-checkbox rounded border-slate-300 text-sky-700 focus:ring-sky-500"
                                                 onchange="document.getElementById('select-all-demotions').checked = document.querySelectorAll('.demotion-checkbox').length > 0 && document.querySelectorAll('.demotion-checkbox:not(:checked)').length === 0">
+                                        @else
+                                            <input type="checkbox" disabled aria-label="Demosi {{ $demotion->sap }} tidak dapat dipilih"
+                                                class="rounded border-slate-300 text-slate-300 disabled:cursor-not-allowed disabled:opacity-50">
                                         @endcan
                                     </td>
                                 @endif
-                                <td data-label="SAP" class="px-4 py-3 font-semibold text-slate-700">{{ $demotion->sap }}</td>
-                                <td data-label="Pegawai" class="px-4 py-3">
-                                    <p class="font-semibold text-slate-700">{{ $demotion->nama }}</p>
-                                    <p class="mt-1 text-xs text-slate-500">TMT {{ $demotion->tmt?->format('d M Y') }}</p>
+                                <td data-label="SAP" class="px-4 py-4 align-middle">
+                                    <span class="font-display text-sm font-bold text-slate-900">{{ $demotion->sap }}</span>
                                 </td>
-                                <td data-label="Posisi Saat Ini" class="px-4 py-3 text-slate-600">
-                                    <p class="font-semibold text-slate-700">{{ $demotion->jabatan_lama }}</p>
-                                    <p class="mt-1 text-xs text-slate-500">{{ $demotion->departemen_lama }}</p>
+                                <td data-label="Pegawai" class="px-4 py-4 align-middle">
+                                    <p class="font-semibold text-slate-900">{{ $demotion->nama }}</p>
+                                    <p class="mt-1 text-xs font-medium text-slate-500">TMT {{ $demotion->tmt?->format('d M Y') }}</p>
                                 </td>
-                                <td data-label="Usulan" class="px-4 py-3 text-slate-600">
-                                    <p class="font-semibold text-slate-700">{{ $demotion->jabatan_baru }}</p>
-                                    <p class="mt-1 text-xs text-slate-500">{{ $demotion->departemen_baru }}</p>
-                                </td>
-                                <td data-label="Workflow" class="px-4 py-3">
-                                    <div class="flex flex-col items-start gap-1.5">
-                                        @if ($demotion->verification_status === 'Final')
-                                            <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Sudah diterapkan</span>
-                                        @elseif ($demotion->verification_status === 'Approved')
-                                            <span class="rounded-full bg-sky-50 px-3 py-1 text-xs font-bold text-sky-700">Disetujui, menunggu TMT</span>
-                                        @elseif ($demotion->verification_status === 'Draft')
-                                            <span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">Draft</span>
-                                        @elseif ($demotion->verification_status === 'Returned')
-                                            <span class="rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700">Dikembalikan</span>
-                                            @if ($latestReturn?->note)
-                                                <span class="max-w-xs whitespace-normal text-xs text-rose-700">Catatan: {{ $latestReturn->note }}</span>
-                                            @endif
-                                        @else
-                                            <span class="rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">{{ $approvedCount }}/3 disetujui</span>
-                                            <span class="text-xs text-slate-500">Tahap {{ $activeStep }}: {{ $activeApproverName ?? 'Snapshot approver tidak tersedia' }}</span>
-                                        @endif
+                                <td data-label="Posisi Saat Ini" class="px-3 py-4 align-middle whitespace-normal">
+                                    <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                        <span class="mb-2 inline-flex rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500 ring-1 ring-slate-200">Posisi saat ini</span>
+                                        <div class="flex items-start gap-2.5">
+                                            <x-dashboard-icon name="clipboard" class="mt-0.5 h-5 w-5 shrink-0 text-slate-500" />
+                                            <div class="min-w-0">
+                                                <p class="font-semibold leading-5 text-slate-800">{{ $demotion->jabatan_lama }}</p>
+                                                <p class="mt-1 text-xs leading-5 text-slate-500">{{ collect([$demotion->unit_lama, $demotion->departemen_lama])->filter()->unique()->implode(' · ') ?: 'Organisasi tidak tersedia' }}</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </td>
-                                <td data-label="Aksi" class="px-4 py-3 text-center">
+                                <td data-label="Usulan" class="px-3 py-4 align-middle whitespace-normal">
+                                    <div class="relative rounded-xl border border-sky-200 bg-sky-50 px-3 py-3">
+                                        <span class="mutation-journey-arrow absolute -left-5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border-4 border-white bg-sky-600 font-bold text-white shadow-sm" aria-hidden="true">&rarr;</span>
+                                        <span class="mb-2 ml-2 inline-flex rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-sky-700 ring-1 ring-sky-200">Usulan</span>
+                                        <div class="ml-2 flex items-start gap-2.5">
+                                            <x-dashboard-icon name="clipboard" class="mt-0.5 h-5 w-5 shrink-0 text-sky-700" />
+                                            <div class="min-w-0">
+                                                <p class="font-semibold leading-5 text-slate-900">{{ $demotion->jabatan_baru }}</p>
+                                                <p class="mt-1 text-xs leading-5 text-slate-500">{{ collect([$demotion->unit_baru, $demotion->departemen_baru])->filter()->unique()->implode(' · ') ?: 'Organisasi tidak tersedia' }}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td data-label="Workflow" class="px-4 py-4 align-middle whitespace-normal">
+                                    <div class="min-w-0" aria-label="Status workflow {{ $demotion->verification_status }}">
+                                        <div class="flex items-center px-3" aria-hidden="true">
+                                            <span class="h-3.5 w-3.5 shrink-0 rounded-full border-2 {{ $workflowStage >= 1 ? 'border-sky-600 bg-sky-600 ring-4 ring-sky-100' : 'border-slate-300 bg-white' }}"></span>
+                                            <span class="h-0.5 min-w-0 flex-1 {{ $workflowStage >= 2 ? 'bg-amber-400' : 'bg-slate-200' }}"></span>
+                                            <span class="h-3.5 w-3.5 shrink-0 rounded-full border-2 {{ $workflowStage >= 2 ? 'border-amber-500 bg-amber-500 ring-4 ring-amber-100' : 'border-slate-300 bg-white' }}"></span>
+                                            <span class="h-0.5 min-w-0 flex-1 {{ $workflowStage >= 3 ? 'bg-emerald-500' : 'bg-slate-200' }}"></span>
+                                            <span class="h-3.5 w-3.5 shrink-0 rounded-full border-2 {{ $workflowStage >= 3 ? 'border-emerald-600 bg-emerald-600 ring-4 ring-emerald-100' : 'border-slate-300 bg-white' }}"></span>
+                                        </div>
+                                        <div class="mt-3 grid grid-cols-3 gap-1 text-center text-[10px] font-semibold">
+                                            <span class="{{ $workflowStage === 1 ? 'text-sky-700' : 'text-slate-500' }}">Draft</span>
+                                            <span class="{{ $workflowStage === 2 ? 'text-amber-700' : 'text-slate-500' }}">Menunggu</span>
+                                            <span class="{{ $workflowStage >= 3 ? 'text-emerald-700' : 'text-slate-500' }}">Disetujui</span>
+                                        </div>
+                                        <div class="mt-3 text-center">
+                                        @if ($demotion->verification_status === 'Final')
+                                                <span class="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700 ring-1 ring-emerald-200">Sudah diterapkan</span>
+                                            @elseif ($demotion->verification_status === 'Approved')
+                                                <span class="inline-flex rounded-full bg-sky-50 px-2.5 py-1 text-[10px] font-bold text-sky-700 ring-1 ring-sky-200">Menunggu TMT</span>
+                                            @elseif ($demotion->verification_status === 'Pending')
+                                                <p class="text-[10px] leading-4 text-slate-500">{{ $approvedCount }}/3 disetujui · Tahap {{ $activeStep }}<br>{{ $activeApproverName ?? 'Snapshot approver tidak tersedia' }}</p>
+                                            @elseif ($demotion->verification_status === 'Returned')
+                                                <span class="inline-flex rounded-full bg-rose-50 px-2.5 py-1 text-[10px] font-bold text-rose-700 ring-1 ring-rose-200">Dikembalikan</span>
+                                                @if ($latestReturn?->note)
+                                                    <p class="mt-2 break-words text-[10px] leading-4 text-rose-700">Catatan: {{ $latestReturn->note }}</p>
+                                                @endif
+                                            @elseif ($workflowStage === 0)
+                                                <span class="inline-flex rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-bold text-red-700 ring-1 ring-red-200">{{ $demotion->verification_status }}</span>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </td>
+                                <td data-label="Aksi" class="px-4 py-4 text-center align-middle">
                                     <div class="flex flex-col items-center gap-2">
                                         <button type="button" onclick="document.getElementById('demotion-detail-{{ $demotion->id }}').showModal()"
-                                            class="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200">Detail</button>
+                                            class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-sky-500">Detail</button>
                                         @if ($canApproveDemotions && $isActiveApprover)
-                                            <button type="submit" form="approve-demotion-{{ $demotion->id }}" class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">Setuju</button>
+                                            <button type="submit" form="approve-demotion-{{ $demotion->id }}" class="w-full rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-500">Setuju</button>
                                         @endif
                                         @can('submit', $demotion)
                                             <button type="submit" form="submit-demotion-{{ $demotion->id }}" @disabled(!$approvalConfigurationComplete)
-                                                class="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300">Ajukan Demosi</button>
+                                                class="w-full rounded-lg bg-sky-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-sky-800 focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:bg-slate-300">Ajukan Demosi</button>
                                         @endcan
                                         @if ($demotion->verification_status === 'Final' && $canPrintDemotions)
-                                            <a href="{{ route('demosi.print', $demotion) }}" class="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700">Print</a>
+                                            <a href="{{ route('demosi.print', $demotion) }}" class="w-full rounded-lg bg-sky-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-sky-800 focus-visible:ring-2 focus-visible:ring-sky-500">Print</a>
                                         @endif
                                     </div>
                                 </td>
                             </tr>
                         @empty
-                            <tr>
+                            <tr class="mutation-journey-empty-row">
                                 <td colspan="{{ $canDeleteDemotions ? 7 : 6 }}"
-                                    class="px-4 py-10 text-center text-sm text-slate-500">
-                                    Belum ada data demosi.
+                                    class="px-4 py-12 text-center align-middle text-sm text-slate-500">
+                                    <span class="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                                        <x-dashboard-icon name="arrows" class="h-5 w-5" />
+                                    </span>
+                                    <span class="font-semibold text-slate-600">Belum ada data demosi.</span>
                                 </td>
                             </tr>
                         @endforelse
@@ -240,7 +362,7 @@
             </div>
         </form>
         <div class="border-t border-slate-100 px-4 py-3">{{ $demotions->links() }}</div>
-    </div>
+    </section>
 
     @foreach ($demotions as $demotion)
         @php

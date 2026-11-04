@@ -35,6 +35,8 @@ class DemotionManagementTest extends TestCase
             ->assertSee('name="level_baru"', escape: false)
             ->assertSee('<select id="create-demotion-level_baru"', escape: false)
             ->assertSee('w-full min-w-[73rem] table-fixed text-left text-sm whitespace-nowrap', escape: false)
+            ->assertSee('mutation-journey-table', escape: false)
+            ->assertSee('data-mutation-journey-table-wrap', escape: false)
             ->assertSee('w-60 px-4 py-3">Workflow', escape: false)
             ->assertDontSee('BA'.'ND');
 
@@ -66,7 +68,9 @@ class DemotionManagementTest extends TestCase
             ])
             ->assertSee('data-position-id-source', escape: false)
             ->assertSee('POSITION-SAP201')
-            ->assertSee('Total usulan');
+            ->assertSee('Total data demosi')
+            ->assertSee('Pantau perjalanan posisi dan status persetujuan pegawai.')
+            ->assertSeeInOrder(['Draft', 'Menunggu', 'Disetujui']);
     }
 
     public function test_authenticated_user_can_create_a_draft_and_submit_it_after_super_admin_updates_it(): void

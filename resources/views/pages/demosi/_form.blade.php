@@ -86,7 +86,7 @@
             this.employeeId = ''; this.search = ''; this.levelLama = ''; this.lockedOrganization = null;
             this.newDirectorateId = ''; this.newDepartmentId = ''; this.newUnitId = '';
             this.newSectionId = ''; this.newPositionId = '';
-            this.$nextTick(() => this.$refs.employeeSearch?.focus());
+            this.$nextTick(() => (this.$refs.employeeSearch ?? this.$refs.demotionModalSearch)?.focus());
         },
         availableDepartments() { return this.departments.filter((item) => Number(item.directorate_id) === Number(this.newDirectorateId)); },
         availableUnits() { return this.units.filter((item) => Number(item.department_id) === Number(this.newDepartmentId)); },
@@ -98,7 +98,9 @@
     }"
     class="{{ $isCreate ? 'flex min-h-0 flex-1 flex-col' : 'mt-5' }}">
     @csrf
-    @if ($method !== 'POST') @method($method) @endif
+    @if ($method !== 'POST')
+        @method($method)
+    @endif
     <input type="hidden" name="_form" value="{{ $formKey }}">
 
     <div class="{{ $isCreate ? 'min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-7' : '' }} space-y-5">
@@ -111,7 +113,7 @@
                     </div>
                     <div class="relative mt-2">
                         <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><x-dashboard-icon name="users" class="h-5 w-5" /></span>
-                        <input id="{{ $formKey }}-search" x-ref="employeeSearch" type="search" x-model="search"
+                        <input id="{{ $formKey }}-search" x-ref="{{ $isCreate ? 'demotionModalSearch' : 'employeeSearch' }}" type="search" x-model="search"
                             placeholder="Cari SAP, Personal Number, nama, dan organisasi..."
                             class="block w-full rounded-xl border-slate-300 py-3 pl-11 pr-4 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500">
                     </div>
@@ -190,7 +192,7 @@
     <footer class="{{ $isCreate ? 'flex-none border-t border-slate-200 bg-white/95 px-4 py-4 backdrop-blur sm:px-6 lg:px-7' : 'mt-5 border-t border-slate-200 pt-4' }}">
         <div class="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             @if ($isCreate)
-                <button type="button" @click="open = false" class="ui-button ui-button-secondary w-full sm:w-auto">Batal</button>
+                <button type="button" @click="closeModal()" class="ui-button ui-button-secondary w-full sm:w-auto">Batal</button>
             @else
                 <button type="button" onclick="this.closest('details')?.removeAttribute('open')" class="ui-button ui-button-secondary w-full sm:w-auto">Batal</button>
             @endif
