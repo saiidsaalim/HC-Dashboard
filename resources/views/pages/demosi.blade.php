@@ -291,6 +291,7 @@
                         <div class="min-w-0 sm:border-l sm:border-slate-200 sm:pl-6">
                             <p class="truncate font-display text-2xl font-bold text-slate-950">{{ $demotion->nama }}</p>
                             <p class="mt-1 text-sm font-medium text-slate-500">SAP {{ $demotion->sap }}</p>
+                            <x-personnel-position-id :employee="$demotion->employee" />
                         </div>
                         <div class="flex flex-wrap gap-2 sm:ml-2">
                             <span class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold {{ $demotion->employee ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200' }}">
@@ -304,13 +305,12 @@
                         </div>
                     </div>
 
-                    @include('components.personnel-movement-detail-summary', [
-                        'movement' => $demotion,
-                        'movementLabel' => 'Demosi',
-                        'statusLabel' => $demotion->verification_status,
-                    ])
-
-                    <section class="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                    <x-personnel-movement-detail-summary
+                        :movement="$demotion"
+                        movement-label="Demosi"
+                        :status-label="$demotion->verification_status"
+                    >
+                    <section class="h-full rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                         <div class="flex flex-wrap items-center justify-between gap-3">
                             <div class="flex items-center gap-2 text-slate-800">
                                 <span class="flex h-6 w-6 items-center justify-center rounded-full border-2 border-sky-700 text-xs font-bold text-sky-700">✓</span>
@@ -355,6 +355,7 @@
                             @endforeach
                         </div>
                     </section>
+                    </x-personnel-movement-detail-summary>
 
                     @can('update', $demotion)
                     <details id="demotion-edit-{{ $demotion->id }}" @if (old('_form') === 'edit-demotion-'.$demotion->id) open @endif

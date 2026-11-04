@@ -74,6 +74,8 @@ class MutationImportTest extends TestCase
             ->assertSee('Usulan')
             ->assertSee('Menunggu')
             ->assertSee('Disetujui')
+            ->assertSee('data-position-id-source', escape: false)
+            ->assertSee('POSITION-SAP006')
             ->assertSee('SAP006')
             ->assertSee('Data mutasi terbaru');
     }
@@ -363,6 +365,7 @@ class MutationImportTest extends TestCase
         $employee = Employee::query()->firstOrCreate(['sap' => $sap]);
         $employee->update([
             'employee_subgroup' => 'B1',
+            'position_id_source' => 'POSITION-'.$sap,
             'directorate_id' => $oldDirectorate->id, 'department_id' => $oldDepartment->id,
             'unit_id' => $oldUnit->id, 'position_id' => $oldPosition->id,
         ]);

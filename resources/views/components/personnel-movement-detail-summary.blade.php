@@ -1,3 +1,5 @@
+@props(['movement', 'movementLabel', 'statusLabel'])
+
 @php
     $organizations = [
         [
@@ -81,26 +83,32 @@
     </div>
 </section>
 
-<section class="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-    <div class="flex items-center gap-2 text-slate-800">
-        <x-dashboard-icon name="document" class="h-5 w-5 text-sky-700" />
-        <h4 class="font-display font-bold">Metadata {{ $movementLabel }}</h4>
+<div class="mt-5 grid items-stretch gap-5 lg:grid-cols-[0.85fr_1.15fr]">
+    <section class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div class="flex items-center gap-2 text-slate-800">
+            <x-dashboard-icon name="document" class="h-5 w-5 text-sky-700" />
+            <h4 class="font-display font-bold">Metadata {{ $movementLabel }}</h4>
+        </div>
+        <dl class="mt-4 space-y-2.5 text-sm">
+            @foreach ([
+                'Nama' => $movement->nama,
+                'SAP' => $movement->sap,
+                'Status' => $statusLabel,
+                'Dibuat' => $movement->created_at?->format('d M Y H:i'),
+                'Diperbarui' => $movement->updated_at?->format('d M Y H:i'),
+                'Finalisasi' => $movement->finalized_at?->format('d M Y H:i'),
+                'Diterapkan ke Data Pegawai' => $movement->employee_applied_at?->format('d M Y H:i'),
+            ] as $label => $value)
+                <div class="grid grid-cols-[8.5rem_0.75rem_minmax(0,1fr)] gap-2">
+                    <dt class="text-slate-500">{{ $label }}</dt>
+                    <span class="text-slate-400" aria-hidden="true">:</span>
+                    <dd class="min-w-0 break-words font-semibold text-slate-800">{{ $value ?: '—' }}</dd>
+                </div>
+            @endforeach
+        </dl>
+    </section>
+
+    <div class="min-w-0">
+        {{ $slot }}
     </div>
-    <dl class="mt-4 grid gap-x-8 gap-y-2.5 text-sm lg:grid-cols-2">
-        @foreach ([
-            'Nama' => $movement->nama,
-            'SAP' => $movement->sap,
-            'Status' => $statusLabel,
-            'Dibuat' => $movement->created_at?->format('d M Y H:i'),
-            'Diperbarui' => $movement->updated_at?->format('d M Y H:i'),
-            'Finalisasi' => $movement->finalized_at?->format('d M Y H:i'),
-            'Diterapkan ke Data Pegawai' => $movement->employee_applied_at?->format('d M Y H:i'),
-        ] as $label => $value)
-            <div class="grid grid-cols-[8.5rem_0.75rem_minmax(0,1fr)] gap-2">
-                <dt class="text-slate-500">{{ $label }}</dt>
-                <span class="text-slate-400" aria-hidden="true">:</span>
-                <dd class="min-w-0 break-words font-semibold text-slate-800">{{ $value ?: '—' }}</dd>
-            </div>
-        @endforeach
-    </dl>
-</section>
+</div>

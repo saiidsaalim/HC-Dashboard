@@ -64,6 +64,8 @@ class DemotionManagementTest extends TestCase
                 'Metadata Demosi',
                 'Persetujuan 0 dari 3',
             ])
+            ->assertSee('data-position-id-source', escape: false)
+            ->assertSee('POSITION-SAP201')
             ->assertSee('Total usulan');
     }
 
@@ -229,6 +231,7 @@ class DemotionManagementTest extends TestCase
         ], ['name' => 'Position '.$sap]);
         $employee->update([
             'employee_subgroup' => 'B1',
+            'position_id_source' => 'POSITION-'.$sap,
             'directorate_id' => $directorate->id,
             'department_id' => $department->id,
             'unit_id' => $unit->id,

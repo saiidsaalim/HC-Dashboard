@@ -410,6 +410,7 @@
                         <div class="min-w-0 sm:border-l sm:border-slate-200 sm:pl-6">
                             <p class="truncate font-display text-2xl font-bold text-slate-950">{{ $mutation->nama }}</p>
                             <p class="mt-1 text-sm font-medium text-slate-500">SAP {{ $mutation->sap }}</p>
+                            <x-personnel-position-id :employee="$mutation->employee" />
                         </div>
                         <div class="flex flex-wrap gap-2 sm:ml-2">
                             <span class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold {{ $mutation->employee ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200' }}">

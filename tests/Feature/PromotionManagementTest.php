@@ -759,6 +759,21 @@ class PromotionManagementTest extends TestCase
             ->assertDontSee('Buat Promosi');
     }
 
+    public function test_detail_shows_employee_position_id_source(): void
+    {
+        $admin = $this->user(UserRole::ADMIN);
+        $employee = $this->employee('SAP-POSITION-SOURCE', [
+            'position_id_source' => '50069358',
+        ]);
+        $this->promotion($employee);
+
+        $this->actingAs($admin)->get(route('promosi', ['search' => 'SAP-POSITION-SOURCE']))
+            ->assertOk()
+            ->assertSee('data-position-id-source', escape: false)
+            ->assertSee('Position ID')
+            ->assertSee('50069358');
+    }
+
     public function test_legacy_pending_cannot_start_a_new_approval_round(): void
     {
         $superAdmin = $this->user(UserRole::SUPER_ADMIN);
