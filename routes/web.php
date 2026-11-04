@@ -4,6 +4,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DemotionController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\MovementApprovalSettingsController;
+use App\Http\Controllers\MutationBatchController;
 use App\Http\Controllers\MutationController;
 use App\Http\Controllers\Organization\DepartmentController;
 use App\Http\Controllers\Organization\DirectorateController;
@@ -65,6 +66,11 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/mutasi', [MutationController::class, 'index'])->middleware('can:mutations.view')->name('mutasi');
         Route::post('/mutasi', [MutationController::class, 'store'])->middleware('can:mutations.create')->name('mutasi.store');
+        Route::get('/mutasi/batch/create', [MutationBatchController::class, 'create'])->middleware('can:mutations.create')->name('mutasi.batches.create');
+        Route::post('/mutasi/batch', [MutationBatchController::class, 'store'])->middleware('can:mutations.create')->name('mutasi.batches.store');
+        Route::get('/mutasi/batch/{employeeMutationBatch}', [MutationBatchController::class, 'show'])->middleware('can:mutations.view')->name('mutasi.batches.show');
+        Route::post('/mutasi/batch/{employeeMutationBatch}/submit', [MutationBatchController::class, 'submit'])->middleware('can:mutations.submit')->name('mutasi.batches.submit');
+        Route::post('/mutasi/batch/{employeeMutationBatch}/approve-selected', [MutationBatchController::class, 'approveSelected'])->middleware('can:mutations.approve')->name('mutasi.batches.approve-selected');
         Route::get('/mutasi/pengaturan-persetujuan', [MovementApprovalSettingsController::class, 'editMutation'])->middleware('can:mutations.manage-approval-settings')->name('mutasi.approval-settings.edit');
         Route::put('/mutasi/pengaturan-persetujuan', [MovementApprovalSettingsController::class, 'updateMutation'])->middleware('can:mutations.manage-approval-settings')->name('mutasi.approval-settings.update');
         Route::get('/mutasi/{employeeMutation}/print', [MutationController::class, 'print'])->middleware('can:mutations.print')->name('mutasi.print');

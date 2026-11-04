@@ -12,6 +12,7 @@
         $canPrintMutations = auth()->user()->hasPermission('mutations.print');
         $hasDeletableMutations = $canDeleteMutations
             && $mutations->contains(fn ($mutation): bool => auth()->user()->can('delete', $mutation));
+        $selectedBatch = $batchId !== null ? $batchOptions->firstWhere('id', $batchId) : null;
     @endphp
     <div data-mutation-journey x-data="{
         open: @js(old('_form') === 'create-mutation'),
@@ -47,6 +48,10 @@
                     </a>
                 @endif
                 @if ($canCreateMutations)
+                    <a href="{{ route('mutasi.batches.create') }}" class="ui-button ui-button-secondary">
+                        <x-dashboard-icon name="users" class="h-4 w-4" />
+                        Buat Batch Mutasi
+                    </a>
                     <button type="button" x-ref="openMutation" @click="openModal()"
                         class="ui-button ui-button-primary">
                         <span class="text-lg leading-none" aria-hidden="true">+</span>
@@ -148,21 +153,75 @@
             </div>
         </article>
     </div>
-    <section data-mutation-journey class="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+
+    @if ($mutationBatches->isNotEmpty())
+        <section class="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="recent-mutation-batches-title">
+            <div class="flex items-center justify-between gap-4">
+                <div>
+                    <h3 id="recent-mutation-batches-title" class="font-display text-lg font-bold text-slate-950">Batch Mutasi Terbaru</h3>
+                    <p class="mt-1 text-xs text-slate-500">Pantau beberapa item Mutasi dalam satu kelompok pengajuan.</p>
+                </div>
+                @if ($canCreateMutations)
+                    <a href="{{ route('mutasi.batches.create') }}" class="text-sm font-bold text-sky-700 hover:text-sky-800">Buat batch baru</a>
+                @endif
+            </div>
+            <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                @foreach ($mutationBatches as $batch)
+                    <a href="{{ route('mutasi', ['batch' => $batch->id]) }}#data-mutasi"
+                        @if ($batchId === $batch->id) aria-current="true" @endif
+                        @class([
+                            'rounded-xl border p-4 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500',
+                            'border-sky-400 bg-sky-50 ring-1 ring-sky-200' => $batchId === $batch->id,
+                            'border-slate-200 hover:border-sky-300 hover:bg-sky-50/40' => $batchId !== $batch->id,
+                        ])>
+                        <div class="flex items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="text-xs font-bold uppercase tracking-wider text-sky-700">{{ $batch->batch_number }}</p>
+                                <p class="mt-1 truncate font-display font-bold text-slate-900">{{ $batch->name }}</p>
+                            </div>
+                            <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">{{ $batch->mutations_count }} item</span>
+                        </div>
+                        <div class="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold">
+                            <span class="rounded-full bg-sky-50 px-2 py-1 text-sky-700">{{ $batch->draft_mutations_count }} Draft</span>
+                            <span class="rounded-full bg-amber-50 px-2 py-1 text-amber-700">{{ $batch->pending_mutations_count }} Menunggu</span>
+                            <span class="rounded-full bg-rose-50 px-2 py-1 text-rose-700">{{ $batch->returned_mutations_count }} Kembali</span>
+                            <span class="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">{{ $batch->completed_mutations_count }} Selesai</span>
+                        </div>
+                        <span class="mt-3 inline-flex items-center gap-1 text-xs font-bold text-sky-700">
+                            Lihat daftar pegawai <span aria-hidden="true">&darr;</span>
+                        </span>
+                    </a>
+                @endforeach
+            </div>
+        </section>
+    @endif
+    <section id="data-mutasi" data-mutation-journey class="mt-6 scroll-mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div class="flex w-full flex-col gap-4 border-b border-slate-200 p-4 sm:p-5 xl:flex-row xl:items-center xl:justify-between">
             <div class="flex items-center gap-3">
                 <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-700 ring-1 ring-sky-100">
                     <x-dashboard-icon name="arrows" class="h-5 w-5" />
                 </span>
                 <div>
-                    <h3 class="font-display text-lg font-bold text-slate-950">Data mutasi terbaru</h3>
-                    <p class="mt-0.5 text-xs text-slate-500">Pantau perjalanan posisi dan status persetujuan pegawai.</p>
+                    <h3 class="font-display text-lg font-bold text-slate-950">
+                        {{ $selectedBatch ? 'Pegawai dalam Batch '.$selectedBatch->batch_number : 'Data mutasi terbaru' }}
+                    </h3>
+                    @if ($selectedBatch)
+                        <p class="mt-0.5 text-xs text-slate-500">
+                            {{ $selectedBatch->name }} &middot; {{ $mutations->total() }} pegawai ditampilkan.
+                            <a href="{{ route('mutasi') }}#data-mutasi" class="ml-1 font-bold text-sky-700 hover:text-sky-800">Tampilkan semua pegawai</a>
+                        </p>
+                    @else
+                        <p class="mt-0.5 text-xs text-slate-500">Semua pegawai yang dimutasi ditampilkan saat halaman pertama dibuka.</p>
+                    @endif
                 </div>
             </div>
             <div class="flex flex-col items-stretch gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-end">
                 <form method="GET" action="{{ route('mutasi') }}" class="relative w-full lg:w-80">
                     @if ($filter !== 'all')
                         <input type="hidden" name="status" value="{{ $filter }}">
+                    @endif
+                    @if ($batchId !== null)
+                        <input type="hidden" name="batch" value="{{ $batchId }}">
                     @endif
                     <label for="mutation-quick-search" class="sr-only">Cari data mutasi</label>
                     <svg class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -174,7 +233,7 @@
                         class="ui-input w-full py-2.5 pl-10 pr-4 text-sm">
                 </form>
                 <x-ui.filter-panel id="mutation-filters" title="Filter Mutasi" class="w-full sm:w-auto"
-                    :action="route('mutasi')" :reset-href="route('mutasi')" :active="$search !== '' || $filter !== 'all'">
+                    :action="route('mutasi')" :reset-href="route('mutasi')" :active="$search !== '' || $filter !== 'all' || $batchId !== null">
                     @if ($search !== '')
                         <input type="hidden" name="search" value="{{ $search }}">
                     @endif
@@ -186,6 +245,14 @@
                             <option value="returned" @selected($filter === 'returned')>Dikembalikan</option>
                             <option value="approved" @selected($filter === 'approved')>Disetujui, menunggu TMT</option>
                             <option value="final" @selected($filter === 'final')>Sudah diterapkan</option>
+                        </select>
+                    </label>
+                    <label for="mutation-batch" class="block text-sm font-semibold text-slate-700">Batch
+                        <select id="mutation-batch" name="batch" class="mt-1 block w-full rounded-lg border-slate-300 text-sm">
+                            <option value="">Semua Batch</option>
+                            @foreach ($batchOptions as $batchOption)
+                                <option value="{{ $batchOption->id }}" @selected($batchId === $batchOption->id)>{{ $batchOption->batch_number }} · {{ $batchOption->name }}</option>
+                            @endforeach
                         </select>
                     </label>
                 </x-ui.filter-panel>
@@ -268,6 +335,9 @@
                                 @endif
                                 <td data-label="SAP" class="px-4 py-4 align-middle">
                                     <span class="font-display text-sm font-bold text-slate-900">{{ $mutation->sap }}</span>
+                                    @if ($mutation->batch)
+                                        <a href="{{ route('mutasi.batches.show', $mutation->batch) }}" class="mt-1 block text-[10px] font-bold text-sky-700 hover:text-sky-800">{{ $mutation->batch->batch_number }}</a>
+                                    @endif
                                 </td>
                                 <td data-label="Pegawai" class="px-4 py-4 align-middle">
                                     <p class="font-semibold text-slate-900">{{ $mutation->nama }}</p>

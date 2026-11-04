@@ -7,6 +7,7 @@ use App\Http\Requests\StoreMutationRequest;
 use App\Http\Requests\UpdateMutationRequest;
 use App\Models\Employee;
 use App\Models\EmployeeMutation;
+use App\Models\EmployeeMutationBatch;
 use App\Models\User;
 use App\Services\Personnel\ApprovalService;
 use App\Services\Personnel\MovementApprovalWorkflowService;
@@ -37,7 +38,8 @@ class MutationController extends Controller
         $filter = in_array($request->input('status'), ['draft', 'waiting', 'returned', 'approved', 'final'], true)
             ? (string) $request->input('status')
             : 'all';
-        $mutationQuery = EmployeeMutation::query()->with(['employee', 'approvals.manager']);
+        $batchId = $request->integer('batch') ?: null;
+        $mutationQuery = EmployeeMutation::query()->with(['batch:id,batch_number,name', 'employee', 'approvals.manager']);
 
         if ($search !== '') {
             $mutationQuery->where(function (Builder $query) use ($search): void {
@@ -47,7 +49,16 @@ class MutationController extends Controller
                 ] as $column) {
                     $query->orWhere($column, 'like', "%{$search}%");
                 }
+
+                $query->orWhereHas('batch', function (Builder $batchQuery) use ($search): void {
+                    $batchQuery->where('batch_number', 'like', "%{$search}%")
+                        ->orWhere('name', 'like', "%{$search}%");
+                });
             });
+        }
+
+        if ($batchId !== null) {
+            $mutationQuery->where('employee_mutation_batch_id', $batchId);
         }
 
         if ($filter === 'draft') {
@@ -72,6 +83,19 @@ class MutationController extends Controller
                 ->count(),
             'search' => $search,
             'filter' => $filter,
+            'batchId' => $batchId,
+            'mutationBatches' => EmployeeMutationBatch::query()
+                ->withCount([
+                    'mutations',
+                    'mutations as draft_mutations_count' => fn (Builder $query) => $query->where('verification_status', 'Draft'),
+                    'mutations as pending_mutations_count' => fn (Builder $query) => $query->where('verification_status', 'Pending'),
+                    'mutations as returned_mutations_count' => fn (Builder $query) => $query->where('verification_status', 'Returned'),
+                    'mutations as completed_mutations_count' => fn (Builder $query) => $query->whereIn('verification_status', ['Approved', 'Final']),
+                ])
+                ->latest()
+                ->limit(6)
+                ->get(),
+            'batchOptions' => EmployeeMutationBatch::query()->latest()->get(['id', 'batch_number', 'name']),
             'employeeOptions' => $formDataService->employees(),
             ...$formDataService->organization(),
             'approvalConfiguration' => $workflow->configuration(EmployeeMutation::class),
