@@ -20,32 +20,25 @@ class MutationImportTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_create_form_renders_accessible_organization_comparison_layout(): void
+    public function test_mutation_index_directs_creation_through_batches(): void
     {
         $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
 
         $response = $this->actingAs($superAdmin)->get(route('mutasi'));
 
         $response->assertOk()
-            ->assertSee('Tambah Data Mutasi')
-            ->assertSee('Lengkapi data utama dan bandingkan organisasi saat ini dengan organisasi tujuan sebelum menyimpan.')
-            ->assertSeeInOrder(['Cari Employee', 'Organisasi Saat Ini', 'Organisasi Tujuan', 'Detail Perubahan'])
-            ->assertSee('aria-describedby="manual-mutation-description"', escape: false)
-            ->assertSee('name="employee_id"', escape: false)
-            ->assertSee('name="new_position_id"', escape: false)
-            ->assertSee('name="level_lama"', escape: false)
-            ->assertSee('name="level_baru"', escape: false)
+            ->assertSee('Buat Batch Mutasi')
+            ->assertDontSee('Tambah Data Mutasi')
+            ->assertDontSee('x-ref="openMutation"', escape: false)
             ->assertSee('w-full min-w-[73rem] table-fixed text-left text-sm whitespace-nowrap', escape: false)
             ->assertSee('w-60 px-4 py-3">Workflow', escape: false)
-            ->assertSee('Level Lama')
-            ->assertSee('Level Baru')
-            ->assertDontSee('BA'.'ND')
-            ->assertSee('Minimal satu organisasi atau Position harus berubah.');
+            ->assertDontSee('BA'.'ND');
 
         $document = new \DOMDocument;
         @$document->loadHTML($response->getContent());
         $xpath = new \DOMXPath($document);
-        $this->assertSame(1, $xpath->query('//select[@name="level_baru" and @id="create-mutation-level_baru"]')->length);
+        $this->assertSame(1, $xpath->query('//a[contains(normalize-space(.), "Buat Batch Mutasi")]')->length);
+        $this->assertSame(0, $xpath->query('//button[normalize-space(.)="Buat Mutasi"]')->length);
         $this->assertSame(0, $xpath->query('//form//form')->length, 'Form Mutasi tidak boleh bersarang.');
 
         $ids = [];

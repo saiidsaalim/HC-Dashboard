@@ -1670,6 +1670,63 @@ html.dark [data-theme-option][aria-checked='true'] {
 	background: #f0f9ff;
 }
 
+html.dark [data-filter-backdrop] {
+	background: rgba(2, 6, 23, 0.72);
+}
+
+html.dark [data-filter-drawer] {
+	border-left: 1px solid var(--hc-border-strong);
+	background: var(--hc-surface-muted);
+	color: var(--hc-text);
+}
+
+html.dark [data-filter-header],
+html.dark [data-filter-footer] {
+	border-color: var(--hc-border);
+	background: var(--hc-surface);
+}
+
+html.dark [data-filter-header] .text-sky-700 {
+	color: #7dd3fc;
+}
+
+html.dark [data-filter-header] .text-slate-950 {
+	color: #f8fafc;
+}
+
+html.dark [data-filter-header] button {
+	color: #94a3b8;
+}
+
+html.dark [data-filter-header] button:hover {
+	background: #1e293b;
+	color: #f8fafc;
+}
+
+html.dark [data-filter-fields] label {
+	color: #cbd5e1;
+}
+
+html.dark [data-filter-fields] :is(input:not([type='checkbox']):not([type='radio']):not([type='hidden']), select, textarea) {
+	border-color: var(--hc-border-strong);
+	background: #0b1220;
+	color: var(--hc-text);
+	color-scheme: dark;
+}
+
+html.dark [data-filter-fields] :is(input, textarea)::placeholder {
+	color: #64748b;
+}
+
+html.dark [data-filter-fields] :is(input:not([type='checkbox']):not([type='radio']):not([type='hidden']), select, textarea):hover:not(:disabled) {
+	border-color: #64748b;
+}
+
+html.dark [data-filter-fields] :is(input:not([type='checkbox']):not([type='radio']):not([type='hidden']), select, textarea):focus {
+	border-color: #38bdf8;
+	box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16);
+}
+
 html.dark [data-successor-department-picker] {
 	background:
 		linear-gradient(135deg, rgb(30 41 59 / 0.42), transparent 55%),

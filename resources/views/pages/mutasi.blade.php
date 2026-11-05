@@ -14,30 +14,7 @@
             && $mutations->contains(fn ($mutation): bool => auth()->user()->can('delete', $mutation));
         $selectedBatch = $batchId !== null ? $batchOptions->firstWhere('id', $batchId) : null;
     @endphp
-    <div data-mutation-journey x-data="{
-        open: @js(old('_form') === 'create-mutation'),
-        openModal() {
-            this.open = true;
-            this.$nextTick(() => this.$refs.mutationModal?.querySelector('[type=search]')?.focus());
-        },
-        closeModal() {
-            this.open = false;
-            this.$nextTick(() => this.$refs.openMutation?.focus());
-        },
-        trapFocus(event) {
-            const focusable = [...this.$refs.mutationModal.querySelectorAll(
-                'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]',
-            )].filter((element) => element.offsetParent !== null);
-            if (focusable.length === 0) return;
-            const first = focusable[0];
-            const last = focusable[focusable.length - 1];
-            if (event.shiftKey && document.activeElement === first) {
-                event.preventDefault(); last.focus();
-            } else if (!event.shiftKey && document.activeElement === last) {
-                event.preventDefault(); first.focus();
-            }
-        },
-    }" x-init="if (open) $nextTick(() => $refs.mutationModal?.querySelector('[type=search]')?.focus())">
+    <div data-mutation-journey>
         <x-ui.page-header title="Daftar Mutasi" eyebrow="Talent movement"
             description="Buat dan pantau perpindahan pegawai.">
             <x-slot:actions>
@@ -48,15 +25,10 @@
                     </a>
                 @endif
                 @if ($canCreateMutations)
-                    <a href="{{ route('mutasi.batches.create') }}" class="ui-button ui-button-secondary">
+                    <a href="{{ route('mutasi.batches.create') }}" class="ui-button ui-button-primary">
                         <x-dashboard-icon name="users" class="h-4 w-4" />
                         Buat Batch Mutasi
                     </a>
-                    <button type="button" x-ref="openMutation" @click="openModal()"
-                        class="ui-button ui-button-primary">
-                        <span class="text-lg leading-none" aria-hidden="true">+</span>
-                        Buat Mutasi
-                    </button>
                 @endif
             </x-slot:actions>
         </x-ui.page-header>
@@ -90,30 +62,6 @@
             </div>
         @endif
 
-        @if ($canCreateMutations)
-        <div x-cloak x-show="open" x-transition.opacity @keydown.escape.window="if (open) closeModal()"
-            class="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950/60 p-2 backdrop-blur-sm sm:p-4"
-            @click.self="closeModal()">
-            <section x-ref="mutationModal" @keydown.tab="trapFocus($event)"
-                class="flex max-h-[calc(100dvh-1rem)] w-full max-w-7xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl"
-                role="dialog" aria-modal="true" aria-labelledby="manual-mutation-title" aria-describedby="manual-mutation-description">
-                <div class="flex flex-none items-start justify-between gap-4 border-b border-slate-200 bg-white px-4 py-4 sm:px-6 sm:py-5 lg:px-7">
-                    <div>
-                        <h3 id="manual-mutation-title" class="font-display text-xl font-bold text-slate-950 sm:text-2xl">Tambah Data Mutasi</h3>
-                        <p id="manual-mutation-description" class="mt-1 text-sm leading-6 text-slate-500">
-                            Lengkapi data utama dan bandingkan organisasi saat ini dengan organisasi tujuan sebelum menyimpan.
-                        </p>
-                    </div>
-                    <button type="button" @click="closeModal()" aria-label="Tutup modal Tambah Data Mutasi"
-                        class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-2xl leading-none text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500">&times;</button>
-                </div>
-                @include('pages.mutasi._form', [
-                    'action' => route('mutasi.store'), 'method' => 'POST', 'movement' => null,
-                    'formKey' => 'create-mutation', 'submitLabel' => 'Simpan Draft Mutasi',
-                ])
-            </section>
-        </div>
-        @endif
     </div>
 
     <div class="relative grid gap-4 md:grid-cols-2 xl:grid-cols-3" aria-label="Ringkasan mutasi">
@@ -167,8 +115,7 @@
             </div>
             <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 @foreach ($mutationBatches as $batch)
-                    <a href="{{ route('mutasi', ['batch' => $batch->id]) }}#data-mutasi"
-                        @if ($batchId === $batch->id) aria-current="true" @endif
+                    <a href="{{ route('mutasi.batches.show', $batch) }}"
                         @class([
                             'rounded-xl border p-4 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500',
                             'border-sky-400 bg-sky-50 ring-1 ring-sky-200' => $batchId === $batch->id,
@@ -188,7 +135,7 @@
                             <span class="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">{{ $batch->completed_mutations_count }} Selesai</span>
                         </div>
                         <span class="mt-3 inline-flex items-center gap-1 text-xs font-bold text-sky-700">
-                            Lihat daftar pegawai <span aria-hidden="true">&darr;</span>
+                            Lihat detail batch <span aria-hidden="true">&rarr;</span>
                         </span>
                     </a>
                 @endforeach

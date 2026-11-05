@@ -30,7 +30,7 @@
     <template x-teleport="body">
         <div x-cloak x-show="filterOpen" class="fixed inset-0 z-[90]" role="presentation">
             <div x-show="filterOpen" x-transition.opacity class="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px]"
-                @click="filterOpen = false" aria-hidden="true"></div>
+                @click="filterOpen = false" aria-hidden="true" data-filter-backdrop></div>
 
             <aside id="{{ $id }}" x-show="filterOpen"
                 x-transition:enter="transition ease-out duration-200"
@@ -41,7 +41,8 @@
                 x-transition:leave-end="translate-x-full opacity-0"
                 class="absolute inset-y-0 right-0 flex w-full max-w-sm flex-col bg-slate-50 shadow-2xl"
                 role="dialog" aria-modal="true" aria-labelledby="{{ $id }}-title" data-filter-drawer>
-                <div class="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
+                <div class="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4"
+                    data-filter-header>
                     <div>
                         <p class="text-xs font-bold uppercase tracking-[0.2em] text-sky-700">Filter data</p>
                         <h2 id="{{ $id }}-title" class="mt-1 font-display text-xl font-bold text-slate-950">
@@ -59,11 +60,11 @@
 
                 <form method="GET" action="{{ $filterAction }}" class="flex min-h-0 flex-1 flex-col"
                     data-filter-form>
-                    <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5">
+                    <div class="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5" data-filter-fields>
                         {{ $slot }}
                     </div>
 
-                    <div class="space-y-3 border-t border-slate-200 bg-white px-5 py-4">
+                    <div class="space-y-3 border-t border-slate-200 bg-white px-5 py-4" data-filter-footer>
                         <button type="submit" class="ui-button ui-button-primary w-full justify-center">
                             Terapkan Filter
                         </button>

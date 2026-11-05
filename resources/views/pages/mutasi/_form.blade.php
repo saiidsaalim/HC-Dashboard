@@ -7,7 +7,7 @@
         ? old($field, $fallback)
         : ($movement?->{$field} ?? $fallback);
     $targetValue = fn (string $field) => $isCurrentForm ? old($field) : $movement?->{$field};
-    $tmtValue = $isCurrentForm ? old('tmt') : $movement?->tmt?->format('Y-m-d');
+    $tmtValue = $isCurrentForm ? old('tmt') : ($movement?->tmt?->format('Y-m-d') ?? ($defaultTmt ?? null));
     $hasValidationError = $isCurrentForm && $errors->any();
     $currentOrganization = [
         'directorate' => $movement?->direktorat_lama ?: data_get($initialEmployee, 'directorate', ''),

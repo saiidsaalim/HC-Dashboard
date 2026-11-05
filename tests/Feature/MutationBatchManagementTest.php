@@ -28,6 +28,7 @@ class MutationBatchManagementTest extends TestCase
         $this->actingAs($user)->get(route('mutasi.batches.create'))
             ->assertOk()
             ->assertSee('Buat Batch Mutasi')
+            ->assertSee('Pilih minimal satu pegawai')
             ->assertSee('Atur Tujuan per Pegawai')
             ->assertSee('Simpan Batch Mutasi');
 
@@ -69,7 +70,9 @@ class MutationBatchManagementTest extends TestCase
             ->assertSee($batch->batch_number)
             ->assertSee('2 item')
             ->assertSee('Semua pegawai yang dimutasi ditampilkan saat halaman pertama dibuka.')
-            ->assertSee('href="'.route('mutasi', ['batch' => $batch->id]).'#data-mutasi"', escape: false);
+            ->assertSee('Lihat detail batch')
+            ->assertSee('href="'.route('mutasi.batches.show', $batch).'"', escape: false)
+            ->assertDontSee('href="'.route('mutasi', ['batch' => $batch->id]).'#data-mutasi"', escape: false);
 
         $this->actingAs($user)->get(route('mutasi', ['batch' => $batch->id]))
             ->assertOk()
@@ -87,19 +90,81 @@ class MutationBatchManagementTest extends TestCase
             ->assertSee($employees[1]->sap);
     }
 
-    public function test_batch_requires_at_least_two_distinct_employees(): void
+    public function test_batch_can_be_created_with_one_employee(): void
+    {
+        $user = User::factory()->create();
+        [$employees, $target] = $this->employeesAndTarget();
+
+        $response = $this->actingAs($user)->post(route('mutasi.batches.store'), [
+            'name' => 'Batch Satu Pegawai',
+            'default_tmt' => '2027-01-01',
+            'items' => [$this->itemPayload($employees[0], $target, 'JG-1', 'JG-2')],
+        ]);
+
+        $batch = EmployeeMutationBatch::query()->sole();
+        $response->assertRedirect(route('mutasi.batches.show', $batch));
+        $this->assertDatabaseCount('employee_mutations', 1);
+        $this->assertDatabaseHas('employee_mutations', [
+            'employee_mutation_batch_id' => $batch->id,
+            'employee_id' => $employees[0]->id,
+            'verification_status' => 'Draft',
+        ]);
+    }
+
+    public function test_batch_rejects_the_same_employee_more_than_once(): void
+    {
+        $user = User::factory()->create();
+        [$employees, $target] = $this->employeesAndTarget();
+        $item = $this->itemPayload($employees[0], $target, 'JG-1', 'JG-2');
+
+        $this->actingAs($user)->post(route('mutasi.batches.store'), [
+            'name' => 'Batch Duplikat',
+            'default_tmt' => '2027-01-01',
+            'items' => [$item, $item],
+        ])->assertSessionHasErrors(['items.0.employee_id', 'items.1.employee_id']);
+
+        $this->assertDatabaseCount('employee_mutation_batches', 0);
+        $this->assertDatabaseCount('employee_mutations', 0);
+    }
+
+    public function test_employee_can_be_added_to_an_existing_batch(): void
     {
         $user = User::factory()->create();
         [$employees, $target] = $this->employeesAndTarget();
 
         $this->actingAs($user)->post(route('mutasi.batches.store'), [
-            'name' => 'Batch Tidak Valid',
+            'name' => 'Batch Bertahap',
             'default_tmt' => '2027-01-01',
             'items' => [$this->itemPayload($employees[0], $target, 'JG-1', 'JG-2')],
-        ])->assertSessionHasErrors('items');
+        ])->assertRedirect();
 
-        $this->assertDatabaseCount('employee_mutation_batches', 0);
-        $this->assertDatabaseCount('employee_mutations', 0);
+        $batch = EmployeeMutationBatch::query()->sole();
+        $this->actingAs($user)->get(route('mutasi.batches.show', $batch))
+            ->assertOk()
+            ->assertSee('Tambah Pegawai')
+            ->assertSee('Tambah Pegawai ke Batch')
+            ->assertSee('Tambahkan ke Batch')
+            ->assertSee(route('mutasi.batches.items.store', $batch), escape: false);
+
+        $this->actingAs($user)->post(route('mutasi.batches.items.store', $batch), [
+            '_form' => 'add-batch-mutation',
+            ...$this->itemPayload($employees[1], $target, 'JG-3', 'JG-4'),
+        ])->assertRedirect(route('mutasi.batches.show', $batch))
+            ->assertSessionHas('status', 'Pegawai berhasil ditambahkan ke Batch Mutasi.');
+
+        $this->assertDatabaseCount('employee_mutations', 2);
+        $this->assertDatabaseHas('employee_mutations', [
+            'employee_mutation_batch_id' => $batch->id,
+            'employee_id' => $employees[1]->id,
+            'verification_status' => 'Draft',
+        ]);
+
+        $this->actingAs($user)->post(route('mutasi.batches.items.store', $batch), [
+            '_form' => 'add-batch-mutation',
+            ...$this->itemPayload($employees[1], $target, 'JG-3', 'JG-4'),
+        ])->assertSessionHasErrors('employee_id');
+
+        $this->assertDatabaseCount('employee_mutations', 2);
     }
 
     public function test_batch_can_submit_all_items_and_current_approver_can_approve_selected_items(): void

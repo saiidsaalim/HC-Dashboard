@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Exports\MutationBatchSpreadsheet;
 use App\Http\Requests\ApproveMutationBatchItemsRequest;
+use App\Http\Requests\StoreMutationBatchItemRequest;
 use App\Http\Requests\StoreMutationBatchRequest;
 use App\Models\Employee;
 use App\Models\EmployeeMutation;
@@ -77,6 +78,7 @@ class MutationBatchController extends Controller
 
     public function show(
         EmployeeMutationBatch $employeeMutationBatch,
+        PersonnelMovementFormDataService $formDataService,
         MovementApprovalWorkflowService $workflow,
     ): View {
         Gate::authorize('viewAny', EmployeeMutation::class);
@@ -87,8 +89,28 @@ class MutationBatchController extends Controller
 
         return view('pages.mutasi.batch-show', [
             'batch' => $employeeMutationBatch,
+            'employeeOptions' => $formDataService->employees()
+                ->reject(fn (array $employee): bool => $employeeMutationBatch->mutations
+                    ->contains('employee_id', $employee['id']))
+                ->values(),
+            ...$formDataService->organization(),
             'approvalConfigurationComplete' => $workflow->isConfigurationComplete(EmployeeMutation::class),
         ]);
+    }
+
+    public function storeItem(
+        StoreMutationBatchItemRequest $request,
+        EmployeeMutationBatch $employeeMutationBatch,
+        PersonnelMovementSnapshotService $snapshotService,
+    ): RedirectResponse {
+        $employee = Employee::query()->findOrFail($request->integer('employee_id'));
+        $employeeMutationBatch->mutations()->create([
+            ...$snapshotService->fromEmployee($employee, $request->validated()),
+            'verification_status' => 'Draft',
+        ]);
+
+        return to_route('mutasi.batches.show', $employeeMutationBatch)
+            ->with('status', 'Pegawai berhasil ditambahkan ke Batch Mutasi.');
     }
 
     public function export(

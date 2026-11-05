@@ -9,15 +9,46 @@
         $returnedCount = $mutations->where('verification_status', 'Returned')->count();
         $pendingCount = $mutations->where('verification_status', 'Pending')->count();
         $completedCount = $mutations->whereIn('verification_status', ['Approved', 'Final'])->count();
+        $canCreateMutations = auth()->user()->can('create', App\Models\EmployeeMutation::class);
         $submittableCount = $mutations->filter(fn ($mutation): bool => auth()->user()->can('submit', $mutation))->count();
         $approvableCount = $mutations->filter(fn ($mutation): bool => auth()->user()->can('approve', $mutation)
             && $mutation->verification_status === 'Pending'
             && ! $mutation->approvals->where('approval_round', $mutation->approval_round)->where('manager_id', auth()->id())->where('status', 'Approved')->count())->count();
     @endphp
 
+    <div x-data="{
+        open: @js(old('_form') === 'add-batch-mutation'),
+        openModal() {
+            this.open = true;
+            this.$nextTick(() => this.$refs.addEmployeeModal?.querySelector('[type=search]')?.focus());
+        },
+        closeModal() {
+            this.open = false;
+            this.$nextTick(() => this.$refs.openAddEmployeeButton?.focus());
+        },
+        trapFocus(event) {
+            const focusable = [...this.$refs.addEmployeeModal.querySelectorAll(
+                'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]',
+            )].filter((element) => element.offsetParent !== null);
+            if (focusable.length === 0) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault(); last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault(); first.focus();
+            }
+        },
+    }" x-init="if (open) $nextTick(() => $refs.addEmployeeModal?.querySelector('[type=search]')?.focus())">
     <x-ui.page-header :title="$batch->name" eyebrow="Batch Mutasi"
         :description="$batch->batch_number.' · '.($batch->description ?: 'Tanpa keterangan tambahan')">
         <x-slot:actions>
+            @if ($canCreateMutations && $employeeOptions->isNotEmpty())
+                <button type="button" x-ref="openAddEmployeeButton" @click="openModal()" class="ui-button ui-button-primary">
+                    <span class="text-lg leading-none" aria-hidden="true">+</span>
+                    Tambah Pegawai
+                </button>
+            @endif
             @if (auth()->user()->hasPermission('mutations.print'))
                 <a href="{{ route('mutasi.batches.export', $batch) }}" class="ui-button ui-button-primary">Export Excel</a>
             @endif
@@ -36,6 +67,32 @@
     @if ($errors->any())
         <div class="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
             @foreach ($errors->all() as $error)<p>{{ $error }}</p>@endforeach
+        </div>
+    @endif
+
+    @if ($canCreateMutations && $employeeOptions->isNotEmpty())
+        <div x-cloak x-show="open" x-transition.opacity @keydown.escape.window="if (open) closeModal()"
+            class="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950/60 p-2 backdrop-blur-sm sm:p-4"
+            @click.self="closeModal()">
+            <section x-ref="addEmployeeModal" @keydown.tab="trapFocus($event)"
+                class="flex max-h-[calc(100dvh-1rem)] w-full max-w-7xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl"
+                role="dialog" aria-modal="true" aria-labelledby="add-batch-mutation-title" aria-describedby="add-batch-mutation-description">
+                <div class="flex flex-none items-start justify-between gap-4 border-b border-slate-200 bg-white px-4 py-4 sm:px-6 sm:py-5 lg:px-7">
+                    <div>
+                        <h2 id="add-batch-mutation-title" class="font-display text-xl font-bold text-slate-950 sm:text-2xl">Tambah Pegawai ke Batch</h2>
+                        <p id="add-batch-mutation-description" class="mt-1 text-sm leading-6 text-slate-500">
+                            Pegawai baru disimpan sebagai Draft dan memiliki alur persetujuan tersendiri.
+                        </p>
+                    </div>
+                    <button type="button" @click="closeModal()" aria-label="Tutup modal Tambah Pegawai"
+                        class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-2xl leading-none text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500">&times;</button>
+                </div>
+                @include('pages.mutasi._form', [
+                    'action' => route('mutasi.batches.items.store', $batch), 'method' => 'POST', 'movement' => null,
+                    'formKey' => 'add-batch-mutation', 'submitLabel' => 'Tambahkan ke Batch',
+                    'defaultTmt' => $batch->default_tmt?->format('Y-m-d'),
+                ])
+            </section>
         </div>
     @endif
 
@@ -162,4 +219,5 @@
             </div>
         </form>
     </section>
+    </div>
 @endsection

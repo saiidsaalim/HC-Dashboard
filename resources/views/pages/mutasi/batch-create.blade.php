@@ -4,7 +4,7 @@
 
 @section('content')
     <x-ui.page-header title="Buat Batch Mutasi" eyebrow="Talent movement"
-        description="Siapkan beberapa mutasi pegawai dalam satu kelompok tanpa menggabungkan riwayat persetujuannya.">
+        description="Siapkan satu atau beberapa mutasi pegawai dalam satu kelompok tanpa menggabungkan riwayat persetujuannya.">
         <x-slot:actions>
             <a href="{{ route('mutasi') }}" class="ui-button ui-button-secondary">Kembali ke Mutasi</a>
         </x-slot:actions>
@@ -130,7 +130,7 @@
             <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                     <h2 class="font-display text-lg font-bold text-slate-950">1. Pilih Pegawai</h2>
-                    <p class="mt-1 text-sm text-slate-500">Pilih minimal dua pegawai. Setiap pegawai tetap menjadi record Mutasi tersendiri.</p>
+                    <p class="mt-1 text-sm text-slate-500">Pilih minimal satu pegawai. Pegawai lain dapat ditambahkan setelah batch dibuat.</p>
                 </div>
                 <span class="inline-flex w-fit rounded-full bg-sky-50 px-3 py-1.5 text-sm font-bold text-sky-700 ring-1 ring-sky-200"
                     x-text="`${selectedIds.length} pegawai dipilih`"></span>
@@ -263,7 +263,7 @@
             <p class="text-sm text-slate-500">Setelah disimpan, seluruh item berstatus Draft dan dapat diperiksa sebelum diajukan.</p>
             <div class="flex flex-col-reverse gap-3 sm:flex-row">
                 <a href="{{ route('mutasi') }}" class="ui-button ui-button-secondary text-center">Batal</a>
-                <button type="submit" :disabled="selectedIds.length < 2" class="ui-button ui-button-primary disabled:cursor-not-allowed disabled:opacity-50">
+                <button type="submit" :disabled="selectedIds.length < 1" class="ui-button ui-button-primary disabled:cursor-not-allowed disabled:opacity-50">
                     Simpan Batch Mutasi
                 </button>
             </div>
