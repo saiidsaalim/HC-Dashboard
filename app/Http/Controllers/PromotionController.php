@@ -9,6 +9,7 @@ use App\Http\Requests\StorePromotionRequest;
 use App\Http\Requests\UpdatePromotionRequest;
 use App\Models\Employee;
 use App\Models\EmployeePromotion;
+use App\Models\EmployeePromotionBatch;
 use App\Models\PromotionApproval;
 use App\Services\Personnel\PersonnelActionGuard;
 use App\Services\Personnel\PersonnelMovementFormDataService;
@@ -40,13 +41,14 @@ class PromotionController extends Controller
         Gate::authorize('viewAny', EmployeePromotion::class);
 
         $search = trim((string) $request->input('search', ''));
+        $batchId = $request->integer('batch') ?: null;
         $filter = (string) $request->input('status', 'all');
         if (! in_array($filter, ['all', 'draft', 'waiting', 'returned', 'approved', 'final', 'mine'], true)) {
             $filter = 'all';
         }
 
         $promotionQuery = EmployeePromotion::query()
-            ->with(['approvals.manager', 'employee', 'submitter']);
+            ->with(['batch:id,batch_number,name', 'approvals.manager', 'employee', 'submitter']);
 
         if ($search !== '') {
             $promotionQuery->where(function (Builder $query) use ($search): void {
@@ -56,7 +58,15 @@ class PromotionController extends Controller
                 ] as $column) {
                     $query->orWhere($column, 'like', "%{$search}%");
                 }
+
+                $query->orWhereHas('batch', fn (Builder $batchQuery) => $batchQuery
+                    ->where('batch_number', 'like', "%{$search}%")
+                    ->orWhere('name', 'like', "%{$search}%"));
             });
+        }
+
+        if ($batchId !== null) {
+            $promotionQuery->where('employee_promotion_batch_id', $batchId);
         }
 
         match ($filter) {
@@ -93,6 +103,19 @@ class PromotionController extends Controller
                 ->count(),
             'search' => $search,
             'filter' => $filter,
+            'batchId' => $batchId,
+            'promotionBatches' => EmployeePromotionBatch::query()
+                ->withCount([
+                    'promotions as movements_count',
+                    'promotions as draft_movements_count' => fn (Builder $query) => $query->where('verification_status', PromotionStatus::Draft->value),
+                    'promotions as pending_movements_count' => fn (Builder $query) => $query->where('verification_status', PromotionStatus::WaitingApproval->value),
+                    'promotions as returned_movements_count' => fn (Builder $query) => $query->where('verification_status', PromotionStatus::Returned->value),
+                    'promotions as completed_movements_count' => fn (Builder $query) => $query->whereIn('verification_status', [PromotionStatus::Approved->value, PromotionStatus::Final->value]),
+                ])
+                ->latest()
+                ->limit(6)
+                ->get(),
+            'batchOptions' => EmployeePromotionBatch::query()->latest()->get(['id', 'batch_number', 'name']),
             'employeeOptions' => $canManage ? $formDataService->employees() : collect(),
             ...($canManage ? $formDataService->organization() : []),
             'approvalConfiguration' => $workflow->configuration(),

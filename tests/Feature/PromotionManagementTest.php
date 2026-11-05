@@ -9,6 +9,7 @@ use App\Models\Department;
 use App\Models\Directorate;
 use App\Models\Employee;
 use App\Models\EmployeePromotion;
+use App\Models\EmployeePromotionBatch;
 use App\Models\Position;
 use App\Models\PromotionApproval;
 use App\Models\PromotionApprovalConfig;
@@ -29,27 +30,76 @@ class PromotionManagementTest extends TestCase
 
     public function test_form_uses_level_terms_and_no_legacy_term(): void
     {
-        $response = $this->actingAs($this->user(UserRole::SUPER_ADMIN))->get(route('promosi'));
+        $user = $this->user(UserRole::SUPER_ADMIN);
+
+        $this->actingAs($user)->get(route('promosi'))
+            ->assertOk()
+            ->assertSee('Buat Batch Promosi')
+            ->assertDontSee('id="create-promotion"', escape: false);
+
+        $response = $this->get(route('promosi.batches.create'));
 
         $response
             ->assertOk()
-            ->assertSee('Tambah Data Promosi')
-            ->assertSee('Lengkapi data utama dan bandingkan organisasi saat ini dengan organisasi tujuan sebelum menyimpan.')
-            ->assertSeeInOrder(['Cari Employee', 'Organisasi Saat Ini', 'Organisasi Tujuan', 'Detail Perubahan'])
-            ->assertSee('aria-describedby="manual-promotion-description"', escape: false)
-            ->assertSee('Level Lama')
+            ->assertSee('Buat Batch Promosi')
+            ->assertSeeInOrder(['Informasi Batch', 'Pilih Pegawai', 'Atur Tujuan per Pegawai'])
+            ->assertSee('JG Lama')
             ->assertSee('Level Baru')
-            ->assertSee('name="level_lama"', escape: false)
-            ->assertSee('name="level_baru"', escape: false)
-            ->assertSee('<select id="create-level_baru"', escape: false)
-            ->assertSee('w-full min-w-[76rem] table-fixed text-left text-sm whitespace-nowrap', escape: false)
-            ->assertSee('w-60 px-4 py-3">Workflow', escape: false)
+            ->assertSee('items[${rowIndex}][level_baru]', escape: false)
             ->assertDontSee('BA'.'ND');
 
         $document = new \DOMDocument;
         @$document->loadHTML($response->getContent());
         $xpath = new \DOMXPath($document);
         $this->assertSame(0, $xpath->query('//form//form')->length, 'Form Promosi tidak boleh bersarang.');
+    }
+
+    public function test_promotion_batch_uses_promotion_business_rules_and_opens_batch_detail(): void
+    {
+        $user = $this->user(UserRole::SUPER_ADMIN);
+        $employee = $this->employee('SAP-PROMOTION-BATCH');
+        $payload = $this->payload($employee);
+
+        $response = $this->actingAs($user)->post(route('promosi.batches.store'), [
+            'name' => 'Batch Promosi Januari',
+            'default_tmt' => '2027-01-01',
+            'items' => [$payload],
+        ]);
+
+        $batch = EmployeePromotionBatch::query()->sole();
+        $promotion = EmployeePromotion::query()->sole();
+        $response->assertRedirect(route('promosi.batches.show', $batch));
+        $this->assertStringStartsWith('PRO-', $batch->batch_number);
+        $this->assertSame($batch->id, $promotion->employee_promotion_batch_id);
+        $this->assertSame(PromotionStatus::Draft->value, $promotion->verification_status);
+
+        $this->get(route('promosi.batches.show', $batch))
+            ->assertOk()
+            ->assertSee('Item Batch Promosi')
+            ->assertSee('Tambah Pegawai')
+            ->assertSee($employee->sap);
+
+        $secondEmployee = $this->employee('SAP-PROMOTION-BATCH-2');
+        $this->post(route('promosi.batches.items.store', $batch), $this->payload($secondEmployee))
+            ->assertRedirect(route('promosi.batches.show', $batch));
+        $this->assertDatabaseCount('employee_promotions', 2);
+
+        $approvers = $this->configureApprovers();
+        $this->post(route('promosi.batches.submit', $batch))->assertRedirect();
+        $promotions = $batch->promotions()->get();
+        $this->assertTrue($promotions->every(
+            fn (EmployeePromotion $item): bool => $item->verification_status === PromotionStatus::WaitingApproval->value,
+        ));
+
+        foreach ($approvers as $approver) {
+            $this->actingAs($approver)->post(route('promosi.batches.approve-selected', $batch), [
+                'promotion_ids' => $promotions->pluck('id')->all(),
+            ])->assertRedirect();
+        }
+
+        $this->assertTrue($batch->promotions()->get()->every(
+            fn (EmployeePromotion $item): bool => $item->verification_status === PromotionStatus::Approved->value,
+        ));
     }
 
     public function test_guest_is_redirected_and_only_management_roles_can_view_promotions(): void
@@ -238,7 +288,7 @@ class PromotionManagementTest extends TestCase
         $employeeUser = $this->user(UserRole::STAFF, 'Nama Employee', $employee);
         $superAdmin = $this->user(UserRole::SUPER_ADMIN);
 
-        $this->actingAs($superAdmin)->get(route('promosi'))
+        $this->actingAs($superAdmin)->get(route('promosi.batches.create'))
             ->assertOk()
             ->assertSee('SAP-CANON — PN-CANON — Nama Employee — Canonical Position')
             ->assertSee('Canonical Department', escape: false);
@@ -387,7 +437,7 @@ class PromotionManagementTest extends TestCase
         ]);
         $superAdmin = $this->user(UserRole::SUPER_ADMIN);
 
-        $this->actingAs($superAdmin)->get(route('promosi'))
+        $this->actingAs($superAdmin)->get(route('promosi.batches.create'))
             ->assertOk()
             ->assertSee('Legacy Department', escape: false)
             ->assertSee('Legacy Position')

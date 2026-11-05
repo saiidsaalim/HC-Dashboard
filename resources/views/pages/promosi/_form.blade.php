@@ -12,7 +12,7 @@
         'nama' => $value('nama'),
         'departemen_lama' => $promotion?->departemen_lama ?? data_get($initialEmployee, 'department', ''),
         'jabatan_lama' => $promotion?->jabatan_lama ?? data_get($initialEmployee, 'position', ''),
-        'tmt' => $value('tmt', $promotion?->tmt?->format('Y-m-d')),
+        'tmt' => $value('tmt', $promotion?->tmt?->format('Y-m-d') ?? ($defaultTmt ?? null)),
         'pg' => $value('pg'),
         'level_lama' => $promotion?->level_lama ?? data_get($initialEmployee, 'level', ''),
         'jg_lama' => $value('jg_lama'),

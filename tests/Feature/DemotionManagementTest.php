@@ -8,6 +8,7 @@ use App\Models\Department;
 use App\Models\Directorate;
 use App\Models\Employee;
 use App\Models\EmployeeDemotion;
+use App\Models\EmployeeDemotionBatch;
 use App\Models\Position;
 use App\Models\Unit;
 use App\Models\User;
@@ -21,29 +22,82 @@ class DemotionManagementTest extends TestCase
 
     public function test_form_uses_level_terms_and_no_legacy_term(): void
     {
-        $response = $this->actingAs(User::factory()->create())->get(route('demosi'));
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->get(route('demosi'))
+            ->assertOk()
+            ->assertSee('Buat Batch Demosi')
+            ->assertDontSee('manual-demotion-title', escape: false);
+
+        $response = $this->get(route('demosi.batches.create'));
 
         $response
             ->assertOk()
-            ->assertSee('Tambah Data Demosi')
-            ->assertSee('Lengkapi data utama dan bandingkan organisasi saat ini dengan organisasi tujuan sebelum menyimpan.')
-            ->assertSeeInOrder(['Cari Employee', 'Organisasi Saat Ini', 'Organisasi Tujuan', 'Detail Perubahan'])
-            ->assertSee('aria-describedby="manual-demotion-description"', escape: false)
-            ->assertSee('Level Lama')
+            ->assertSee('Buat Batch Demosi')
+            ->assertSeeInOrder(['Informasi Batch', 'Pilih Pegawai', 'Atur Tujuan per Pegawai'])
+            ->assertSee('JG Lama')
             ->assertSee('Level Baru')
-            ->assertSee('name="level_lama"', escape: false)
-            ->assertSee('name="level_baru"', escape: false)
-            ->assertSee('<select id="create-demotion-level_baru"', escape: false)
-            ->assertSee('w-full min-w-[76rem] table-fixed text-left text-sm whitespace-nowrap', escape: false)
-            ->assertSee('mutation-journey-table', escape: false)
-            ->assertSee('data-mutation-journey-table-wrap', escape: false)
-            ->assertSee('w-60 px-4 py-3">Workflow', escape: false)
+            ->assertSee('items[${rowIndex}][level_baru]', escape: false)
             ->assertDontSee('BA'.'ND');
 
         $document = new \DOMDocument;
         @$document->loadHTML($response->getContent());
         $xpath = new \DOMXPath($document);
         $this->assertSame(0, $xpath->query('//form//form')->length, 'Form Demosi tidak boleh bersarang.');
+    }
+
+    public function test_demotion_batch_uses_demotion_business_rules_and_opens_batch_detail(): void
+    {
+        $user = User::factory()->create();
+        $payload = $this->demotionAttributes('SAP-DEMOTION-BATCH');
+
+        $response = $this->actingAs($user)->post(route('demosi.batches.store'), [
+            'name' => 'Batch Demosi Januari',
+            'default_tmt' => '2027-01-01',
+            'items' => [$payload],
+        ]);
+
+        $batch = EmployeeDemotionBatch::query()->sole();
+        $demotion = EmployeeDemotion::query()->sole();
+        $response->assertRedirect(route('demosi.batches.show', $batch));
+        $this->assertStringStartsWith('DEM-', $batch->batch_number);
+        $this->assertSame($batch->id, $demotion->employee_demotion_batch_id);
+        $this->assertSame('Draft', $demotion->verification_status);
+
+        $this->get(route('demosi.batches.show', $batch))
+            ->assertOk()
+            ->assertSee('Item Batch Demosi')
+            ->assertSee('Tambah Pegawai')
+            ->assertSee('SAP-DEMOTION-BATCH');
+
+        $secondPayload = $this->demotionAttributes('SAP-DEMOTION-BATCH-2');
+        $this->post(route('demosi.batches.items.store', $batch), $secondPayload)
+            ->assertRedirect(route('demosi.batches.show', $batch));
+        $this->assertDatabaseCount('employee_demotions', 2);
+
+        $approvers = User::factory()->count(3)->create(['role' => UserRole::MANAGER->value]);
+        foreach ($approvers as $step => $approver) {
+            DemotionApprovalConfig::query()->create([
+                'step_order' => $step + 1,
+                'user_id' => $approver->id,
+            ]);
+        }
+
+        $this->actingAs($user)->post(route('demosi.batches.submit', $batch))->assertRedirect();
+        $demotions = $batch->demotions()->get();
+        $this->assertTrue($demotions->every(
+            fn (EmployeeDemotion $item): bool => $item->verification_status === 'Pending',
+        ));
+
+        foreach ($approvers as $approver) {
+            $this->actingAs($approver)->post(route('demosi.batches.approve-selected', $batch), [
+                'demotion_ids' => $demotions->pluck('id')->all(),
+            ])->assertRedirect();
+        }
+
+        $this->assertTrue($batch->demotions()->get()->every(
+            fn (EmployeeDemotion $item): bool => $item->verification_status === 'Approved',
+        ));
     }
 
     public function test_authenticated_user_can_search_demotions_and_see_live_totals(): void

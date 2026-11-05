@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DemotionBatchController;
 use App\Http\Controllers\DemotionController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\MovementApprovalSettingsController;
@@ -19,6 +20,7 @@ use App\Http\Controllers\PortalController;
 use App\Http\Controllers\PortalWorkspaceController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PromotionApprovalSettingsController;
+use App\Http\Controllers\PromotionBatchController;
 use App\Http\Controllers\PromotionController;
 use App\Http\Controllers\UserManagementController;
 use App\Http\Controllers\Workforce\StaffWlaController;
@@ -83,6 +85,13 @@ Route::middleware('auth')->group(function () {
         Route::delete('/mutasi', [MutationController::class, 'destroyMany'])->middleware('can:mutations.delete')->name('mutasi.destroy-many');
         Route::get('/promosi', [PromotionController::class, 'index'])->middleware('can:promotions.view')->name('promosi');
         Route::post('/promosi', [PromotionController::class, 'store'])->middleware('can:promotions.create')->name('promosi.store');
+        Route::get('/promosi/batch/create', [PromotionBatchController::class, 'create'])->middleware('can:promotions.create')->name('promosi.batches.create');
+        Route::post('/promosi/batch', [PromotionBatchController::class, 'store'])->middleware('can:promotions.create')->name('promosi.batches.store');
+        Route::get('/promosi/batch/{employeePromotionBatch}', [PromotionBatchController::class, 'show'])->middleware('can:promotions.view')->name('promosi.batches.show');
+        Route::post('/promosi/batch/{employeePromotionBatch}/items', [PromotionBatchController::class, 'storeItem'])->middleware('can:promotions.create')->name('promosi.batches.items.store');
+        Route::get('/promosi/batch/{employeePromotionBatch}/export-excel', [PromotionBatchController::class, 'export'])->middleware('can:promotions.print')->name('promosi.batches.export');
+        Route::post('/promosi/batch/{employeePromotionBatch}/submit', [PromotionBatchController::class, 'submit'])->middleware('can:promotions.submit')->name('promosi.batches.submit');
+        Route::post('/promosi/batch/{employeePromotionBatch}/approve-selected', [PromotionBatchController::class, 'approveSelected'])->middleware('can:promotions.approve')->name('promosi.batches.approve-selected');
         Route::get('/promosi/pengaturan-persetujuan', [PromotionApprovalSettingsController::class, 'edit'])->middleware('can:promotions.manage-approval-settings')->name('promosi.approval-settings.edit');
         Route::put('/promosi/pengaturan-persetujuan', [PromotionApprovalSettingsController::class, 'update'])->middleware('can:promotions.manage-approval-settings')->name('promosi.approval-settings.update');
         Route::get('/promosi/{employeePromotion}/print', [PromotionController::class, 'print'])->middleware('can:promotions.print')->name('promosi.print');
@@ -94,6 +103,13 @@ Route::middleware('auth')->group(function () {
         Route::view('/laporan', 'pages.laporan')->middleware('can:reports.view')->name('laporan');
         Route::get('/demosi', [DemotionController::class, 'index'])->middleware('can:demotions.view')->name('demosi');
         Route::post('/demosi', [DemotionController::class, 'store'])->middleware('can:demotions.create')->name('demosi.store');
+        Route::get('/demosi/batch/create', [DemotionBatchController::class, 'create'])->middleware('can:demotions.create')->name('demosi.batches.create');
+        Route::post('/demosi/batch', [DemotionBatchController::class, 'store'])->middleware('can:demotions.create')->name('demosi.batches.store');
+        Route::get('/demosi/batch/{employeeDemotionBatch}', [DemotionBatchController::class, 'show'])->middleware('can:demotions.view')->name('demosi.batches.show');
+        Route::post('/demosi/batch/{employeeDemotionBatch}/items', [DemotionBatchController::class, 'storeItem'])->middleware('can:demotions.create')->name('demosi.batches.items.store');
+        Route::get('/demosi/batch/{employeeDemotionBatch}/export-excel', [DemotionBatchController::class, 'export'])->middleware('can:demotions.print')->name('demosi.batches.export');
+        Route::post('/demosi/batch/{employeeDemotionBatch}/submit', [DemotionBatchController::class, 'submit'])->middleware('can:demotions.submit')->name('demosi.batches.submit');
+        Route::post('/demosi/batch/{employeeDemotionBatch}/approve-selected', [DemotionBatchController::class, 'approveSelected'])->middleware('can:demotions.approve')->name('demosi.batches.approve-selected');
         Route::get('/demosi/pengaturan-persetujuan', [MovementApprovalSettingsController::class, 'editDemotion'])->middleware('can:demotions.manage-approval-settings')->name('demosi.approval-settings.edit');
         Route::put('/demosi/pengaturan-persetujuan', [MovementApprovalSettingsController::class, 'updateDemotion'])->middleware('can:demotions.manage-approval-settings')->name('demosi.approval-settings.update');
         Route::get('/demosi/{employeeDemotion}/print', [DemotionController::class, 'print'])->middleware('can:demotions.print')->name('demosi.print');

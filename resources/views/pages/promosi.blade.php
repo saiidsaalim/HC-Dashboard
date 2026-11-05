@@ -9,6 +9,7 @@
         $canManagePromotionApprovals = auth()->user()->hasPermission('promotions.manage-approval-settings');
         $hasDeletablePromotions = $canDeletePromotions
             && $promotions->contains(fn ($promotion): bool => auth()->user()->can('delete', $promotion));
+        $selectedBatch = $batchId !== null ? $batchOptions->firstWhere('id', $batchId) : null;
         $statusStyles = [
             \App\Enums\PromotionStatus::Draft->value => 'bg-slate-100 text-slate-700',
             \App\Enums\PromotionStatus::LegacyPending->value => 'bg-slate-100 text-slate-700',
@@ -29,11 +30,10 @@
                     </a>
                 @endif
                 @if ($canCreatePromotions)
-                    <button type="button" onclick="document.getElementById('create-promotion').showModal()"
-                        class="ui-button ui-button-primary">
-                        <span class="text-lg leading-none" aria-hidden="true">+</span>
-                        Buat Promosi
-                    </button>
+                    <a href="{{ route('promosi.batches.create') }}" class="ui-button ui-button-primary">
+                        <x-dashboard-icon name="users" class="h-4 w-4" />
+                        Buat Batch Promosi
+                    </a>
                 @endif
             </x-slot:actions>
         @endif
@@ -106,6 +106,9 @@
         </article>
     </div>
 
+    <x-personnel-movement-batch-carousel :batches="$promotionBatches" :selected-batch-id="$batchId"
+        route-prefix="promosi" movement-label="Promosi" />
+
     <section class="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div class="flex w-full flex-col gap-4 border-b border-slate-200 p-4 sm:p-5 xl:flex-row xl:items-center xl:justify-between">
             <div class="flex items-center gap-3">
@@ -113,14 +116,29 @@
                     <x-dashboard-icon name="arrows" class="h-5 w-5" />
                 </span>
                 <div>
-                    <h3 class="font-display text-lg font-bold text-slate-950">Data promosi terbaru</h3>
-                    <p class="mt-0.5 text-xs text-slate-500">Pantau perjalanan posisi dan status persetujuan pegawai.</p>
+                    <h3 class="font-display text-lg font-bold text-slate-950">
+                        {{ $selectedBatch ? 'Pegawai dalam Batch '.$selectedBatch->batch_number : 'Data promosi terbaru' }}
+                    </h3>
+                    @if ($selectedBatch)
+                        <p class="mt-0.5 text-xs text-slate-500">
+                            {{ $selectedBatch->name }} &middot; {{ $promotions->total() }} pegawai ditampilkan.
+                            <a href="{{ route('promosi') }}" class="ml-1 font-bold text-sky-700 hover:text-sky-800">Tampilkan semua pegawai</a>
+                        </p>
+                    @else
+                        <p class="mt-0.5 text-xs text-slate-500">Pantau perjalanan posisi dan status persetujuan pegawai.</p>
+                    @endif
                 </div>
             </div>
             <div class="flex flex-col items-stretch gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-end">
+                @if ($selectedBatch && auth()->user()->hasPermission('promotions.print'))
+                    <a href="{{ route('promosi.batches.export', $selectedBatch) }}" class="ui-button ui-button-primary">Export Excel</a>
+                @endif
                 <form method="GET" action="{{ route('promosi') }}" class="relative w-full lg:w-80">
                     @if ($filter !== 'all')
                         <input type="hidden" name="status" value="{{ $filter }}">
+                    @endif
+                    @if ($batchId !== null)
+                        <input type="hidden" name="batch" value="{{ $batchId }}">
                     @endif
                     <label for="promotion-quick-search" class="sr-only">Cari data promosi</label>
                     <svg class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -133,7 +151,7 @@
                 </form>
                 <x-ui.filter-panel id="promotion-filters" title="Filter Promosi" class="w-full sm:w-auto"
                     :action="route('promosi')" :reset-href="route('promosi')"
-                    :active="$search !== '' || $filter !== 'all'">
+                    :active="$search !== '' || $filter !== 'all' || $batchId !== null">
                     @if ($search !== '')
                         <input type="hidden" name="search" value="{{ $search }}">
                     @endif
@@ -141,6 +159,14 @@
                         <select id="promotion-status" name="status" class="mt-1 block w-full rounded-lg border-slate-300 text-sm">
                             @foreach (['all' => 'Semua', 'draft' => 'Draft', 'waiting' => 'Menunggu Persetujuan', 'returned' => 'Dikembalikan', 'approved' => 'Disetujui, menunggu TMT', 'final' => 'Sudah diterapkan', 'mine' => 'Menunggu Persetujuan Saya'] as $value => $label)
                                 <option value="{{ $value }}" @selected($filter === $value)>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+                    <label for="promotion-batch" class="block text-sm font-semibold text-slate-700">Batch
+                        <select id="promotion-batch" name="batch" class="mt-1 block w-full rounded-lg border-slate-300 text-sm">
+                            <option value="">Semua Batch</option>
+                            @foreach ($batchOptions as $batchOption)
+                                <option value="{{ $batchOption->id }}" @selected($batchId === $batchOption->id)>{{ $batchOption->batch_number }} &middot; {{ $batchOption->name }}</option>
                             @endforeach
                         </select>
                     </label>
@@ -235,6 +261,9 @@
                                 @endif
                                 <td data-label="SAP" class="px-4 py-4 align-middle whitespace-normal">
                                     <span class="break-all font-display text-sm font-bold text-slate-900">{{ $promotion->sap }}</span>
+                                    @if ($promotion->batch)
+                                        <a href="{{ route('promosi.batches.show', $promotion->batch) }}" class="mt-1 block break-all text-[10px] font-bold text-sky-700 hover:text-sky-800">{{ $promotion->batch->batch_number }}</a>
+                                    @endif
                                 </td>
                                 <td data-label="Pegawai" class="px-4 py-4 align-middle whitespace-normal">
                                     <p class="break-words font-semibold leading-5 text-slate-900">{{ $promotion->nama }}</p>
@@ -339,24 +368,6 @@
 
         <div class="border-t border-slate-100 px-4 py-3">{{ $promotions->links() }}</div>
     </section>
-
-    @if ($canCreatePromotions)
-        <dialog id="create-promotion" @if (old('_form') === 'create') open @endif
-            aria-labelledby="manual-promotion-title" aria-describedby="manual-promotion-description"
-            class="w-[calc(100%-1rem)] max-w-7xl overflow-hidden rounded-2xl p-0 shadow-2xl backdrop:bg-slate-950/60 sm:w-[calc(100%-2rem)] sm:rounded-3xl">
-            <section class="flex max-h-[calc(100dvh-1rem)] min-h-0 flex-col bg-white sm:max-h-[calc(100dvh-2rem)]">
-                <div class="flex flex-none items-start justify-between gap-4 border-b border-slate-200 bg-white px-4 py-4 sm:px-6 sm:py-5 lg:px-7">
-                    <div>
-                        <h3 id="manual-promotion-title" class="font-display text-xl font-bold text-slate-950 sm:text-2xl">Tambah Data Promosi</h3>
-                        <p id="manual-promotion-description" class="mt-1 text-sm leading-6 text-slate-500">Lengkapi data utama dan bandingkan organisasi saat ini dengan organisasi tujuan sebelum menyimpan.</p>
-                    </div>
-                    <button type="button" onclick="this.closest('dialog').close()" aria-label="Tutup modal Tambah Data Promosi"
-                        class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-2xl leading-none text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500">&times;</button>
-                </div>
-                @include('pages.promosi._form', ['promotion' => null, 'action' => route('promosi.store'), 'method' => 'POST', 'formKey' => 'create', 'submitLabel' => 'Simpan Draft Promosi'])
-            </section>
-        </dialog>
-    @endif
 
     @foreach ($promotions as $promotion)
         @php

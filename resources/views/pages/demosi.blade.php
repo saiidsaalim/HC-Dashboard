@@ -12,31 +12,9 @@
         $canPrintDemotions = auth()->user()->hasPermission('demotions.print');
         $hasDeletableDemotions = $canDeleteDemotions
             && $demotions->contains(fn ($demotion): bool => auth()->user()->can('delete', $demotion));
+        $selectedBatch = $batchId !== null ? $batchOptions->firstWhere('id', $batchId) : null;
     @endphp
-    <div data-mutation-journey x-data="{
-        open: @js(old('_form') === 'create-demotion'),
-        openModal() {
-            this.open = true;
-            this.$nextTick(() => this.$refs.demotionModal?.querySelector('[type=search]')?.focus());
-        },
-        closeModal() {
-            this.open = false;
-            this.$nextTick(() => this.$refs.openDemotion?.focus());
-        },
-        trapFocus(event) {
-            const focusable = [...this.$refs.demotionModal.querySelectorAll(
-                'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href]',
-            )].filter((element) => element.offsetParent !== null);
-            if (focusable.length === 0) return;
-            const first = focusable[0];
-            const last = focusable[focusable.length - 1];
-            if (event.shiftKey && document.activeElement === first) {
-                event.preventDefault(); last.focus();
-            } else if (!event.shiftKey && document.activeElement === last) {
-                event.preventDefault(); first.focus();
-            }
-        },
-    }" x-init="if (open) $nextTick(() => $refs.demotionModal?.querySelector('[type=search]')?.focus())">
+    <div data-mutation-journey>
         <x-ui.page-header title="Daftar Demosi" eyebrow="Talent movement"
             description="Kelola proses penurunan jabatan dan evaluasi kinerja pegawai.">
             <x-slot:actions>
@@ -47,11 +25,10 @@
                     </a>
                 @endif
                 @if ($canCreateDemotions)
-                    <button type="button" x-ref="openDemotion" @click="openModal()"
-                        class="ui-button ui-button-primary">
-                        <span class="text-lg leading-none" aria-hidden="true">+</span>
-                        Buat Demosi
-                    </button>
+                    <a href="{{ route('demosi.batches.create') }}" class="ui-button ui-button-primary">
+                        <x-dashboard-icon name="users" class="h-4 w-4" />
+                        Buat Batch Demosi
+                    </a>
                 @endif
             </x-slot:actions>
         </x-ui.page-header>
@@ -85,28 +62,6 @@
             </div>
         @endif
 
-        @if ($canCreateDemotions)
-        <div x-cloak x-show="open" x-transition.opacity @keydown.escape.window="if (open) closeModal()"
-            class="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950/60 p-2 backdrop-blur-sm sm:p-4"
-            @click.self="closeModal()">
-            <section x-ref="demotionModal" @keydown.tab="trapFocus($event)"
-                class="flex max-h-[calc(100dvh-1rem)] w-full max-w-7xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl" role="dialog"
-                aria-modal="true" aria-labelledby="manual-demotion-title" aria-describedby="manual-demotion-description">
-                <div class="flex flex-none items-start justify-between gap-4 border-b border-slate-200 bg-white px-4 py-4 sm:px-6 sm:py-5 lg:px-7">
-                    <div>
-                        <h3 id="manual-demotion-title" class="font-display text-xl font-bold text-slate-950 sm:text-2xl">Tambah Data Demosi</h3>
-                        <p id="manual-demotion-description" class="mt-1 text-sm leading-6 text-slate-500">Lengkapi data utama dan bandingkan organisasi saat ini dengan organisasi tujuan sebelum menyimpan.</p>
-                    </div>
-                    <button type="button" @click="closeModal()" aria-label="Tutup modal Tambah Data Demosi"
-                        class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-2xl leading-none text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500">&times;</button>
-                </div>
-                @include('pages.demosi._form', [
-                    'action' => route('demosi.store'), 'method' => 'POST', 'movement' => null,
-                    'formKey' => 'create-demotion', 'submitLabel' => 'Simpan Draft Demosi',
-                ])
-            </section>
-        </div>
-        @endif
     </div>
 
     <div class="relative grid gap-4 md:grid-cols-2 xl:grid-cols-3" aria-label="Ringkasan demosi">
@@ -147,6 +102,9 @@
         </article>
     </div>
 
+    <x-personnel-movement-batch-carousel :batches="$demotionBatches" :selected-batch-id="$batchId"
+        route-prefix="demosi" movement-label="Demosi" />
+
     <section data-mutation-journey class="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div class="flex w-full flex-col gap-4 border-b border-slate-200 p-4 sm:p-5 xl:flex-row xl:items-center xl:justify-between">
             <div class="flex items-center gap-3">
@@ -154,14 +112,29 @@
                     <x-dashboard-icon name="arrows" class="h-5 w-5" />
                 </span>
                 <div>
-                    <h3 class="font-display text-lg font-bold text-slate-950">Data demosi terbaru</h3>
-                    <p class="mt-0.5 text-xs text-slate-500">Pantau perjalanan posisi dan status persetujuan pegawai.</p>
+                    <h3 class="font-display text-lg font-bold text-slate-950">
+                        {{ $selectedBatch ? 'Pegawai dalam Batch '.$selectedBatch->batch_number : 'Data demosi terbaru' }}
+                    </h3>
+                    @if ($selectedBatch)
+                        <p class="mt-0.5 text-xs text-slate-500">
+                            {{ $selectedBatch->name }} &middot; {{ $demotions->total() }} pegawai ditampilkan.
+                            <a href="{{ route('demosi') }}" class="ml-1 font-bold text-sky-700 hover:text-sky-800">Tampilkan semua pegawai</a>
+                        </p>
+                    @else
+                        <p class="mt-0.5 text-xs text-slate-500">Pantau perjalanan posisi dan status persetujuan pegawai.</p>
+                    @endif
                 </div>
             </div>
             <div class="flex flex-col items-stretch gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-end">
+                @if ($selectedBatch && auth()->user()->hasPermission('demotions.print'))
+                    <a href="{{ route('demosi.batches.export', $selectedBatch) }}" class="ui-button ui-button-primary">Export Excel</a>
+                @endif
                 <form method="GET" action="{{ route('demosi') }}" class="relative w-full lg:w-80">
                     @if ($filter !== 'all')
                         <input type="hidden" name="status" value="{{ $filter }}">
+                    @endif
+                    @if ($batchId !== null)
+                        <input type="hidden" name="batch" value="{{ $batchId }}">
                     @endif
                     <label for="demotion-quick-search" class="sr-only">Cari data demosi</label>
                     <svg class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
@@ -173,7 +146,7 @@
                         class="ui-input w-full py-2.5 pl-10 pr-4 text-sm">
                 </form>
                 <x-ui.filter-panel id="demotion-filters" title="Filter Demosi" class="w-full sm:w-auto"
-                    :action="route('demosi')" :reset-href="route('demosi')" :active="$search !== '' || $filter !== 'all'">
+                    :action="route('demosi')" :reset-href="route('demosi')" :active="$search !== '' || $filter !== 'all' || $batchId !== null">
                     @if ($search !== '')
                         <input type="hidden" name="search" value="{{ $search }}">
                     @endif
@@ -185,6 +158,14 @@
                             <option value="returned" @selected($filter === 'returned')>Dikembalikan</option>
                             <option value="approved" @selected($filter === 'approved')>Disetujui, menunggu TMT</option>
                             <option value="final" @selected($filter === 'final')>Sudah diterapkan</option>
+                        </select>
+                    </label>
+                    <label for="demotion-batch" class="block text-sm font-semibold text-slate-700">Batch
+                        <select id="demotion-batch" name="batch" class="mt-1 block w-full rounded-lg border-slate-300 text-sm">
+                            <option value="">Semua Batch</option>
+                            @foreach ($batchOptions as $batchOption)
+                                <option value="{{ $batchOption->id }}" @selected($batchId === $batchOption->id)>{{ $batchOption->batch_number }} &middot; {{ $batchOption->name }}</option>
+                            @endforeach
                         </select>
                     </label>
                 </x-ui.filter-panel>
@@ -267,6 +248,9 @@
                                 @endif
                                 <td data-label="SAP" class="px-4 py-4 align-middle whitespace-normal">
                                     <span class="break-all font-display text-sm font-bold text-slate-900">{{ $demotion->sap }}</span>
+                                    @if ($demotion->batch)
+                                        <a href="{{ route('demosi.batches.show', $demotion->batch) }}" class="mt-1 block break-all text-[10px] font-bold text-sky-700 hover:text-sky-800">{{ $demotion->batch->batch_number }}</a>
+                                    @endif
                                 </td>
                                 <td data-label="Pegawai" class="px-4 py-4 align-middle whitespace-normal">
                                     <p class="break-words font-semibold leading-5 text-slate-900">{{ $demotion->nama }}</p>

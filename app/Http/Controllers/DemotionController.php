@@ -7,6 +7,7 @@ use App\Http\Requests\StoreDemotionRequest;
 use App\Http\Requests\UpdateDemotionRequest;
 use App\Models\Employee;
 use App\Models\EmployeeDemotion;
+use App\Models\EmployeeDemotionBatch;
 use App\Models\User;
 use App\Services\Personnel\ApprovalService;
 use App\Services\Personnel\MovementApprovalWorkflowService;
@@ -34,10 +35,11 @@ class DemotionController extends Controller
     ): View {
         Gate::authorize('viewAny', EmployeeDemotion::class);
         $search = trim((string) $request->input('search', ''));
+        $batchId = $request->integer('batch') ?: null;
         $filter = in_array($request->input('status'), ['draft', 'waiting', 'returned', 'approved', 'final'], true)
             ? (string) $request->input('status')
             : 'all';
-        $demotionQuery = EmployeeDemotion::query()->with(['employee', 'approvals.manager']);
+        $demotionQuery = EmployeeDemotion::query()->with(['batch:id,batch_number,name', 'employee', 'approvals.manager']);
 
         if ($search !== '') {
             $demotionQuery->where(function (Builder $query) use ($search): void {
@@ -47,7 +49,15 @@ class DemotionController extends Controller
                 ] as $column) {
                     $query->orWhere($column, 'like', "%{$search}%");
                 }
+
+                $query->orWhereHas('batch', fn (Builder $batchQuery) => $batchQuery
+                    ->where('batch_number', 'like', "%{$search}%")
+                    ->orWhere('name', 'like', "%{$search}%"));
             });
+        }
+
+        if ($batchId !== null) {
+            $demotionQuery->where('employee_demotion_batch_id', $batchId);
         }
 
         if ($filter === 'draft') {
@@ -72,6 +82,19 @@ class DemotionController extends Controller
                 ->count(),
             'search' => $search,
             'filter' => $filter,
+            'batchId' => $batchId,
+            'demotionBatches' => EmployeeDemotionBatch::query()
+                ->withCount([
+                    'demotions as movements_count',
+                    'demotions as draft_movements_count' => fn (Builder $query) => $query->where('verification_status', 'Draft'),
+                    'demotions as pending_movements_count' => fn (Builder $query) => $query->where('verification_status', 'Pending'),
+                    'demotions as returned_movements_count' => fn (Builder $query) => $query->where('verification_status', 'Returned'),
+                    'demotions as completed_movements_count' => fn (Builder $query) => $query->whereIn('verification_status', ['Approved', 'Final']),
+                ])
+                ->latest()
+                ->limit(6)
+                ->get(),
+            'batchOptions' => EmployeeDemotionBatch::query()->latest()->get(['id', 'batch_number', 'name']),
             'employeeOptions' => $formDataService->employees(),
             ...$formDataService->organization(),
             'approvalConfiguration' => $workflow->configuration(EmployeeDemotion::class),

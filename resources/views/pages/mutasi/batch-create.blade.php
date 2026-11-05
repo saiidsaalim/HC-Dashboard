@@ -1,18 +1,23 @@
 @extends('layouts.app')
 
-@section('page-title', 'Buat Batch Mutasi')
+@php
+    $movementLabel = $movementLabel ?? 'Mutasi';
+    $routePrefix = $routePrefix ?? 'mutasi';
+@endphp
+
+@section('page-title', 'Buat Batch '.$movementLabel)
 
 @section('content')
-    <x-ui.page-header title="Buat Batch Mutasi" eyebrow="Talent movement"
-        description="Siapkan satu atau beberapa mutasi pegawai dalam satu kelompok tanpa menggabungkan riwayat persetujuannya.">
+    <x-ui.page-header :title="'Buat Batch '.$movementLabel" eyebrow="Talent movement"
+        :description="'Siapkan satu atau beberapa '.strtolower($movementLabel).' pegawai dalam satu kelompok tanpa menggabungkan riwayat persetujuannya.'">
         <x-slot:actions>
-            <a href="{{ route('mutasi') }}" class="ui-button ui-button-secondary">Kembali ke Mutasi</a>
+            <a href="{{ route($routePrefix) }}" class="ui-button ui-button-secondary">Kembali ke {{ $movementLabel }}</a>
         </x-slot:actions>
     </x-ui.page-header>
 
     @if ($errors->any())
         <div class="mb-6 rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700" role="alert">
-            <p class="font-bold">Batch Mutasi belum dapat disimpan.</p>
+            <p class="font-bold">Batch {{ $movementLabel }} belum dapat disimpan.</p>
             <ul class="mt-2 list-disc space-y-1 pl-5">
                 @foreach ($errors->all() as $error)
                     <li>{{ $error }}</li>
@@ -21,7 +26,7 @@
         </div>
     @endif
 
-    <form method="POST" action="{{ route('mutasi.batches.store') }}"
+    <form method="POST" action="{{ route($routePrefix.'.batches.store') }}"
         x-data="{
             employees: @js($employeeOptions),
             directorates: @js($movementDirectorates),
@@ -103,14 +108,14 @@
                 </span>
                 <div>
                     <h2 class="font-display text-lg font-bold text-slate-950">Informasi Batch</h2>
-                    <p class="mt-1 text-sm text-slate-500">Informasi ini digunakan untuk mengelompokkan seluruh item Mutasi.</p>
+                    <p class="mt-1 text-sm text-slate-500">Informasi ini digunakan untuk mengelompokkan seluruh item {{ $movementLabel }}.</p>
                 </div>
             </div>
 
             <div class="mt-5 grid gap-4 lg:grid-cols-2">
                 <label class="text-sm font-semibold text-slate-700">Nama Batch
                     <input name="name" value="{{ old('name') }}" required maxlength="255"
-                        placeholder="Contoh: Mutasi Organisasi Januari 2027" class="ui-input mt-1.5 block w-full">
+                        placeholder="Contoh: {{ $movementLabel }} Organisasi Januari 2027" class="ui-input mt-1.5 block w-full">
                 </label>
                 <div>
                     <label for="batch-default-tmt" class="text-sm font-semibold text-slate-700">TMT Default</label>
@@ -121,7 +126,7 @@
                 </div>
                 <label class="text-sm font-semibold text-slate-700 lg:col-span-2">Keterangan
                     <textarea name="description" rows="3" maxlength="2000" class="ui-input mt-1.5 block w-full"
-                        placeholder="Keterangan atau alasan pengelompokan mutasi ini.">{{ old('description') }}</textarea>
+                        placeholder="Keterangan atau alasan pengelompokan {{ strtolower($movementLabel) }} ini.">{{ old('description') }}</textarea>
                 </label>
             </div>
         </section>
@@ -168,7 +173,7 @@
             </div>
 
             <div x-show="selectedIds.length === 0" class="mt-5 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
-                Pilih pegawai terlebih dahulu untuk mengisi tujuan Mutasi.
+                Pilih pegawai terlebih dahulu untuk mengisi tujuan {{ $movementLabel }}.
             </div>
 
             <div class="mt-5 space-y-4">
@@ -262,9 +267,9 @@
         <div class="sticky bottom-3 z-20 flex flex-col-reverse gap-3 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur sm:flex-row sm:items-center sm:justify-between">
             <p class="text-sm text-slate-500">Setelah disimpan, seluruh item berstatus Draft dan dapat diperiksa sebelum diajukan.</p>
             <div class="flex flex-col-reverse gap-3 sm:flex-row">
-                <a href="{{ route('mutasi') }}" class="ui-button ui-button-secondary text-center">Batal</a>
+                <a href="{{ route($routePrefix) }}" class="ui-button ui-button-secondary text-center">Batal</a>
                 <button type="submit" :disabled="selectedIds.length < 1" class="ui-button ui-button-primary disabled:cursor-not-allowed disabled:opacity-50">
-                    Simpan Batch Mutasi
+                    Simpan Batch {{ $movementLabel }}
                 </button>
             </div>
         </div>

@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
+    'employee_promotion_batch_id',
     'employee_id',
     'sap',
     'nama',
@@ -50,6 +51,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class EmployeePromotion extends Model
 {
     use ResolvesMovementEmployee;
+
+    public function batch(): BelongsTo
+    {
+        return $this->belongsTo(EmployeePromotionBatch::class, 'employee_promotion_batch_id');
+    }
 
     public function employee(): BelongsTo
     {
