@@ -14,6 +14,21 @@ class FitProperCalculationService
         'anti_gratuity' => 'Anti Gratifikasi', 'conflict' => 'Benturan Kepentingan',
     ];
 
+    public const GROUPS = [
+        'core' => [
+            'label' => 'Kompetensi Inti',
+            'indicators' => ['adaptability', 'authenticity', 'contributing', 'learning', 'diversity'],
+        ],
+        'job' => [
+            'label' => 'Kompetensi Pekerjaan',
+            'indicators' => ['job_mastery', 'improvement'],
+        ],
+        'integrity' => [
+            'label' => 'Integritas',
+            'indicators' => ['anti_bribery', 'anti_gratuity', 'conflict'],
+        ],
+    ];
+
     /**
      * @param  array<string, float|int|string|null>  $values
      * @return array{core: float, eligibility: float, average: float, guidance: string}|null
@@ -90,5 +105,76 @@ class FitProperCalculationService
 
         return ['complete' => $complete, 'zero_max' => $maximumAverage <= 0, 'max_raw' => $maximumAverage, 'standard' => $standard, 'rows' => $rows,
             'precision' => 6, 'normalization' => 'Nilai FP dinormalisasi terhadap rata-rata peserta tertinggi dalam kegiatan. Hasil sementara dapat berubah.'];
+    }
+
+    /**
+     * Reshape existing recap results for the comparison matrix without recalculating scores.
+     *
+     * @param  array<string, mixed>  $recap
+     * @return array{groups: list<array{key: string, label: string, components: list<array{key: string, label: string}>}>, examiners: list<array{id: int, name: string, completed_count: int, participant_count: int, participants: list<array<string, mixed>>}>}
+     */
+    public function comparisonMatrix(FitProperActivity $activity, array $recap): array
+    {
+        $groups = [];
+
+        foreach (self::GROUPS as $groupKey => $group) {
+            $groups[] = [
+                'key' => $groupKey,
+                'label' => $group['label'],
+                'components' => array_map(fn (string $key): array => [
+                    'key' => $key,
+                    'label' => self::INDICATORS[$key],
+                ], $group['indicators']),
+            ];
+        }
+
+        $recapRows = collect($recap['rows'] ?? [])->map(function (array $row): array {
+            $row['details_by_examiner'] = collect($row['details'] ?? [])->keyBy('examiner_id')->all();
+
+            return $row;
+        });
+
+        $examiners = $activity->examiners->map(function ($examiner) use ($recapRows): array {
+            $participants = $recapRows->map(function (array $row) use ($examiner): array {
+                $detail = $row['details_by_examiner'][$examiner->id] ?? [];
+
+                return [
+                    'id' => $row['id'],
+                    'name' => $row['name'],
+                    'sap' => $row['sap'] ?: $row['internal_identity'],
+                    'initials' => $this->initials($row['name']),
+                    'submitted' => (bool) ($detail['submitted'] ?? false),
+                    'indicators' => $detail['indicators'] ?? [],
+                    'calculation' => $detail['calculation'] ?? null,
+                    'recommendation' => $detail['recommendation'] ?? null,
+                    'notes' => $detail['notes'] ?? null,
+                ];
+            })->values();
+
+            return [
+                'id' => $examiner->id,
+                'name' => $examiner->name,
+                'completed_count' => $participants->where('submitted', true)->count(),
+                'participant_count' => $participants->count(),
+                'participants' => $participants->all(),
+            ];
+        })->values();
+
+        return [
+            'groups' => $groups,
+            'examiners' => $examiners->all(),
+        ];
+    }
+
+    private function initials(string $name): string
+    {
+        $parts = preg_split('/\s+/u', trim($name)) ?: [];
+        $initials = collect($parts)
+            ->filter()
+            ->take(2)
+            ->map(fn (string $part): string => mb_strtoupper(mb_substr($part, 0, 1)))
+            ->implode('');
+
+        return $initials !== '' ? $initials : 'P';
     }
 }

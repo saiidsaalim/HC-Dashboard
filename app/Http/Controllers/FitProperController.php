@@ -96,11 +96,13 @@ class FitProperController extends Controller
             }
         }
         $activity->load(['participants', 'pics', 'examiners.scores']);
+        $recap = $activity->final_snapshot ?? $this->service->calculation->recap($activity);
 
         return view('fit-proper.show', ['activity' => $activity, 'users' => Gate::allows('update', $activity)
             ? User::orderBy('name')->get(['id', 'name', 'email'])
             : collect(),
-            'recap' => $activity->final_snapshot ?? $this->service->calculation->recap($activity),
+            'recap' => $recap,
+            'recapMatrix' => $this->service->calculation->comparisonMatrix($activity, $recap),
             'histories' => $activity->histories()->orderByDesc('id')->get()]);
     }
 
@@ -142,10 +144,21 @@ class FitProperController extends Controller
         $activity = FitProperActivity::findOrFail($request->integer('activity'));
         Gate::authorize('update', $activity);
         $term = $request->validate(['q' => 'required|string|min:2|max:100'])['q'];
+        $employees = Employee::query()
+            ->with(['organizationDepartment:id,name', 'organizationPosition:id,name'])
+            ->where('sap', 'like', '%'.$term.'%')
+            ->limit(20)
+            ->get();
 
-        return response()->json(Employee::query()->where(fn ($builder) => $builder->where('name', 'like', '%'.$term.'%')
-            ->orWhere('sap', 'like', '%'.$term.'%')->orWhere('personal_number', 'like', '%'.$term.'%'))
-            ->limit(20)->get(['id', 'name', 'sap', 'personal_number']));
+        return response()->json($employees->map(fn (Employee $employee): array => [
+            'id' => $employee->id,
+            'sap' => $employee->sap,
+            'name' => $employee->personal_number ?: ($employee->name ?: $employee->sap),
+            'birth_date' => $employee->birth_date?->toDateString(),
+            'department' => $employee->organizationDepartmentName(),
+            'current_position' => $employee->organizationPositionName(),
+            'education' => $employee->education ?? $employee->pendidikan,
+        ])->values());
     }
 
     public function participantForm(FitProperActivity $activity, ?FitProperParticipant $participant = null): View

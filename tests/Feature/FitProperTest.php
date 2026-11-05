@@ -86,6 +86,10 @@ class FitProperTest extends TestCase
         $this->assertSame('Draft', $a->status);
         $this->assertFalse($a->is_simulation);
         $employeeCount = Employee::count();
+        $this->get(route('fit-proper.show', $a))->assertOk()
+            ->assertSee('Belum ada peserta')
+            ->assertSee('Tambahkan peserta untuk memulai proses Fit &amp; Proper.', false)
+            ->assertSee('Tambah Peserta');
         $this->post(route('fit-proper.participants.store', $a), ['name' => 'Manual Fiktif', 'birth_date' => '1990-01-01', 'current_jg' => 12, 'target_jg' => 10, 'kpi_year_1' => 0, 'kpi_year_2' => 0, 'assessment' => 0, 'cv' => UploadedFile::fake()->create('cv.pdf', 20, 'application/pdf')])->assertRedirect();
         $p = $a->participants()->sole();
         $cvPath = $p->cv_path;
@@ -100,7 +104,38 @@ class FitProperTest extends TestCase
         $this->assertNotNull($p->age());
         $identity = $p->internal_identity;
         $this->get(route('fit-proper'))->assertOk()->assertSee('Uji manual');
-        $this->get(route('fit-proper.show', $a))->assertOk()->assertSee('Manual Fiktif');
+        $this->get(route('fit-proper.show', $a))->assertOk()
+            ->assertSee('Manual Fiktif')
+            ->assertSee('Cari peserta...')
+            ->assertSee('data-fp-participant-list', false)
+            ->assertSee('data-fp-participant-card', false)
+            ->assertSee('Profil Lengkap')
+            ->assertSee('Hasil Asesmen')
+            ->assertSee('Lihat CV')
+            ->assertSee('aria-label="Edit peserta Manual Fiktif"', false)
+            ->assertSee('aria-label="Hapus peserta Manual Fiktif"', false)
+            ->assertSee('data-fp-participant-edit-trigger', false)
+            ->assertSee('data-fp-participant-edit-modal', false)
+            ->assertSee('fit-proper-participant-edit-'.$p->id.'-title', false)
+            ->assertSee('value="participant-edit-'.$p->id.'"', false)
+            ->assertSee('data-fp-participant-form="create"', false)
+            ->assertSee('data-fp-participant-form="edit"', false)
+            ->assertSee('action="'.route('fit-proper.participants.store', $a).'"', false)
+            ->assertSee('action="'.route('fit-proper.participants.update', [$a, $p]).'"', false)
+            ->assertSee('fit-proper-participant-create-name', false)
+            ->assertSee('fit-proper-participant-edit-'.$p->id.'-name', false)
+            ->assertSee('Identitas &amp; Posisi', false)
+            ->assertSee('Profil Pendukung')
+            ->assertSee('Simpan Perubahan')
+            ->assertSee('CV aktif tersedia')
+            ->assertDontSee('href="'.route('fit-proper.participants.edit', [$a, $p]).'"', false)
+            ->assertSee('data-fp-participant-modal', false)
+            ->assertSee('fit-proper-participant-create-title', false)
+            ->assertSee('form_context', false)
+            ->assertSee('Cari SAP')
+            ->assertDontSee('Nama (wajib untuk manual)')
+            ->assertDontSee('SAP / personal number (opsional)')
+            ->assertDontSee('href="'.route('fit-proper.participants.create', $a).'"', false);
         $this->get(route('fit-proper.participants.edit', [$a, $p]))->assertOk();
         $this->get(route('fit-proper.cv', [$a, $p]))->assertOk();
         $this->get(route('fit-proper.print', $a))->assertOk()->assertSee('Sementara');
@@ -114,19 +149,79 @@ class FitProperTest extends TestCase
         $this->delete(route('fit-proper.destroy', $a))->assertRedirect();
     }
 
+    public function test_participant_create_validation_reopens_the_modal(): void
+    {
+        $admin = $this->admin();
+        $activity = $this->activity($admin);
+
+        $this->actingAs($admin)
+            ->from(route('fit-proper.show', $activity))
+            ->followingRedirects()
+            ->post(route('fit-proper.participants.store', $activity), [
+                'form_context' => 'participant-create',
+            ])
+            ->assertOk()
+            ->assertSee('data-initially-open="true"', false)
+            ->assertSee('Peserta belum dapat disimpan.');
+    }
+
+    public function test_participant_edit_validation_reopens_the_correct_modal(): void
+    {
+        $admin = $this->admin();
+        $activity = $this->activity($admin);
+        $participant = $this->participant($activity);
+
+        $this->actingAs($admin)
+            ->from(route('fit-proper.show', $activity))
+            ->followingRedirects()
+            ->put(route('fit-proper.participants.update', [$activity, $participant]), [
+                'form_context' => 'participant-edit-'.$participant->id,
+                'name' => '',
+            ])
+            ->assertOk()
+            ->assertSee('data-participant-id="'.$participant->id.'"', false)
+            ->assertSee('data-initially-open="true"', false)
+            ->assertSee('Peserta belum dapat disimpan.');
+    }
+
     public function test_employee_search_snapshot_and_duplicate_prevention_for_pic(): void
     {
         $a = $this->activity();
         $pic = User::factory()->create(['role' => 'Staff']);
         $this->service()->assignPics($a, [$pic->id], null);
-        $id = DB::table('employees')->insertGetId(['name' => 'Pegawai Sumber', 'sap' => 'FP-TEST', 'personal_number' => '123456', 'created_at' => now(), 'updated_at' => now()]);
-        $this->actingAs($pic)->get(route('fit-proper.employees', ['activity' => $a->id, 'q' => 'FP-TEST']))->assertOk()->assertJsonFragment(['id' => $id]);
+        $id = DB::table('employees')->insertGetId([
+            'name' => 'Nama Lama',
+            'sap' => 'FP-TEST',
+            'personal_number' => 'Pegawai Sumber',
+            'birth_date' => '1990-01-02',
+            'txt_dept' => 'Human Capital',
+            'position' => 'Analis HC',
+            'education' => 'S1',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $this->actingAs($pic)->get(route('fit-proper.employees', ['activity' => $a->id, 'q' => 'FP-TEST']))
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $id,
+                'sap' => 'FP-TEST',
+                'name' => 'Pegawai Sumber',
+                'birth_date' => '1990-01-02',
+                'department' => 'Human Capital',
+                'current_position' => 'Analis HC',
+                'education' => 'S1',
+            ]);
         $payload = ['employee_id' => $id];
         $this->post(route('fit-proper.participants.store', $a), $payload)->assertRedirect();
         $p = $a->participants()->sole();
         $this->assertSame('Pegawai Sumber', $p->name);
+        $this->assertSame('FP-TEST', $p->sap);
+        $this->assertSame('1990-01-02', $p->birth_date?->toDateString());
+        $this->assertSame('Human Capital', $p->profile['department']);
+        $this->assertSame('Analis HC', $p->profile['current_position']);
+        $this->assertSame('S1', $p->profile['education']);
         $this->post(route('fit-proper.participants.store', $a), $payload)->assertSessionHasErrors('employee_id');
-        DB::table('employees')->where('id', $id)->update(['name' => 'Nama berubah']);
+        DB::table('employees')->where('id', $id)->update(['personal_number' => 'Nama berubah']);
         $this->assertSame('Pegawai Sumber', $p->fresh()->name);
     }
 
@@ -155,6 +250,76 @@ class FitProperTest extends TestCase
         $this->post(route('fit-proper.finalize', $a))->assertForbidden();
     }
 
+    public function test_pic_panel_assignment_is_additive_duplicate_safe_and_detaches_only_one_user(): void
+    {
+        $admin = $this->admin();
+        $activity = $this->activity($admin);
+        $firstCandidate = User::factory()->create([
+            'name' => 'Kandidat PIC Pertama Dengan Nama Panjang',
+            'email' => 'kandidat.pic.pertama.dengan.email.panjang@example.com',
+        ]);
+        $secondCandidate = User::factory()->create([
+            'name' => 'Kandidat PIC Kedua',
+            'email' => 'kandidat.pic.kedua@example.com',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('fit-proper.show', $activity))
+            ->assertOk()
+            ->assertSee('data-fp-fragment="pic-panel"', false)
+            ->assertSee('PIC Aktif')
+            ->assertSee('Tambahkan PIC')
+            ->assertSee('Bersihkan pilihan')
+            ->assertSee('Belum ada pengguna dipilih')
+            ->assertSee('Sudah menjadi PIC')
+            ->assertSee('aria-label="Lepas '.$admin->name.' dari PIC kegiatan"', false)
+            ->assertSee('action="'.route('fit-proper.pics', $activity).'"', false)
+            ->assertSee('name="_method" value="PUT"', false)
+            ->assertSee('id="fp-pic-user-'.$activity->id.'-'.$firstCandidate->id.'"', false);
+
+        $this->put(route('fit-proper.pics', $activity), [
+            'users' => [$firstCandidate->id, $secondCandidate->id],
+        ])->assertRedirect();
+
+        $this->assertEqualsCanonicalizing(
+            [$admin->id, $firstCandidate->id, $secondCandidate->id],
+            $activity->fresh()->pics()->pluck('users.id')->all(),
+        );
+
+        $this->put(route('fit-proper.pics', $activity), ['users' => [$firstCandidate->id]])
+            ->assertSessionHasErrors('users');
+        $this->put(route('fit-proper.pics', $activity), ['users' => [PHP_INT_MAX]])
+            ->assertSessionHasErrors('users.0');
+
+        $this->delete(route('fit-proper.pics.delete', [$activity, $firstCandidate]))
+            ->assertRedirect();
+
+        $this->assertEqualsCanonicalizing(
+            [$admin->id, $secondCandidate->id],
+            $activity->fresh()->pics()->pluck('users.id')->all(),
+        );
+        $this->assertDatabaseHas('users', ['id' => $firstCandidate->id]);
+    }
+
+    public function test_pic_panel_has_safe_empty_state_without_hiding_assignment_panel(): void
+    {
+        $admin = $this->admin();
+        $activity = $this->service()->create([
+            'name' => 'Kegiatan tanpa PIC',
+            'target_position' => 'Kepala Unit',
+            'scheduled_at' => '2026-10-19',
+        ], $admin);
+
+        $this->actingAs($admin)
+            ->get(route('fit-proper.show', $activity))
+            ->assertOk()
+            ->assertSee('0 PIC')
+            ->assertSee('Belum ada PIC')
+            ->assertSee('Pilih pengguna pada panel Tambahkan PIC.')
+            ->assertSee('Tambahkan PIC')
+            ->assertSee('data-fp-pic-empty', false);
+    }
+
     public function test_tokens_invalid_expired_revoked_reissued_and_finalized(): void
     {
         $a = $this->activity();
@@ -181,6 +346,172 @@ class FitProperTest extends TestCase
         $this->service()->transition($a, 'Selesai');
         $this->get(route('fit-proper.link', $new))->assertNotFound();
         $this->post(route('fit-proper.link.submit', $new), $this->scores($a))->assertNotFound();
+    }
+
+    public function test_examiner_workspace_renders_safe_empty_state_and_internal_manual_controls(): void
+    {
+        $admin = $this->admin();
+        $activity = $this->activity($admin);
+        $internalUser = User::factory()->create([
+            'name' => 'Penguji Internal Dengan Nama Sangat Panjang',
+            'email' => 'penguji.internal.dengan.email.panjang@example.com',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('fit-proper.show', $activity))
+            ->assertOk()
+            ->assertSee('data-fp-fragment="examiner-panel"', false)
+            ->assertSee('Status kegiatan: Draft')
+            ->assertSee('0 Penguji')
+            ->assertSee('Belum ada penguji')
+            ->assertSee('Tambahkan penguji agar proses penilaian dapat disiapkan.')
+            ->assertSee('Tambah Penguji')
+            ->assertSee('Masukkan nama penguji')
+            ->assertSee('action="'.route('fit-proper.examiners', $activity).'"', false);
+
+        $this->post(route('fit-proper.examiners', $activity), ['user_id' => $internalUser->id])
+            ->assertRedirect();
+        $this->post(route('fit-proper.examiners', $activity), ['name' => 'Penguji Manual'])
+            ->assertRedirect();
+        $this->post(route('fit-proper.examiners', $activity), ['user_id' => $internalUser->id])
+            ->assertSessionHasErrors('user_id');
+
+        $internalExaminer = $activity->fresh()->examiners()->where('user_id', $internalUser->id)->sole();
+
+        $this->get(route('fit-proper.show', $activity))
+            ->assertOk()
+            ->assertSee('2 Penguji')
+            ->assertSee('Penguji Internal Dengan Nama Sangat Panjang')
+            ->assertSee('Penguji Manual')
+            ->assertSee('Internal')
+            ->assertSee('Manual')
+            ->assertSee('Sudah menjadi penguji')
+            ->assertSee('Terbitkan ulang')
+            ->assertSee('Cabut tautan')
+            ->assertSee('aria-label="Hapus penguji '.$internalExaminer->name.'"', false)
+            ->assertSee('Tautan telah diterbitkan. URL lengkap hanya ditampilkan saat penerbitan dan tidak disimpan sebagai teks biasa.');
+    }
+
+    public function test_recap_matrix_handles_empty_and_participant_count_scroll_states(): void
+    {
+        $admin = $this->admin();
+        $activityWithoutExaminer = $this->activity($admin);
+
+        $this->actingAs($admin)
+            ->get(route('fit-proper.show', $activityWithoutExaminer))
+            ->assertOk()
+            ->assertSee('Belum ada penguji untuk dibandingkan.')
+            ->assertSee('Peringkat belum tersedia');
+
+        $activityWithoutParticipant = $this->activity($admin);
+        $this->service()->examiner($activityWithoutParticipant, ['name' => 'Penguji Tanpa Peserta']);
+
+        $this->get(route('fit-proper.show', $activityWithoutParticipant))
+            ->assertOk()
+            ->assertSee('Belum ada peserta pada kegiatan ini.');
+
+        foreach ([1, 2, 3, 4, 10] as $participantCount) {
+            $activity = $this->activity($admin);
+            $this->service()->examiner($activity, ['name' => 'Penguji '.$participantCount]);
+
+            foreach (range(1, $participantCount) as $index) {
+                $this->participant($activity, 'Peserta '.$participantCount.'-'.$index);
+            }
+
+            $response = $this->get(route('fit-proper.show', $activity))
+                ->assertOk()
+                ->assertSee('data-participant-count="'.$participantCount.'"', false)
+                ->assertSee('data-scrollable="'.($participantCount > 3 ? 'true' : 'false').'"', false)
+                ->assertSee('aria-label="Daftar nilai peserta dapat digeser horizontal."', false);
+
+            $this->assertSame(1, substr_count($response->getContent(), 'class="fp-matrix-viewport"'));
+
+            if ($participantCount > 3) {
+                $response->assertSee('Geser untuk melihat peserta lainnya');
+            } else {
+                $response->assertDontSee('Geser untuk melihat peserta lainnya');
+            }
+        }
+    }
+
+    public function test_recap_matrix_filters_scores_by_examiner_and_uses_official_results(): void
+    {
+        $admin = $this->admin();
+        $activity = $this->activity($admin);
+        $firstParticipant = $this->participant($activity, 'Peserta Matriks Pertama');
+        $secondParticipant = $this->participant($activity, 'Peserta Matriks Kedua');
+        $submittedExaminer = $this->service()->examiner($activity, ['name' => 'Penguji Matriks Selesai']);
+        $this->service()->examiner($activity, ['name' => 'Penguji Matriks Menunggu']);
+        $this->service()->transition($activity, 'Berjalan');
+        $scores = $this->scores($activity, 2.7);
+        $scores['scores'][$firstParticipant->id]['recommendation'] = 'Pertimbangkan rotasi terarah.';
+        $scores['scores'][$firstParticipant->id]['notes'] = 'Catatan aktual penguji.';
+        $this->service()->saveScores($submittedExaminer, $scores, true);
+
+        $response = $this->actingAs($admin)
+            ->get(route('fit-proper.show', $activity))
+            ->assertOk()
+            ->assertSee('Rekap Penilaian per Penguji')
+            ->assertSee('Bandingkan hasil penilaian seluruh peserta dari satu penguji.')
+            ->assertSee('Penguji Matriks Selesai')
+            ->assertSee('Penguji Matriks Menunggu')
+            ->assertSee('2 dari 2 peserta dinilai')
+            ->assertSee('0 dari 2 peserta dinilai')
+            ->assertSee('2,7')
+            ->assertSee('Disarankan Dengan Pertimbangan')
+            ->assertSee('Pertimbangkan rotasi terarah.')
+            ->assertSee('Catatan aktual penguji.')
+            ->assertSee('Unduh Rekap')
+            ->assertDontSee('fp-raw-table', false);
+
+        $this->assertSame(2, substr_count($response->getContent(), 'class="fp-matrix-viewport"'));
+        $this->assertSame(
+            ['adaptability', 'authenticity', 'contributing', 'learning', 'diversity'],
+            FitProperCalculationService::GROUPS['core']['indicators'],
+        );
+        $this->assertSame('Peserta Matriks Kedua', $secondParticipant->fresh()->name);
+    }
+
+    public function test_examiner_token_reissue_revoke_and_delete_keep_account_and_other_examiners_safe(): void
+    {
+        $admin = $this->admin();
+        $activity = $this->activity($admin);
+        $participant = $this->participant($activity);
+        $internalUser = User::factory()->create(['name' => 'Penguji Internal']);
+        $internalExaminer = $this->service()->examiner($activity, ['user_id' => $internalUser->id], $admin);
+        $manualExaminer = $this->service()->examiner($activity, ['name' => 'Penguji Manual'], $admin);
+
+        $this->actingAs($admin);
+        $this->post(route('fit-proper.token', [$activity, $internalExaminer]))
+            ->assertRedirect()
+            ->assertSessionHas('examiner_link');
+        $firstLink = session('examiner_link');
+        $firstHash = $internalExaminer->fresh()->getRawOriginal('token_hash');
+
+        $this->post(route('fit-proper.token', [$activity, $internalExaminer]))
+            ->assertRedirect()
+            ->assertSessionHas('examiner_link');
+        $secondLink = session('examiner_link');
+        $this->assertNotSame($firstHash, $internalExaminer->fresh()->getRawOriginal('token_hash'));
+        $this->assertNotSame($firstLink, $secondLink);
+
+        $this->service()->transition($activity, 'Berjalan', $admin);
+        $this->get($firstLink)->assertNotFound();
+        $this->get($secondLink)->assertOk()->assertSee($participant->name);
+
+        $this->post(route('fit-proper.token', [$activity, $internalExaminer]), ['revoke' => 1])
+            ->assertRedirect();
+        $this->assertNotNull($internalExaminer->fresh()->revoked_at);
+        $this->assertDatabaseHas('fit_proper_examiners', ['id' => $internalExaminer->id]);
+        $this->assertDatabaseHas('users', ['id' => $internalUser->id]);
+        $this->get($secondLink)->assertNotFound();
+
+        $this->service()->transition($activity, 'Draft', $admin);
+        $this->delete(route('fit-proper.examiners.delete', [$activity, $internalExaminer]))
+            ->assertRedirect();
+        $this->assertDatabaseMissing('fit_proper_examiners', ['id' => $internalExaminer->id]);
+        $this->assertDatabaseHas('fit_proper_examiners', ['id' => $manualExaminer->id]);
+        $this->assertDatabaseHas('users', ['id' => $internalUser->id]);
     }
 
     public function test_score_validation_partial_draft_zero_and_double_submit(): void
@@ -368,7 +699,11 @@ class FitProperTest extends TestCase
         $this->assertSame('Selesai', $activity->status);
         $this->assertTrue($activity->final_snapshot['complete']);
         $this->assertEquals(88, $activity->final_snapshot['rows'][0]['total']);
-        $this->get(route('fit-proper.show', $activity))->assertOk()->assertSee('Hasil Akhir');
+        $this->get(route('fit-proper.show', $activity))->assertOk()
+            ->assertSee('Hasil Akhir Fit &amp; Proper', false)
+            ->assertSee('fp-result-ranking-card', false)
+            ->assertSee('Rincian Perhitungan')
+            ->assertSee('Final');
         $this->get(route('fit-proper.print', $activity))->assertOk()->assertSee('Hasil Final');
         $response = $this->get(route('fit-proper.excel', $activity));
         $response->assertOk()->assertDownload();
@@ -477,6 +812,12 @@ class FitProperTest extends TestCase
             ->assertSee('role="dialog"', false)
             ->assertSee('Kelola Penilaian')
             ->assertSee('aria-selected="true"', false);
+
+        $this->get(route('fit-proper.show', $activity))
+            ->assertOk()
+            ->assertSee('Progres Penilaian')
+            ->assertSee('aria-valuenow="50"', false)
+            ->assertDontSee('href="#progres"', false);
     }
 
     public function test_fit_proper_workspace_has_safe_empty_state_and_hides_create_action_without_permission(): void
@@ -585,7 +926,18 @@ class FitProperTest extends TestCase
         $before = $this->service()->calculation->recap($activity);
         $rawBefore = FitProperScore::orderBy('id')->get()->toArray();
         $this->actingAs($admin)->get(route('fit-proper.show', $activity))->assertOk()
-            ->assertSee('4,3')->assertSee('3,7')->assertSee('0,9')->assertSee('75,0')->assertSee('00123456');
+            ->assertSee('4,3')->assertSee('3,7')->assertSee('0,9')->assertSee('75,0')->assertSee('00123456')
+            ->assertSee('fp-result-dashboard', false)
+            ->assertSee('Hasil Akhir Fit &amp; Proper', false)
+            ->assertSee('Lihat metode perhitungan')
+            ->assertSee('Peserta Dinilai')
+            ->assertSee('Penguji Selesai')
+            ->assertSee('Nilai Tertinggi')
+            ->assertSee('Peserta Lulus')
+            ->assertSee('fp-result-ranking-card', false)
+            ->assertSee('Rincian Perhitungan')
+            ->assertSee('Sementara')
+            ->assertSee('Hasil ini merupakan referensi.');
         $this->get(route('fit-proper.print', $activity))->assertOk()->assertSee('4,3')->assertSee('10,0%');
         $this->get(route('fit-proper.participants.edit', [$activity, $participant]))->assertForbidden();
         $this->assertSame($before, $this->service()->calculation->recap($activity));

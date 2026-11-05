@@ -95,12 +95,12 @@ class FitProperService
             $profile = array_intersect_key($valid, array_flip(['department', 'current_position', 'target_position', 'current_jg', 'target_jg', 'education', 'education_background', 'experience', 'training', 'achievement', 'assessment_notes']));
             if (! empty($valid['employee_id'])) {
                 $employee = Employee::findOrFail($valid['employee_id']);
-                $valid['name'] = $employee->name ?: $employee->sap;
-                $valid['sap'] = $employee->sap ?: $employee->personal_number;
+                $valid['name'] = $employee->personal_number ?: ($employee->name ?: $employee->sap);
+                $valid['sap'] = $employee->sap;
                 $valid['birth_date'] = $employee->birth_date?->toDateString();
-                $profile['department'] = $profile['department'] ?? $employee->organizationDepartmentName();
-                $profile['current_position'] = $profile['current_position'] ?? $employee->organizationPositionName();
-                $profile['education'] = $profile['education'] ?? $employee->education ?? $employee->pendidikan;
+                $profile['department'] = $employee->organizationDepartmentName();
+                $profile['current_position'] = $employee->organizationPositionName();
+                $profile['education'] = $employee->education ?? $employee->pendidikan;
             }
             $profile['gap_jg'] = isset($profile['current_jg'],$profile['target_jg']) ? $profile['current_jg'] - $profile['target_jg'] : null;
             $attributes = array_intersect_key($valid, array_flip(['employee_id', 'name', 'sap', 'birth_date', 'kpi_year_1', 'kpi_year_2', 'assessment']));

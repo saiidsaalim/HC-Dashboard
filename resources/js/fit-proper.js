@@ -65,28 +65,41 @@ function updatePicker(root) {
     });
 }
 
-function linkPanel(url) {
+function linkPanel(url, row) {
     const panel = document.createElement('div');
     panel.dataset.fpLinkPanel = '';
-    panel.className = 'mt-3 w-full rounded-lg border border-amber-200 bg-amber-50 p-3';
-    const label = document.createElement('label');
-    label.className = 'block text-sm font-semibold';
-    label.textContent = 'Tautan penguji — simpan sebelum meninggalkan halaman';
+    panel.className = 'rounded-xl border border-sky-200 bg-sky-50 p-3 sm:p-4';
+    const heading = document.createElement('div');
+    heading.className = 'flex flex-wrap items-center justify-between gap-2';
+    const title = document.createElement('p');
+    title.className = 'text-sm font-bold text-slate-900';
+    title.textContent = 'Tautan Penilaian';
+    const badge = document.createElement('span');
+    badge.className = 'inline-flex rounded-full border border-sky-200 bg-white px-2.5 py-1 text-xs font-bold text-sky-700';
+    badge.textContent = row.dataset.linkExpiryLabel || 'Tautan baru diterbitkan';
+    heading.append(title, badge);
+    const controls = document.createElement('div');
+    controls.className = 'mt-3 flex min-w-0 flex-col gap-2 sm:flex-row';
     const input = document.createElement('input');
     input.type = 'url';
     input.readOnly = true;
     input.value = url;
-    input.className = 'mt-2 w-full rounded-lg border-slate-300 text-sm';
-    label.append(input);
+    input.setAttribute('aria-label', 'Tautan penilaian lengkap');
+    input.className = 'min-w-0 flex-1 truncate rounded-xl border-slate-300 bg-white text-sm text-slate-600 shadow-sm focus:border-sky-500 focus:ring-sky-500';
     const copy = document.createElement('button');
     copy.type = 'button';
     copy.dataset.fpCopy = '';
-    copy.className = 'mt-2 rounded-lg border border-amber-300 px-3 py-2 text-sm';
+    copy.className = 'ui-button fp-participant-add w-full shrink-0 sm:w-auto';
     copy.textContent = 'Salin tautan';
+    controls.append(input, copy);
+    const status = document.createElement('p');
+    status.dataset.fpCopyStatus = '';
+    status.className = 'mt-2 text-xs font-semibold text-emerald-700';
+    status.setAttribute('aria-live', 'polite');
     const help = document.createElement('p');
     help.className = 'mt-2 text-xs text-slate-600';
-    help.textContent = 'Berlaku 14 hari dan hanya aktif ketika Berjalan. Terbitkan ulang hanya jika tautan hilang; tautan lama akan dibatalkan.';
-    panel.append(label, copy, help);
+    help.textContent = 'Tautan hanya aktif ketika kegiatan Berjalan. Terbitkan ulang hanya jika tautan hilang; tautan lama akan dibatalkan.';
+    panel.append(heading, controls, status, help);
     return panel;
 }
 
@@ -105,8 +118,13 @@ function updateFragments(root, html, data) {
     if (data.revoked_examiner_id) issuedLinks.delete(String(data.revoked_examiner_id));
     for (const [id, url] of issuedLinks) {
         const row = Array.from(root.querySelectorAll('[data-fp-examiner-id]')).find(node => node.dataset.fpExaminerId === id);
-        if (row) row.append(linkPanel(url));
-        else issuedLinks.delete(id);
+        if (!row) {
+            issuedLinks.delete(id);
+            continue;
+        }
+        const slot = row.querySelector('[data-fp-link-slot]');
+        if (slot) slot.replaceWith(linkPanel(url, row));
+        else row.append(linkPanel(url, row));
     }
     updatePicker(root);
 }
@@ -122,6 +140,7 @@ document.addEventListener('submit', async event => {
     const originalDisabled = buttons.map(button => button.disabled);
     const focusTarget = event.submitter;
     const section = form.closest('section');
+    const resetsPicPicker = form.hasAttribute('data-fp-pic-form');
     try {
         if (form.dataset.fpConfirm) {
             const confirmation = await window.Swal.fire({ title: form.dataset.fpConfirm, icon: 'warning', showCancelButton: true, confirmButtonText: 'Lanjutkan', cancelButtonText: 'Batal', focusCancel: true, returnFocus: false });
@@ -174,6 +193,7 @@ document.addEventListener('submit', async event => {
             updatePicker(root);
             form.querySelector('[data-fp-user-search]')?.dispatchEvent(new Event('input', { bubbles: true }));
         }
+        if (resetsPicPicker) window.dispatchEvent(new CustomEvent('fp-pic-reset'));
         notify(data.message);
         if (anchor?.isConnected && Number.isFinite(previousTop)) {
             window.scrollBy({ top: anchor.getBoundingClientRect().top - previousTop, behavior: 'instant' });
@@ -212,7 +232,9 @@ document.addEventListener('input', event => {
 document.addEventListener('click', async event => {
     const button = event.target.closest('[data-fp-copy]');
     if (!button) return;
-    const input = button.closest('[data-fp-link-panel]').querySelector('input');
+    const panel = button.closest('[data-fp-link-panel]');
+    const input = panel.querySelector('input');
+    const status = panel.querySelector('[data-fp-copy-status]');
     try {
         if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(input.value);
         else {
@@ -223,12 +245,19 @@ document.addEventListener('click', async event => {
             button.focus({ preventScroll: true });
             window.scrollTo({ left: x, top: y, behavior: 'instant' });
         }
+        status.textContent = 'Tautan berhasil disalin';
+        status.className = 'mt-2 text-xs font-semibold text-emerald-700';
         notify('Tautan berhasil disalin.');
     } catch {
         input.focus({ preventScroll: true });
         input.select();
-        notify('Salin URL pada kotak tautan secara manual.', 'info');
+        status.textContent = 'Tautan tidak dapat disalin. Salin secara manual.';
+        status.className = 'mt-2 text-xs font-semibold text-red-700';
+        notify('Tautan tidak dapat disalin. Salin secara manual.', 'info');
     }
+    window.setTimeout(() => {
+        if (status.isConnected) status.textContent = '';
+    }, 4000);
 });
 
 
