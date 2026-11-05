@@ -445,6 +445,61 @@ class FitProperTest extends TestCase
         $this->get(route('fit-proper'))->assertOk()->assertDontSee('Data Simulasi');
     }
 
+    public function test_fit_proper_workspace_uses_accessible_activity_participant_and_examiner_data(): void
+    {
+        $admin = $this->admin();
+        $activity = $this->activity($admin);
+        $this->participant($activity, 'Kandidat Pertama');
+        $this->participant($activity, 'Kandidat Kedua');
+        $submittedExaminer = $this->service()->examiner($activity, ['name' => 'Penguji Selesai']);
+        $this->service()->examiner($activity, ['name' => 'Penguji Menunggu']);
+        $this->service()->transition($activity, 'Berjalan');
+        $this->service()->saveScores($submittedExaminer, $this->scores($activity), true);
+
+        $this->actingAs($admin)
+            ->get(route('fit-proper'))
+            ->assertOk()
+            ->assertViewHas('activeActivityCount', 1)
+            ->assertViewHas('participantCount', 2)
+            ->assertViewHas('examinerCount', 2)
+            ->assertViewHas('submittedExaminerCount', 1)
+            ->assertDontSee('Pantau proses asesmen kandidat secara menyeluruh.')
+            ->assertSee('Kegiatan Berlangsung')
+            ->assertSee('Ringkasan Kegiatan')
+            ->assertSee('Kandidat Pertama')
+            ->assertSee('Progres Tahapan')
+            ->assertSee('fit-proper-create-title', false)
+            ->assertSee('data-fp-root data-app-content', false)
+            ->assertSee('Lihat Standar Penilaian')
+            ->assertSee('Pengaturan Standar Penilaian')
+            ->assertSee('fit-proper-settings-title', false)
+            ->assertSee('data-app-content data-fp-settings-modal', false)
+            ->assertSee('role="dialog"', false)
+            ->assertSee('Kelola Penilaian')
+            ->assertSee('aria-selected="true"', false);
+    }
+
+    public function test_fit_proper_workspace_has_safe_empty_state_and_hides_create_action_without_permission(): void
+    {
+        $admin = $this->admin();
+
+        $this->actingAs($admin)
+            ->get(route('fit-proper'))
+            ->assertOk()
+            ->assertSee('Belum ada kegiatan Fit &amp; Proper', false)
+            ->assertSee('Tambah Kegiatan');
+
+        $activity = $this->activity($admin);
+        $pic = User::factory()->create(['role' => 'Staff', 'must_change_password' => false]);
+        $this->service()->assignPics($activity, [$pic->id], $admin);
+
+        $this->actingAs($pic)
+            ->get(route('fit-proper'))
+            ->assertOk()
+            ->assertSee($activity->name)
+            ->assertDontSee('Tambah Kegiatan');
+    }
+
     public function test_bulk_drafts_skip_empty_rows_preserve_omitted_participants_and_ignore_browser_results(): void
     {
         $a = $this->activity();

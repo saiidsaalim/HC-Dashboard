@@ -32,13 +32,45 @@ class FitProperController extends Controller
 
     public function index(Request $request): View
     {
-        $query = FitProperActivity::query()->accessibleTo($request->user());
-        $activityCount = (clone $query)->count();
+        $accessibleActivities = FitProperActivity::query()->accessibleTo($request->user());
+        $activityCount = (clone $accessibleActivities)->count();
+        $activeActivityCount = (clone $accessibleActivities)->where('status', 'Berjalan')->count();
+        $participantCount = FitProperParticipant::query()
+            ->whereHas('activity', fn ($query) => $query->accessibleTo($request->user()))
+            ->count();
+        $examinerCount = FitProperExaminer::query()
+            ->whereHas('activity', fn ($query) => $query->accessibleTo($request->user()))
+            ->count();
+        $submittedExaminerCount = FitProperExaminer::query()
+            ->whereHas('activity', fn ($query) => $query->accessibleTo($request->user()))
+            ->whereNotNull('submitted_at')
+            ->count();
+
+        $query = clone $accessibleActivities;
         $query->when($request->filled('q'), fn ($builder) => $builder->where('name', 'like', '%'.$request->string('q').'%'))
             ->when($request->filled('status'), fn ($builder) => $builder->where('status', $request->input('status')));
 
-        return view('fit-proper.index', ['activities' => $query->withCount(['participants', 'examiners', 'examiners as submitted_count' => fn ($builder) => $builder->whereNotNull('submitted_at')])->latest()->paginate(12)->withQueryString(),
-            'activityCount' => $activityCount, 'standard' => FitProperSetting::current()]);
+        return view('fit-proper.index', [
+            'activities' => $query
+                ->with([
+                    'participants:id,fit_proper_activity_id,name',
+                    'examiners:id,activity_id,user_id,submitted_at',
+                ])
+                ->withCount([
+                    'participants',
+                    'examiners',
+                    'examiners as submitted_count' => fn ($builder) => $builder->whereNotNull('submitted_at'),
+                ])
+                ->latest()
+                ->paginate(12)
+                ->withQueryString(),
+            'activityCount' => $activityCount,
+            'activeActivityCount' => $activeActivityCount,
+            'participantCount' => $participantCount,
+            'examinerCount' => $examinerCount,
+            'submittedExaminerCount' => $submittedExaminerCount,
+            'standard' => FitProperSetting::current(),
+        ]);
     }
 
     public function store(Request $request): RedirectResponse|JsonResponse
