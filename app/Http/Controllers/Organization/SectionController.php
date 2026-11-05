@@ -21,6 +21,9 @@ class SectionController extends Controller
         $search = trim((string) $request->input('search', ''));
         $unitId = trim((string) $request->input('unit_id', ''));
         $active = $request->input('active', '');
+        $perPage = in_array($request->integer('per_page'), [20, 40, 60], true)
+            ? $request->integer('per_page')
+            : 20;
         $units = Unit::query()->with('department.directorate')->orderBy('name')->get();
         $sections = Section::query()
             ->with('unit.department.directorate')->withCount('positions')
@@ -29,9 +32,9 @@ class SectionController extends Controller
                 ->orWhere('name', 'like', "%{$search}%")))
             ->when($unitId !== '', fn ($query) => $query->where('unit_id', $unitId))
             ->when(in_array($active, ['0', '1'], true), fn ($query) => $query->where('active', $active))
-            ->orderBy('name')->paginate(15)->withQueryString();
+            ->orderBy('name')->paginate($perPage)->withQueryString();
 
-        return view('organization.sections.index', compact('sections', 'units', 'search', 'unitId', 'active'));
+        return view('organization.sections.index', compact('sections', 'units', 'search', 'unitId', 'active', 'perPage'));
     }
 
     public function create(Request $request): View

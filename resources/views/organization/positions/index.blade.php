@@ -15,13 +15,14 @@
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-200 p-4">
             <x-ui.filter-panel id="position-filters" title="Filter Position"
-                :reset-href="route('organization.positions.index')"
-                :active="$search !== '' || $departmentId !== '' || $unitId !== '' || $sectionId !== '' || $active !== ''">
+                :reset-href="route('organization.positions.index', ['search' => $search, 'per_page' => $perPage])"
+                :active="$departmentId !== '' || $unitId !== '' || $sectionId !== '' || $active !== ''">
+                <x-slot:actions>
+                    @include('organization._table-toolbar', ['searchFieldId' => 'position-search', 'perPageFieldId' => 'position-per-page'])
+                </x-slot:actions>
+                <input type="hidden" name="search" value="{{ $search }}">
+                <input type="hidden" name="per_page" value="{{ $perPage }}">
                 <div x-data="{ unitId: @js($unitId) }" class="space-y-4">
-                    <label class="block text-sm font-semibold text-slate-700">Pencarian
-                        <input name="search" value="{{ $search }}" placeholder="Cari nama"
-                            class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
-                    </label>
                     <label class="block text-sm font-semibold text-slate-700">Department
                         <select name="department_id" @change="unitId = ''; $el.form.requestSubmit()"
                             class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">

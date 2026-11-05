@@ -6,8 +6,9 @@
 @if ($errors->any())<div class="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ $errors->first() }}</div>@endif
 <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
 <div class="border-b border-slate-200 p-4">
-<x-ui.filter-panel id="section-filters" title="Filter Section" :reset-href="route('organization.sections.index')" :active="$search !== '' || (string) $unitId !== '' || $active !== ''">
-<label class="block text-sm font-semibold text-slate-700">Pencarian<input name="search" value="{{ $search }}" placeholder="Cari nama atau kode" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400"></label>
+<x-ui.filter-panel id="section-filters" title="Filter Section" :reset-href="route('organization.sections.index', ['search' => $search, 'per_page' => $perPage])" :active="(string) $unitId !== '' || $active !== ''">
+<x-slot:actions>@include('organization._table-toolbar', ['searchFieldId' => 'section-search', 'perPageFieldId' => 'section-per-page'])</x-slot:actions>
+<input type="hidden" name="search" value="{{ $search }}"><input type="hidden" name="per_page" value="{{ $perPage }}">
 <label class="block text-sm font-semibold text-slate-700">Unit<select name="unit_id" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400"><option value="">Semua Unit</option>@foreach ($units as $unit)<option value="{{ $unit->id }}" @selected($unitId == $unit->id)>{{ $unit->department->name }} / {{ $unit->name }}</option>@endforeach</select></label>
 <label class="block text-sm font-semibold text-slate-700">Status<select name="active" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400"><option value="">Semua status</option><option value="1" @selected($active === '1')>Aktif</option><option value="0" @selected($active === '0')>Nonaktif</option></select></label>
 </x-ui.filter-panel>

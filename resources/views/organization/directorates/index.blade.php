@@ -6,8 +6,9 @@
 @if ($errors->any())<div class="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ $errors->first() }}</div>@endif
 <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
 <div class="border-b border-slate-200 p-4">
-<x-ui.filter-panel id="directorate-filters" title="Filter Directorate" :reset-href="route('organization.directorates.index')" :active="$search !== '' || $active !== ''">
-<label class="block text-sm font-semibold text-slate-700">Pencarian<input name="search" value="{{ $search }}" placeholder="Cari nama atau kode" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400"></label>
+<x-ui.filter-panel id="directorate-filters" title="Filter Directorate" :reset-href="route('organization.directorates.index', ['search' => $search, 'per_page' => $perPage])" :active="$active !== ''">
+<x-slot:actions>@include('organization._table-toolbar', ['searchFieldId' => 'directorate-search', 'perPageFieldId' => 'directorate-per-page'])</x-slot:actions>
+<input type="hidden" name="search" value="{{ $search }}"><input type="hidden" name="per_page" value="{{ $perPage }}">
 <label class="block text-sm font-semibold text-slate-700">Status<select name="active" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400"><option value="">Semua status</option><option value="1" @selected($active === '1')>Aktif</option><option value="0" @selected($active === '0')>Nonaktif</option></select></label>
 </x-ui.filter-panel>
 </div>

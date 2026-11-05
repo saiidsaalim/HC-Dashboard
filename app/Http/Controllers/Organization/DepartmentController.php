@@ -22,6 +22,9 @@ class DepartmentController extends Controller
         $search = trim((string) $request->input('search', ''));
         $active = $request->input('active', '');
         $directorateId = trim((string) $request->input('directorate_id', ''));
+        $perPage = in_array($request->integer('per_page'), [20, 40, 60], true)
+            ? $request->integer('per_page')
+            : 20;
         $directorates = Directorate::query()->orderBy('name')->get();
 
         $departments = Department::query()
@@ -33,10 +36,10 @@ class DepartmentController extends Controller
             ->when(in_array($active, ['0', '1'], true), fn ($query) => $query->where('active', $active))
             ->when($directorateId !== '', fn ($query) => $query->where('directorate_id', $directorateId))
             ->orderBy('name')
-            ->paginate(15)
+            ->paginate($perPage)
             ->withQueryString();
 
-        return view('organization.departments.index', compact('departments', 'directorates', 'directorateId', 'search', 'active'));
+        return view('organization.departments.index', compact('departments', 'directorates', 'directorateId', 'search', 'active', 'perPage'));
     }
 
     public function create(): View

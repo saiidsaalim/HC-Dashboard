@@ -21,12 +21,13 @@
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-200 p-4">
             <x-ui.filter-panel id="department-filters" title="Filter Department"
-                :reset-href="route('organization.departments.index')"
-                :active="$search !== '' || $directorateId !== '' || $active !== ''">
-                <label class="block text-sm font-semibold text-slate-700">Pencarian
-                    <input name="search" value="{{ $search }}" placeholder="Cari nama"
-                        class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
-                </label>
+                :reset-href="route('organization.departments.index', ['search' => $search, 'per_page' => $perPage])"
+                :active="$directorateId !== '' || $active !== ''">
+                <x-slot:actions>
+                    @include('organization._table-toolbar', ['searchFieldId' => 'department-search', 'perPageFieldId' => 'department-per-page'])
+                </x-slot:actions>
+                <input type="hidden" name="search" value="{{ $search }}">
+                <input type="hidden" name="per_page" value="{{ $perPage }}">
                 <label class="block text-sm font-semibold text-slate-700">Directorate
                     <select name="directorate_id" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
                         <option value="">Semua Directorate</option>

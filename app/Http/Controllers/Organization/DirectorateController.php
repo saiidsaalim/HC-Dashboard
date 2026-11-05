@@ -17,15 +17,18 @@ class DirectorateController extends Controller
         Gate::authorize('viewAny', Directorate::class);
         $search = trim((string) $request->input('search', ''));
         $active = $request->input('active', '');
+        $perPage = in_array($request->integer('per_page'), [20, 40, 60], true)
+            ? $request->integer('per_page')
+            : 20;
         $directorates = Directorate::query()
             ->withCount('departments')
             ->when($search !== '', fn ($query) => $query->where(fn ($query) => $query
                 ->where('code', 'like', "%{$search}%")
                 ->orWhere('name', 'like', "%{$search}%")))
             ->when(in_array($active, ['0', '1'], true), fn ($query) => $query->where('active', $active))
-            ->orderBy('name')->paginate(15)->withQueryString();
+            ->orderBy('name')->paginate($perPage)->withQueryString();
 
-        return view('organization.directorates.index', compact('directorates', 'search', 'active'));
+        return view('organization.directorates.index', compact('directorates', 'search', 'active', 'perPage'));
     }
 
     public function create(): View

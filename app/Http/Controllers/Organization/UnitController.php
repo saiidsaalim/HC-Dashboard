@@ -22,6 +22,9 @@ class UnitController extends Controller
         $search = trim((string) $request->input('search', ''));
         $departmentId = trim((string) $request->input('department_id', ''));
         $active = $request->input('active', '');
+        $perPage = in_array($request->integer('per_page'), [20, 40, 60], true)
+            ? $request->integer('per_page')
+            : 20;
         $departments = Department::query()->orderBy('name')->get();
         $units = Unit::query()
             ->with('department')
@@ -32,10 +35,10 @@ class UnitController extends Controller
             ->when($departmentId !== '', fn ($query) => $query->where('department_id', $departmentId))
             ->when(in_array($active, ['0', '1'], true), fn ($query) => $query->where('active', $active))
             ->orderBy('name')
-            ->paginate(15)
+            ->paginate($perPage)
             ->withQueryString();
 
-        return view('organization.units.index', compact('units', 'departments', 'search', 'departmentId', 'active'));
+        return view('organization.units.index', compact('units', 'departments', 'search', 'departmentId', 'active', 'perPage'));
     }
 
     public function create(Request $request): View

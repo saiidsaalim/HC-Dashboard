@@ -13,7 +13,7 @@
 @endphp
 
 <div x-data="{ filterOpen: false }" @keydown.escape.window="filterOpen = false"
-    {{ $attributes->except('id')->merge(['class' => 'flex justify-end']) }} data-filter-panel>
+    {{ $attributes->except('id')->merge(['class' => 'flex flex-wrap items-end justify-end gap-3']) }} data-filter-panel>
     <button type="button" @click="filterOpen = true" :aria-expanded="filterOpen.toString()"
         aria-controls="{{ $id }}" class="ui-button ui-button-secondary relative" data-filter-trigger>
         <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"
@@ -26,6 +26,10 @@
             <span class="h-2 w-2 rounded-full bg-sky-600" aria-label="Filter aktif"></span>
         @endif
     </button>
+
+    @isset($actions)
+        {{ $actions }}
+    @endisset
 
     <template x-teleport="body">
         <div x-cloak x-show="filterOpen" class="fixed inset-0 z-[90]" role="presentation">

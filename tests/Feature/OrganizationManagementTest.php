@@ -51,6 +51,56 @@ class OrganizationManagementTest extends TestCase
             ->assertSee('Aktif');
     }
 
+    public function test_organization_tables_support_20_40_and_60_rows_per_page(): void
+    {
+        foreach (range(1, 21) as $index) {
+            Department::create([
+                'code' => sprintf('D-PER-PAGE-%02d', $index),
+                'name' => sprintf('Department Per Page %02d', $index),
+                'active' => true,
+            ]);
+        }
+
+        $this->actingAs($this->superAdmin());
+
+        foreach ([
+            'organization.directorates.index',
+            'organization.departments.index',
+            'organization.units.index',
+            'organization.sections.index',
+            'organization.positions.index',
+        ] as $routeName) {
+            $this->get(route($routeName))
+                ->assertOk()
+                ->assertSeeInOrder(['data-filter-trigger', 'data-table-toolbar', 'data-table-search', 'name="per_page"'], false)
+                ->assertSee('aria-label="Cari data"', false)
+                ->assertSee('name="per_page"', false)
+                ->assertSee('aria-label="Jumlah data per halaman"', false)
+                ->assertSee('value="20"', false)
+                ->assertSee('value="40"', false)
+                ->assertSee('value="60"', false);
+        }
+
+        $this->get(route('organization.departments.index'))
+            ->assertSee('Department Per Page 20')
+            ->assertDontSee('Department Per Page 21');
+
+        $this->get(route('organization.departments.index', ['per_page' => 40]))
+            ->assertSee('Department Per Page 21')
+            ->assertSee('value="40" selected', false);
+
+        $this->get(route('organization.departments.index', ['per_page' => 999]))
+            ->assertDontSee('Department Per Page 21')
+            ->assertSee('value="20" selected', false);
+
+        $this->get(route('organization.departments.index', [
+            'search' => 'Department Per Page 21',
+            'per_page' => 40,
+        ]))
+            ->assertSee('Department Per Page 21')
+            ->assertDontSee('Department Per Page 20');
+    }
+
     public function test_department_page_only_offers_department_creation(): void
     {
         $this->actingAs($this->superAdmin())

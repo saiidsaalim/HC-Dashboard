@@ -18,12 +18,13 @@
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-200 p-4">
             <x-ui.filter-panel id="unit-filters" title="Filter Unit"
-                :reset-href="route('organization.units.index')"
-                :active="$search !== '' || $departmentId !== '' || $active !== ''">
-                <label class="block text-sm font-semibold text-slate-700">Pencarian
-                    <input name="search" value="{{ $search }}" placeholder="Cari nama"
-                        class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
-                </label>
+                :reset-href="route('organization.units.index', ['search' => $search, 'per_page' => $perPage])"
+                :active="$departmentId !== '' || $active !== ''">
+                <x-slot:actions>
+                    @include('organization._table-toolbar', ['searchFieldId' => 'unit-search', 'perPageFieldId' => 'unit-per-page'])
+                </x-slot:actions>
+                <input type="hidden" name="search" value="{{ $search }}">
+                <input type="hidden" name="per_page" value="{{ $perPage }}">
                 <label class="block text-sm font-semibold text-slate-700">Department
                     <select name="department_id" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
                         <option value="">Semua Department</option>

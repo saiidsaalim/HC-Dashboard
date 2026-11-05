@@ -29,6 +29,9 @@ class PositionController extends Controller
         $unitId = trim((string) $request->input('unit_id', ''));
         $sectionId = trim((string) $request->input('section_id', ''));
         $active = $request->input('active', '');
+        $perPage = in_array($request->integer('per_page'), [20, 40, 60], true)
+            ? $request->integer('per_page')
+            : 20;
         $departments = Department::query()->orderBy('name')->get();
         $units = Unit::query()
             ->with('department')
@@ -58,11 +61,11 @@ class PositionController extends Controller
             )
             ->orderBy('sort_order')
             ->orderBy('name')
-            ->paginate(15)
+            ->paginate($perPage)
             ->withQueryString();
 
         return view('organization.positions.index', compact(
-            'positions', 'departments', 'units', 'sections', 'search', 'departmentId', 'unitId', 'sectionId', 'active',
+            'positions', 'departments', 'units', 'sections', 'search', 'departmentId', 'unitId', 'sectionId', 'active', 'perPage',
         ));
     }
 
