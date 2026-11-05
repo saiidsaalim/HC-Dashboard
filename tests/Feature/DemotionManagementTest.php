@@ -34,7 +34,7 @@ class DemotionManagementTest extends TestCase
             ->assertSee('name="level_lama"', escape: false)
             ->assertSee('name="level_baru"', escape: false)
             ->assertSee('<select id="create-demotion-level_baru"', escape: false)
-            ->assertSee('w-full min-w-[73rem] table-fixed text-left text-sm whitespace-nowrap', escape: false)
+            ->assertSee('w-full min-w-[76rem] table-fixed text-left text-sm whitespace-nowrap', escape: false)
             ->assertSee('mutation-journey-table', escape: false)
             ->assertSee('data-mutation-journey-table-wrap', escape: false)
             ->assertSee('w-60 px-4 py-3">Workflow', escape: false)

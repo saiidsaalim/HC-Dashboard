@@ -53,7 +53,6 @@
                 <a href="{{ route('mutasi.batches.export', $batch) }}" class="ui-button ui-button-primary">Export Excel</a>
             @endif
             <a href="{{ route('mutasi', ['batch' => $batch->id]) }}" class="ui-button ui-button-secondary">Lihat di Daftar Mutasi</a>
-            <a href="{{ route('mutasi') }}" class="ui-button ui-button-secondary">Kembali</a>
         </x-slot:actions>
     </x-ui.page-header>
 

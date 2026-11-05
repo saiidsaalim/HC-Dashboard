@@ -69,6 +69,43 @@ function initializeDashboardAnimations() {
 
 document.addEventListener('DOMContentLoaded', initializeDashboardAnimations);
 
+function initializeMutationBatchCarousels() {
+    document.querySelectorAll('[data-mutation-batch-carousel]').forEach((carousel) => {
+        const track = carousel.querySelector('[data-mutation-batch-track]');
+        const previousButton = carousel.querySelector('[data-mutation-batch-previous]');
+        const nextButton = carousel.querySelector('[data-mutation-batch-next]');
+
+        if (!(track instanceof HTMLElement)
+            || !(previousButton instanceof HTMLButtonElement)
+            || !(nextButton instanceof HTMLButtonElement)) {
+            return;
+        }
+
+        const updateNavigation = () => {
+            previousButton.disabled = track.scrollLeft <= 1;
+            nextButton.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 1;
+        };
+        const scrollToAdjacentBatch = (direction) => {
+            const firstCard = track.querySelector('[data-mutation-batch-card]');
+
+            if (!(firstCard instanceof HTMLElement)) {
+                return;
+            }
+
+            const gap = Number.parseFloat(window.getComputedStyle(track).columnGap) || 0;
+            track.scrollBy({ left: direction * (firstCard.getBoundingClientRect().width + gap), behavior: 'smooth' });
+        };
+
+        previousButton.addEventListener('click', () => scrollToAdjacentBatch(-1));
+        nextButton.addEventListener('click', () => scrollToAdjacentBatch(1));
+        track.addEventListener('scroll', updateNavigation, { passive: true });
+        window.addEventListener('resize', updateNavigation);
+        updateNavigation();
+    });
+}
+
+document.addEventListener('DOMContentLoaded', initializeMutationBatchCarousels);
+
 async function initializeEmployeeDashboardAnimations() {
     const dashboard = document.querySelector('[data-employee-dashboard]');
 

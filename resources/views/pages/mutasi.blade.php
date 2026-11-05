@@ -103,24 +103,37 @@
     </div>
 
     @if ($mutationBatches->isNotEmpty())
-        <section class="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="recent-mutation-batches-title">
+        <section data-mutation-batch-carousel class="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="recent-mutation-batches-title">
             <div class="flex items-center justify-between gap-4">
                 <div>
                     <h3 id="recent-mutation-batches-title" class="font-display text-lg font-bold text-slate-950">Batch Mutasi Terbaru</h3>
                     <p class="mt-1 text-xs text-slate-500">Pantau beberapa item Mutasi dalam satu kelompok pengajuan.</p>
                 </div>
-                @if ($canCreateMutations)
-                    <a href="{{ route('mutasi.batches.create') }}" class="text-sm font-bold text-sky-700 hover:text-sky-800">Buat batch baru</a>
+                @if ($mutationBatches->count() > 1)
+                    <div class="flex shrink-0 items-center gap-2" aria-label="Navigasi batch mutasi">
+                        <button type="button" data-mutation-batch-previous aria-label="Lihat batch sebelumnya"
+                            class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-40">
+                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <path d="m12.5 5-5 5 5 5" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                        </button>
+                        <button type="button" data-mutation-batch-next aria-label="Lihat batch berikutnya"
+                            class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-40">
+                            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <path d="m7.5 5 5 5-5 5" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                        </button>
+                    </div>
                 @endif
             </div>
-            <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div data-mutation-batch-track class="mt-4 flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 @foreach ($mutationBatches as $batch)
                     <a href="{{ route('mutasi.batches.show', $batch) }}"
                         @class([
-                            'rounded-xl border p-4 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500',
+                            'w-full shrink-0 snap-start rounded-xl border p-4 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 md:w-[calc(50%_-_0.375rem)] xl:w-[calc(33.333333%_-_0.5rem)]',
                             'border-sky-400 bg-sky-50 ring-1 ring-sky-200' => $batchId === $batch->id,
                             'border-slate-200 hover:border-sky-300 hover:bg-sky-50/40' => $batchId !== $batch->id,
-                        ])>
+                        ]) data-mutation-batch-card>
                         <div class="flex items-start justify-between gap-3">
                             <div class="min-w-0">
                                 <p class="text-xs font-bold uppercase tracking-wider text-sky-700">{{ $batch->batch_number }}</p>
@@ -233,7 +246,7 @@
             @csrf
             @method('DELETE')
             <div data-mutation-journey-table-wrap class="overflow-x-auto px-3 pb-2 sm:px-4">
-                <table class="w-full min-w-[73rem] table-fixed text-left text-sm whitespace-nowrap mutation-journey-table">
+                <table class="w-full min-w-[76rem] table-fixed text-left text-sm whitespace-nowrap mutation-journey-table">
                     <x-personnel-movement-table-columns :show-selection-column="$canDeleteMutations" />
                     <thead class="text-xs font-bold uppercase tracking-wider text-slate-600">
                         <tr>
@@ -241,7 +254,7 @@
                                 <th class="w-12 px-4 py-3 text-center align-middle">Pilih</th>
                             @endif
                             <th class="w-24 px-4 py-3">SAP</th>
-                            <th class="w-44 px-4 py-3">Pegawai</th>
+                            <th class="w-56 px-4 py-3">Pegawai</th>
                             <th class="w-52 px-4 py-3">Posisi Saat Ini</th>
                             <th class="w-52 px-4 py-3">Usulan</th>
                             <th class="w-60 px-4 py-3">Workflow</th>
@@ -285,14 +298,14 @@
                                         @endcan
                                     </td>
                                 @endif
-                                <td data-label="SAP" class="px-4 py-4 align-middle">
-                                    <span class="font-display text-sm font-bold text-slate-900">{{ $mutation->sap }}</span>
+                                <td data-label="SAP" class="px-4 py-4 align-middle whitespace-normal">
+                                    <span class="break-all font-display text-sm font-bold text-slate-900">{{ $mutation->sap }}</span>
                                     @if ($mutation->batch)
-                                        <a href="{{ route('mutasi.batches.show', $mutation->batch) }}" class="mt-1 block text-[10px] font-bold text-sky-700 hover:text-sky-800">{{ $mutation->batch->batch_number }}</a>
+                                        <a href="{{ route('mutasi.batches.show', $mutation->batch) }}" class="mt-1 block break-all text-[10px] font-bold text-sky-700 hover:text-sky-800">{{ $mutation->batch->batch_number }}</a>
                                     @endif
                                 </td>
-                                <td data-label="Pegawai" class="px-4 py-4 align-middle">
-                                    <p class="font-semibold text-slate-900">{{ $mutation->nama }}</p>
+                                <td data-label="Pegawai" class="px-4 py-4 align-middle whitespace-normal">
+                                    <p class="break-words font-semibold leading-5 text-slate-900">{{ $mutation->nama }}</p>
                                     <p class="mt-1 text-xs font-medium text-slate-500">TMT {{ $mutation->tmt?->format('d M Y') }}</p>
                                 </td>
                                 <td data-label="Posisi Saat Ini" class="px-3 py-4 align-middle whitespace-normal">

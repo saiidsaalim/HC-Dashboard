@@ -20,6 +20,34 @@ class MutationBatchManagementTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_mutation_index_displays_three_batch_cards_at_a_time_in_a_horizontal_carousel(): void
+    {
+        $user = User::factory()->create();
+        $batches = EmployeeMutationBatch::factory()->count(6)->for($user, 'creator')->create();
+
+        $response = $this->actingAs($user)->get(route('mutasi'))->assertOk();
+
+        $response
+            ->assertDontSee('Buat batch baru')
+            ->assertSee('data-mutation-batch-carousel', escape: false)
+            ->assertSee('data-mutation-batch-track', escape: false)
+            ->assertSee('data-mutation-batch-previous', escape: false)
+            ->assertSee('data-mutation-batch-next', escape: false)
+            ->assertSee('xl:w-[calc(33.333333%_-_0.5rem)]', escape: false);
+
+        foreach ($batches as $batch) {
+            $response->assertSee($batch->batch_number);
+        }
+
+        $document = new \DOMDocument;
+        @$document->loadHTML($response->getContent());
+        $xpath = new \DOMXPath($document);
+
+        $this->assertSame(6, $xpath->query('//*[@data-mutation-batch-card]')->length);
+        $this->assertSame(1, $xpath->query('//*[@data-mutation-batch-previous]')->length);
+        $this->assertSame(1, $xpath->query('//*[@data-mutation-batch-next]')->length);
+    }
+
     public function test_user_can_create_a_batch_with_multiple_independent_mutations(): void
     {
         $user = User::factory()->create();
@@ -86,6 +114,7 @@ class MutationBatchManagementTest extends TestCase
             ->assertOk()
             ->assertSee('Item Batch Mutasi')
             ->assertSee('Ajukan Semua (2)')
+            ->assertDontSee('>Kembali</a>', escape: false)
             ->assertSee($employees[0]->sap)
             ->assertSee($employees[1]->sap);
     }

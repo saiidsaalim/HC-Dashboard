@@ -213,7 +213,7 @@
             @csrf
             @method('DELETE')
             <div data-mutation-journey-table-wrap class="overflow-x-auto px-3 pb-2 sm:px-4">
-                <table class="w-full min-w-[73rem] table-fixed text-left text-sm whitespace-nowrap mutation-journey-table">
+                <table class="w-full min-w-[76rem] table-fixed text-left text-sm whitespace-nowrap mutation-journey-table">
                     <x-personnel-movement-table-columns :show-selection-column="$canDeleteDemotions" />
                     <thead class="text-xs font-bold uppercase tracking-wider text-slate-600">
                         <tr>
@@ -221,7 +221,7 @@
                                 <th class="w-12 px-4 py-3 text-center align-middle">Pilih</th>
                             @endif
                             <th class="w-24 px-4 py-3">SAP</th>
-                            <th class="w-44 px-4 py-3">Pegawai</th>
+                            <th class="w-56 px-4 py-3">Pegawai</th>
                             <th class="w-52 px-4 py-3">Posisi Saat Ini</th>
                             <th class="w-52 px-4 py-3">Usulan</th>
                             <th class="w-60 px-4 py-3">Workflow</th>
@@ -265,11 +265,11 @@
                                         @endcan
                                     </td>
                                 @endif
-                                <td data-label="SAP" class="px-4 py-4 align-middle">
-                                    <span class="font-display text-sm font-bold text-slate-900">{{ $demotion->sap }}</span>
+                                <td data-label="SAP" class="px-4 py-4 align-middle whitespace-normal">
+                                    <span class="break-all font-display text-sm font-bold text-slate-900">{{ $demotion->sap }}</span>
                                 </td>
-                                <td data-label="Pegawai" class="px-4 py-4 align-middle">
-                                    <p class="font-semibold text-slate-900">{{ $demotion->nama }}</p>
+                                <td data-label="Pegawai" class="px-4 py-4 align-middle whitespace-normal">
+                                    <p class="break-words font-semibold leading-5 text-slate-900">{{ $demotion->nama }}</p>
                                     <p class="mt-1 text-xs font-medium text-slate-500">TMT {{ $demotion->tmt?->format('d M Y') }}</p>
                                 </td>
                                 <td data-label="Posisi Saat Ini" class="px-3 py-4 align-middle whitespace-normal">
