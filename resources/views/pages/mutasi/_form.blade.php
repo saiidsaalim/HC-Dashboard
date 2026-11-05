@@ -142,7 +142,7 @@
                         <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-sm font-bold text-white" x-text="initials()"></span>
                         <div class="min-w-0 flex-1">
                             <p class="truncate text-sm font-bold text-slate-900">
-                                <span x-text="selected()?.sap || '—'"></span><span class="text-slate-400"> — </span><span x-text="selected()?.name || 'Nama belum tersedia'"></span>
+                                <span x-text="selected()?.sap || '—'"></span><span class="text-slate-400"> — </span><span x-text="selected()?.personal_number || selected()?.name || 'Nama belum tersedia'"></span>
                             </p>
                             <p class="mt-0.5 truncate text-xs text-slate-600" x-text="currentOrganization().position || 'Position belum tersedia'"></p>
                         </div>

@@ -156,7 +156,7 @@
                         <input type="checkbox" class="mt-1 rounded border-slate-300 text-sky-700 focus:ring-sky-500"
                             :checked="isSelected(employee.id)" @change="toggleEmployee(employee, $event.target.checked)">
                         <span class="min-w-0">
-                            <span class="block truncate text-sm font-bold text-slate-900" x-text="`${employee.sap} — ${employee.name || 'Nama belum tersedia'}`"></span>
+                            <span class="block truncate text-sm font-bold text-slate-900" x-text="`${employee.sap} — ${employee.personal_number || employee.name || 'Nama belum tersedia'}`"></span>
                             <span class="mt-1 block truncate text-xs text-slate-500" x-text="employee.position || 'Position belum tersedia'"></span>
                             <span class="mt-0.5 block truncate text-xs text-slate-400" x-text="employee.department || employee.unit || 'Organisasi belum tersedia'"></span>
                         </span>
@@ -182,7 +182,7 @@
                         <header class="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
                             <div class="min-w-0">
                                 <p class="text-xs font-bold uppercase tracking-wider text-sky-700" x-text="`Pegawai ${rowIndex + 1}`"></p>
-                                <p class="mt-1 truncate font-display text-base font-bold text-slate-950" x-text="`${employee.sap} — ${employee.name || 'Nama belum tersedia'}`"></p>
+                                <p class="mt-1 truncate font-display text-base font-bold text-slate-950" x-text="`${employee.sap} — ${employee.personal_number || employee.name || 'Nama belum tersedia'}`"></p>
                                 <p class="mt-1 text-xs text-slate-500" x-text="`${employee.position || 'Position belum tersedia'} · ${employee.level || 'Level belum tersedia'}`"></p>
                             </div>
                             <button type="button" @click="removeEmployee(employee)" class="text-sm font-semibold text-rose-600 hover:text-rose-700">Hapus dari batch</button>

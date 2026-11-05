@@ -27,7 +27,6 @@ class PersonnelMovementFormDataService
     {
         return Employee::query()
             ->with([
-                'user:id,employee_id,name',
                 'organizationDirectorate:id,name',
                 'organizationDepartment:id,name',
                 'unit:id,name',
@@ -37,21 +36,12 @@ class PersonnelMovementFormDataService
             ->orderBy('sap')
             ->get()
             ->map(function (Employee $employee): array {
-                $name = trim((string) ($employee->name ?: $employee->user?->name));
-                $personalNumber = trim((string) $employee->personal_number);
+                $personalNumber = $this->normalizePersonalNumber($employee->personal_number);
+                $name = $personalNumber !== ''
+                    ? $personalNumber
+                    : trim((string) $employee->name);
                 $position = $employee->organizationPosition?->name ?: $employee->getRawOriginal('position');
-                $labelParts = [
-                    $employee->sap,
-                    $personalNumber !== '' ? $personalNumber : 'Personal Number belum tersedia',
-                ];
-
-                if ($name !== '' && $name !== $personalNumber) {
-                    $labelParts[] = $name;
-                }
-
-                if ($position !== null && $position !== '') {
-                    $labelParts[] = $position;
-                }
+                $displayName = $name !== '' ? $name : 'Nama belum tersedia';
 
                 return [
                     'id' => (int) $employee->id,
@@ -81,9 +71,14 @@ class PersonnelMovementFormDataService
                         ?: $employee->getRawOriginal('section')
                         ?: '',
                     'position' => $position ?? '',
-                    'label' => implode(' — ', $labelParts),
+                    'label' => trim((string) $employee->sap).' — '.$displayName,
                 ];
             });
+    }
+
+    private function normalizePersonalNumber(mixed $personalNumber): string
+    {
+        return trim((string) $personalNumber);
     }
 
     /** @return array<string, Collection<int, Directorate|Department|Unit|Section|Position|string>> */

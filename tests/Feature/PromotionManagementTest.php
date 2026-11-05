@@ -290,7 +290,7 @@ class PromotionManagementTest extends TestCase
 
         $this->actingAs($superAdmin)->get(route('promosi.batches.create'))
             ->assertOk()
-            ->assertSee('SAP-CANON — PN-CANON — Nama Employee — Canonical Position')
+            ->assertSee('SAP-CANON — PN-CANON')
             ->assertSee('Canonical Department', escape: false);
 
         $payload = $this->payload($employee, [
@@ -375,13 +375,13 @@ class PromotionManagementTest extends TestCase
                 return $employeeOptions->count() === 4
                     && $canonicalOption['sap'] === '4809'
                     && $canonicalOption['personal_number'] === '10002345'
-                    && $canonicalOption['name'] === 'FATMA HAERANI, S.AP.'
+                    && $canonicalOption['name'] === '10002345'
                     && $canonicalOption['department'] === 'Department Pencarian'
                     && $canonicalOption['unit'] === 'Unit Pencarian'
                     && $canonicalOption['position'] === 'Manager HC'
-                    && $canonicalOption['label'] === '4809 — 10002345 — FATMA HAERANI, S.AP. — Manager HC'
-                    && $withoutPersonalNumberOption['label'] === 'SAP-TANPA-PN — Personal Number belum tersedia — Legacy Analyst'
-                    && $duplicateNameOption['label'] === 'SAP-DUPLIKAT — NAMA-SAMA — Legacy Supervisor'
+                    && $canonicalOption['label'] === '4809 — 10002345'
+                    && $withoutPersonalNumberOption['label'] === 'SAP-TANPA-PN — Nama belum tersedia'
+                    && $duplicateNameOption['label'] === 'SAP-DUPLIKAT — NAMA-SAMA'
                     && $employeeOptions->every(
                         fn (array $option): bool => ! str_contains($option['label'], 'Employee #'),
                     );

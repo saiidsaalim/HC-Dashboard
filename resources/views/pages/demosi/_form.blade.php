@@ -131,7 +131,7 @@
                     <div x-cloak x-show="selected()" class="flex min-h-[4.5rem] items-center gap-3 rounded-xl border border-sky-200 bg-sky-50/70 p-3">
                         <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-950 text-sm font-bold text-white" x-text="initials()"></span>
                         <div class="min-w-0 flex-1">
-                            <p class="truncate text-sm font-bold text-slate-900"><span x-text="selected()?.sap || '—'"></span><span class="text-slate-400"> — </span><span x-text="selected()?.name || 'Nama belum tersedia'"></span></p>
+                            <p class="truncate text-sm font-bold text-slate-900"><span x-text="selected()?.sap || '—'"></span><span class="text-slate-400"> — </span><span x-text="selected()?.personal_number || selected()?.name || 'Nama belum tersedia'"></span></p>
                             <p class="mt-0.5 truncate text-xs text-slate-600" x-text="currentOrganization().position || 'Position belum tersedia'"></p>
                         </div>
                         @if ($isCreate)<button type="button" @click="clearEmployee()" aria-label="Batalkan pilihan Employee" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xl text-slate-400 hover:bg-white hover:text-slate-700">&times;</button>@endif
