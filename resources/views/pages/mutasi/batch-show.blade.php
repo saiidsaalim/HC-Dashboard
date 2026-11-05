@@ -18,6 +18,9 @@
     <x-ui.page-header :title="$batch->name" eyebrow="Batch Mutasi"
         :description="$batch->batch_number.' · '.($batch->description ?: 'Tanpa keterangan tambahan')">
         <x-slot:actions>
+            @if (auth()->user()->hasPermission('mutations.print'))
+                <a href="{{ route('mutasi.batches.export', $batch) }}" class="ui-button ui-button-primary">Export Excel</a>
+            @endif
             <a href="{{ route('mutasi', ['batch' => $batch->id]) }}" class="ui-button ui-button-secondary">Lihat di Daftar Mutasi</a>
             <a href="{{ route('mutasi') }}" class="ui-button ui-button-secondary">Kembali</a>
         </x-slot:actions>

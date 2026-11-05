@@ -69,6 +69,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/mutasi/batch/create', [MutationBatchController::class, 'create'])->middleware('can:mutations.create')->name('mutasi.batches.create');
         Route::post('/mutasi/batch', [MutationBatchController::class, 'store'])->middleware('can:mutations.create')->name('mutasi.batches.store');
         Route::get('/mutasi/batch/{employeeMutationBatch}', [MutationBatchController::class, 'show'])->middleware('can:mutations.view')->name('mutasi.batches.show');
+        Route::get('/mutasi/batch/{employeeMutationBatch}/export-excel', [MutationBatchController::class, 'export'])->middleware('can:mutations.print')->name('mutasi.batches.export');
         Route::post('/mutasi/batch/{employeeMutationBatch}/submit', [MutationBatchController::class, 'submit'])->middleware('can:mutations.submit')->name('mutasi.batches.submit');
         Route::post('/mutasi/batch/{employeeMutationBatch}/approve-selected', [MutationBatchController::class, 'approveSelected'])->middleware('can:mutations.approve')->name('mutasi.batches.approve-selected');
         Route::get('/mutasi/pengaturan-persetujuan', [MovementApprovalSettingsController::class, 'editMutation'])->middleware('can:mutations.manage-approval-settings')->name('mutasi.approval-settings.edit');

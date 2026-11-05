@@ -216,6 +216,11 @@
                 </div>
             </div>
             <div class="flex flex-col items-stretch gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-end">
+                @if ($selectedBatch && auth()->user()->hasPermission('mutations.print'))
+                    <a href="{{ route('mutasi.batches.export', $selectedBatch->id) }}" class="ui-button ui-button-primary">
+                        Export Excel
+                    </a>
+                @endif
                 <form method="GET" action="{{ route('mutasi') }}" class="relative w-full lg:w-80">
                     @if ($filter !== 'all')
                         <input type="hidden" name="status" value="{{ $filter }}">

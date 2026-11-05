@@ -12,6 +12,8 @@ use App\Models\Position;
 use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Tests\TestCase;
 
 class MutationBatchManagementTest extends TestCase
@@ -156,6 +158,85 @@ class MutationBatchManagementTest extends TestCase
         }
     }
 
+    public function test_super_admin_can_export_batch_to_mutation_excel_template(): void
+    {
+        $user = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        [$employees, $target] = $this->employeesAndTarget();
+
+        $this->actingAs($user)->post(route('mutasi.batches.store'), [
+            'name' => 'Mutasi Organisasi Januari 2027',
+            'description' => 'Penyesuaian organisasi dua pegawai.',
+            'default_tmt' => '2027-01-01',
+            'items' => [
+                $this->itemPayload($employees[0], $target, '13', '11'),
+                $this->itemPayload($employees[1], $target, '14', '12'),
+            ],
+        ])->assertRedirect();
+
+        $batch = EmployeeMutationBatch::query()->sole();
+        $prototype = $batch->mutations()->orderBy('id')->firstOrFail();
+        foreach (range(3, 13) as $number) {
+            $additionalMutation = $prototype->replicate();
+            $additionalMutation->forceFill([
+                'sap' => 'SAP-BATCH-'.$number,
+                'nama' => 'Pegawai Batch '.$number,
+            ])->save();
+        }
+
+        $this->actingAs($user)->get(route('mutasi.batches.show', $batch))
+            ->assertOk()
+            ->assertSee('Export Excel')
+            ->assertSee(route('mutasi.batches.export', $batch), escape: false);
+        $this->actingAs($user)->get(route('mutasi', ['batch' => $batch->id]))
+            ->assertOk()
+            ->assertSee('Export Excel')
+            ->assertSee(route('mutasi.batches.export', $batch), escape: false);
+
+        $response = $this->actingAs($user)->get(route('mutasi.batches.export', $batch));
+        $response->assertOk()->assertDownload();
+        $download = $response->baseResponse;
+        $this->assertInstanceOf(BinaryFileResponse::class, $download);
+        $downloadPath = $download->getFile()->getPathname();
+
+        try {
+            $workbook = IOFactory::load($downloadPath);
+            $sheet = $workbook->getActiveSheet();
+
+            $this->assertSame('1', $sheet->getCell('B10')->getValue());
+            $this->assertSame($employees[0]->sap, $sheet->getCell('C10')->getValue());
+            $this->assertSame('Pegawai Batch 1', $sheet->getCell('D10')->getValue());
+            $this->assertSame('Department Lama', $sheet->getCell('F10')->getValue());
+            $this->assertSame('Position Lama', $sheet->getCell('G10')->getValue());
+            $this->assertSame('Department Baru', $sheet->getCell('J10')->getValue());
+            $this->assertSame('Position Baru', $sheet->getCell('K10')->getValue());
+            $this->assertSame('01 Januari 2027', $sheet->getCell('O10')->getValue());
+            $this->assertNull($sheet->getCell('Q10')->getValue());
+            $this->assertSame('POSITION-ID-1', $sheet->getCell('R10')->getValue());
+            $this->assertSame($employees[1]->sap, $sheet->getCell('C11')->getValue());
+            $this->assertNull($sheet->getCell('Q11')->getValue());
+            $this->assertSame('13', $sheet->getCell('B22')->getValue());
+            $this->assertSame('SAP-BATCH-13', $sheet->getCell('C22')->getValue());
+            $this->assertTrue($sheet->getRowDimension(22)->getVisible());
+
+            $cellValues = [];
+            foreach ($sheet->getCellCollection()->getCoordinates() as $coordinate) {
+                $cell = $sheet->getCell($coordinate);
+                $this->assertFalse($cell->isFormula(), "Formula tidak boleh tersisa di {$coordinate}.");
+                $cellValues[] = (string) $cell->getValue();
+            }
+
+            $this->assertStringNotContainsString('NUR IRVANSYAH', implode(' ', $cellValues));
+            $workbook->disconnectWorksheets();
+        } finally {
+            if (is_file($downloadPath)) {
+                unlink($downloadPath);
+            }
+        }
+
+        $staff = User::factory()->create();
+        $this->actingAs($staff)->get(route('mutasi.batches.export', $batch))->assertForbidden();
+    }
+
     /** @return array{array<int, Employee>, array{directorate: Directorate, department: Department, unit: Unit, position: Position}} */
     private function employeesAndTarget(): array
     {
@@ -171,6 +252,7 @@ class MutationBatchManagementTest extends TestCase
                 'department_id' => $oldDepartment->id,
                 'unit_id' => $oldUnit->id,
                 'position_id' => $oldPosition->id,
+                'position_id_source' => 'POSITION-ID-'.$index,
                 'employee_subgroup' => 'Manager',
             ]);
             $employee->forceFill(['name' => 'Pegawai Batch '.$index])->save();

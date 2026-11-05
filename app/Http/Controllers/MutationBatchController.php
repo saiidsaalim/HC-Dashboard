@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\MutationBatchSpreadsheet;
 use App\Http\Requests\ApproveMutationBatchItemsRequest;
 use App\Http\Requests\StoreMutationBatchRequest;
 use App\Models\Employee;
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class MutationBatchController extends Controller
 {
@@ -87,6 +89,15 @@ class MutationBatchController extends Controller
             'batch' => $employeeMutationBatch,
             'approvalConfigurationComplete' => $workflow->isConfigurationComplete(EmployeeMutation::class),
         ]);
+    }
+
+    public function export(
+        EmployeeMutationBatch $employeeMutationBatch,
+        MutationBatchSpreadsheet $spreadsheet,
+    ): BinaryFileResponse {
+        Gate::authorize('viewAny', EmployeeMutation::class);
+
+        return $spreadsheet->download($employeeMutationBatch);
     }
 
     public function submit(
