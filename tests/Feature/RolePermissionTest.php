@@ -41,6 +41,9 @@ class RolePermissionTest extends TestCase
             ->assertSeeText('Tentukan halaman dan tindakan yang dapat diakses oleh setiap role.')
             ->assertSee('id="role-permission-modal"', escape: false)
             ->assertSee('data-role-permission-table', escape: false)
+            ->assertSee('dark:bg-slate-900', escape: false)
+            ->assertSee('dark:bg-sky-950/60', escape: false)
+            ->assertSee('dark:border-slate-700', escape: false)
             ->assertSee('Atur Hak Akses', escape: false);
 
         $this->assertSame(1, substr_count($response->getContent(), 'Atur Hak Akses'));

@@ -67,6 +67,9 @@ class SuccessorManagementTest extends TestCase
             ->assertSee('Human Capital Directorate')
             ->assertSee('IDP: 75%')
             ->assertSee('storage/successors/andi-pratama.jpg', escape: false)
+            ->assertSee('data-successor-form', escape: false)
+            ->assertSee('dark:bg-slate-900/90', escape: false)
+            ->assertSee('dark:bg-slate-950', escape: false)
             ->assertSee(route('performance-talent.successors.update', $successor), escape: false);
     }
 
