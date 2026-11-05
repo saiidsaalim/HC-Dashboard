@@ -116,6 +116,73 @@ class EmployeeManagementTest extends TestCase
         );
     }
 
+    public function test_employees_with_movements_are_listed_first_and_show_the_latest_movement_type(): void
+    {
+        $user = User::factory()->create();
+        $withoutMovement = Employee::query()->create($this->employeeAttributes('SAP-NO-MOVEMENT', [
+            'personal_number' => 'PN-NO-MOVEMENT',
+        ]));
+        $mutationEmployee = Employee::query()->create($this->employeeAttributes('SAP-MUTATION', [
+            'personal_number' => 'PN-MUTATION',
+        ]));
+        $promotionEmployee = Employee::query()->create($this->employeeAttributes('SAP-PROMOTION', [
+            'personal_number' => 'PN-PROMOTION',
+        ]));
+        $demotionEmployee = Employee::query()->create($this->employeeAttributes('SAP-DEMOTION', [
+            'personal_number' => 'PN-DEMOTION',
+        ]));
+
+        $withoutMovement->forceFill(['name' => 'Pegawai Tanpa Movement'])->save();
+        $mutationEmployee->forceFill(['name' => 'Pegawai Mutasi'])->save();
+        $promotionEmployee->forceFill(['name' => 'Pegawai Promosi'])->save();
+        $demotionEmployee->forceFill(['name' => 'Pegawai Demosi'])->save();
+
+        try {
+            Carbon::setTestNow('2026-11-01 08:00:00');
+            $mutationEmployee->mutations()->create($this->movementAttributes($mutationEmployee));
+
+            Carbon::setTestNow('2026-11-01 12:00:00');
+            $promotionEmployee->mutations()->create($this->movementAttributes($promotionEmployee));
+
+            Carbon::setTestNow('2026-11-02 08:00:00');
+            $promotionEmployee->promotions()->create($this->movementAttributes($promotionEmployee));
+
+            Carbon::setTestNow('2026-11-03 08:00:00');
+            $demotionEmployee->demotions()->create($this->movementAttributes($demotionEmployee));
+        } finally {
+            Carbon::setTestNow();
+        }
+
+        $response = $this->actingAs($user)->get(route('data-pegawai'))->assertOk();
+
+        $this->assertSame(
+            ['SAP-DEMOTION', 'SAP-PROMOTION', 'SAP-MUTATION', 'SAP-NO-MOVEMENT'],
+            $response->viewData('employees')->pluck('sap')->all(),
+        );
+
+        $document = new \DOMDocument;
+        @$document->loadHTML($response->getContent());
+        $xpath = new \DOMXPath($document);
+
+        foreach ([
+            'SAP-PROMOTION' => 'Promosi',
+            'SAP-DEMOTION' => 'Demosi',
+            'SAP-MUTATION' => 'Mutasi',
+        ] as $sap => $expectedMovement) {
+            $row = $xpath->query('//tr[@data-employee-row][td[contains(normalize-space(.), "'.$sap.'")]]')->item(0);
+            $this->assertNotNull($row);
+            $badge = $xpath->query('.//*[@data-employee-movement]', $row)->item(0);
+            $this->assertNotNull($badge);
+            $this->assertSame($expectedMovement, trim($badge->textContent));
+            $this->assertStringNotContainsString('Personal Number', $row->textContent);
+        }
+
+        $rowWithoutMovement = $xpath->query('//tr[@data-employee-row][td[contains(normalize-space(.), "SAP-NO-MOVEMENT")]]')->item(0);
+        $this->assertNotNull($rowWithoutMovement);
+        $this->assertSame(0, $xpath->query('.//*[@data-employee-movement]', $rowWithoutMovement)->length);
+        $this->assertStringNotContainsString('Personal Number', $rowWithoutMovement->textContent);
+    }
+
     public function test_employee_list_can_filter_by_directorate_and_actual_status(): void
     {
         $user = User::factory()->create();
@@ -1446,6 +1513,26 @@ class EmployeeManagementTest extends TestCase
         return array_merge([
             'sap' => $sap,
         ], $overrides);
+    }
+
+    /** @return array<string, string> */
+    private function movementAttributes(Employee $employee): array
+    {
+        return [
+            'sap' => $employee->sap,
+            'nama' => $employee->name ?: $employee->sap,
+            'departemen_lama' => 'Department Lama',
+            'jabatan_lama' => 'Position Lama',
+            'departemen_baru' => 'Department Baru',
+            'jabatan_baru' => 'Position Baru',
+            'tmt' => '2026-12-01',
+            'pg' => 'PG-1',
+            'level_lama' => 'Manager',
+            'jg_lama' => 'JG-1',
+            'level_baru' => 'Associate',
+            'jg_baru' => 'JG-2',
+            'verification_status' => 'Draft',
+        ];
     }
 
     /** @param array<int, array<string, string>> $rows */

@@ -121,6 +121,21 @@ class Employee extends Model
         return $this->hasMany(EmployeeMutation::class);
     }
 
+    public function latestMutation(): HasOne
+    {
+        return $this->hasOne(EmployeeMutation::class)->latestOfMany('created_at');
+    }
+
+    public function latestPromotion(): HasOne
+    {
+        return $this->hasOne(EmployeePromotion::class)->latestOfMany('created_at');
+    }
+
+    public function latestDemotion(): HasOne
+    {
+        return $this->hasOne(EmployeeDemotion::class)->latestOfMany('created_at');
+    }
+
     public function user(): HasOne
     {
         return $this->hasOne(User::class);

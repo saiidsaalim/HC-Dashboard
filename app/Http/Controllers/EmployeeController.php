@@ -9,8 +9,11 @@ use App\Imports\EmployeeImport;
 use App\Models\Department;
 use App\Models\Directorate;
 use App\Models\Employee;
+use App\Models\EmployeeDemotion;
 use App\Models\EmployeeImportBatch;
 use App\Models\EmployeeImportRow;
+use App\Models\EmployeeMutation;
+use App\Models\EmployeePromotion;
 use App\Models\Position;
 use App\Models\Section;
 use App\Models\Unit;
@@ -21,6 +24,7 @@ use App\Services\Employees\EmployeeOrganizationSyncService;
 use App\Services\Users\StaffUserProvisioningService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -99,7 +103,40 @@ class EmployeeController extends Controller
             ]);
         }
 
-        $employeeQuery = Employee::query()->with(['organizationDirectorate', 'organizationDepartment', 'unit', 'organizationPosition']);
+        $movementActivityQuery = EmployeeMutation::query()
+            ->select(['employee_id', 'created_at'])
+            ->unionAll(EmployeePromotion::query()->select(['employee_id', 'created_at']))
+            ->unionAll(EmployeeDemotion::query()->select(['employee_id', 'created_at']));
+        $latestMovementQuery = DB::query()
+            ->fromSub($movementActivityQuery, 'employee_movement_activity')
+            ->select('employee_id')
+            ->selectRaw('MAX(created_at) AS latest_movement_created_at')
+            ->groupBy('employee_id');
+        $employeeQuery = Employee::query()
+            ->leftJoinSub(
+                $latestMovementQuery,
+                'latest_employee_movement',
+                'employees.id',
+                '=',
+                'latest_employee_movement.employee_id',
+            )
+            ->select('employees.*')
+            ->addSelect('latest_employee_movement.latest_movement_created_at')
+            ->with([
+                'organizationDirectorate',
+                'organizationDepartment',
+                'unit',
+                'organizationPosition',
+                'latestMutation' => fn (HasOne $query): HasOne => $query->select([
+                    'employee_mutations.id', 'employee_mutations.employee_id', 'employee_mutations.created_at',
+                ]),
+                'latestPromotion' => fn (HasOne $query): HasOne => $query->select([
+                    'employee_promotions.id', 'employee_promotions.employee_id', 'employee_promotions.created_at',
+                ]),
+                'latestDemotion' => fn (HasOne $query): HasOne => $query->select([
+                    'employee_demotions.id', 'employee_demotions.employee_id', 'employee_demotions.created_at',
+                ]),
+            ]);
 
         if ($search !== '') {
             $employeeQuery->where(function (Builder $query) use ($search): void {
@@ -137,13 +174,19 @@ class EmployeeController extends Controller
             $employeeQuery->where('gender_key', $gender);
         }
 
+        $employeeQuery
+            ->orderByRaw('CASE WHEN latest_employee_movement.latest_movement_created_at IS NULL THEN 1 ELSE 0 END')
+            ->orderByDesc('latest_employee_movement.latest_movement_created_at');
+
         if ($sortBy === 'organic_newest' || $sortBy === 'organic_oldest') {
             $employeeQuery
                 ->orderByRaw('CASE WHEN organilk IS NULL THEN 1 ELSE 0 END')
                 ->orderBy('organilk', $sortBy === 'organic_newest' ? 'desc' : 'asc')
-                ->orderByDesc('id');
+                ->orderByDesc('employees.id');
         } else {
-            $employeeQuery->latest();
+            $employeeQuery
+                ->orderByDesc('employees.created_at')
+                ->orderByDesc('employees.id');
         }
 
         $employees = $employeeQuery->paginate(20)->withQueryString();

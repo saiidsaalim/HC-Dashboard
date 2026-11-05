@@ -239,7 +239,7 @@
                     </label>
                     <label for="employee-sort" class="block text-sm font-semibold text-slate-700">Urutkan berdasarkan
                         <select id="employee-sort" name="sort_by" class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-red-400 focus:ring-red-400">
-                            <option value="latest" @selected($sortBy === 'latest')>Terbaru ditambahkan</option>
+                            <option value="latest" @selected($sortBy === 'latest')>Aktivitas HC terbaru</option>
                             <option value="organic_newest" @selected($sortBy === 'organic_newest')>Organik terbaru</option>
                             <option value="organic_oldest" @selected($sortBy === 'organic_oldest')>Organik terlama</option>
                         </select>
@@ -766,7 +766,11 @@
                         @forelse ($employees as $employee)
                             @php($employeeDisplayName = $employee->name ?: $employee->personal_number ?: $employee->sap)
                             @php($employeeInitials = collect(preg_split('/\s+/', trim((string) $employeeDisplayName)))->filter()->take(2)->map(fn (string $namePart): string => mb_strtoupper(mb_substr($namePart, 0, 1)))->implode(''))
-                            @php($hasDistinctPersonalNumber = filled($employee->name) && filled($employee->personal_number) && mb_strtolower(trim((string) $employee->name)) !== mb_strtolower(trim((string) $employee->personal_number)))
+                            @php($latestEmployeeMovement = collect([
+                                ['label' => 'Mutasi', 'record' => $employee->latestMutation, 'class' => 'border-sky-200 bg-sky-50 text-sky-700'],
+                                ['label' => 'Promosi', 'record' => $employee->latestPromotion, 'class' => 'border-emerald-200 bg-emerald-50 text-emerald-700'],
+                                ['label' => 'Demosi', 'record' => $employee->latestDemotion, 'class' => 'border-rose-200 bg-rose-50 text-rose-700'],
+                            ])->filter(fn (array $movement): bool => $movement['record'] !== null)->sortByDesc(fn (array $movement): int => $movement['record']->created_at?->getTimestamp() ?? 0)->first())
                             @php($employeeLevel = trim((string) $employee->employee_subgroup))
                             @php($employeeLevelClass = $employeeLevelClasses->get($employeeLevel, 'border-slate-200 bg-slate-100 text-slate-700'))
                             <tr data-employee-row class="transition-colors duration-200 hover:bg-red-50/40">
@@ -783,12 +787,11 @@
                                         <span class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold ring-4 ring-white {{ $employeeAvatarClasses[$employee->id % count($employeeAvatarClasses)] }}" aria-hidden="true">{{ $employeeInitials ?: 'PG' }}</span>
                                         <div class="min-w-0">
                                             <p class="break-words font-bold text-slate-950">{{ $employeeDisplayName }}</p>
-                                            @if ($hasDistinctPersonalNumber)
-                                                <p class="mt-1 break-words text-xs font-medium text-slate-500">Personal Number {{ $employee->personal_number }}</p>
-                                            @elseif (filled($employee->personal_number))
-                                                <p class="mt-1 text-xs font-medium text-slate-500">Personal Number</p>
-                                            @else
-                                                <p class="mt-1 text-xs font-medium text-slate-500">Personal Number belum tersedia</p>
+                                            @if ($latestEmployeeMovement)
+                                                <span data-employee-movement="{{ strtolower($latestEmployeeMovement['label']) }}"
+                                                    class="mt-1 inline-flex rounded-full border px-2 py-0.5 text-[11px] font-bold {{ $latestEmployeeMovement['class'] }}">
+                                                    {{ $latestEmployeeMovement['label'] }}
+                                                </span>
                                             @endif
                                         </div>
                                     </div>
