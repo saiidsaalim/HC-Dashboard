@@ -10,12 +10,6 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Employee extends Model
 {
-    /** @var list<string> */
-    public const CRITICALITY_OPTIONS = ['high', 'medium', 'low'];
-
-    /** @var list<string> */
-    public const FORMATION_STATUS_OPTIONS = ['covered', 'vacant'];
-
     /** @var list<int> */
     public const TALENT_MAPPING_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
@@ -29,6 +23,7 @@ class Employee extends Model
 
     protected $fillable = [
         'sap',
+        'name',
         'id_number',
         'agkn',
         'position_id_source',
@@ -56,8 +51,6 @@ class Employee extends Model
         'hiring',
         'organilk',
         'alamat',
-        'criticality',
-        'formation_status',
         'talent_mapping',
         'succession_readiness',
         'idp_percentage',

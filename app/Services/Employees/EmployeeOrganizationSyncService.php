@@ -88,7 +88,7 @@ class EmployeeOrganizationSyncService
             }
 
             $after = $this->auditEmployees($employees->each->refresh(), $this->masterState());
-            $levelSynchronization = $this->synchronizePositionLevels();
+            $metadataSynchronization = $this->synchronizePositionMetadata();
             $after['applied'] = [
                 'employees_updated' => $updated,
                 'foreign_keys_updated' => $foreignKeysUpdated,
@@ -97,8 +97,10 @@ class EmployeeOrganizationSyncService
                 'units_created' => $created['units'],
                 'sections_created' => $created['sections'],
                 'positions_created' => $created['positions'],
-                'position_levels_updated' => $levelSynchronization['updated'],
-                'position_level_conflicts' => count($levelSynchronization['conflicts']),
+                'position_levels_updated' => $metadataSynchronization['levels']['updated'],
+                'position_level_conflicts' => count($metadataSynchronization['levels']['conflicts']),
+                'external_position_ids_updated' => $metadataSynchronization['external_position_ids']['updated'],
+                'external_position_id_conflicts' => count($metadataSynchronization['external_position_ids']['conflicts']),
             ];
 
             return $after;
@@ -205,6 +207,92 @@ class EmployeeOrganizationSyncService
             'positions' => $positions->count(),
             'updated' => $updated,
             'conflicts' => $conflicts,
+        ];
+    }
+
+    /**
+     * @param  array<int, int|string|null>|null  $positionIds
+     * @return array{positions: int, updated: int, conflicts: array<int, array{position_id: int, external_position_ids: array<int, string>}>}
+     */
+    public function synchronizePositionExternalIds(?array $positionIds = null): array
+    {
+        $normalizedPositionIds = $positionIds === null
+            ? null
+            : collect($positionIds)
+                ->filter(fn (mixed $positionId): bool => (int) $positionId > 0)
+                ->map(fn (mixed $positionId): int => (int) $positionId)
+                ->unique()
+                ->values()
+                ->all();
+
+        if ($normalizedPositionIds === []) {
+            return ['positions' => 0, 'updated' => 0, 'conflicts' => []];
+        }
+
+        $positions = Position::query()
+            ->select(['id', 'name', 'external_position_id'])
+            ->when($normalizedPositionIds !== null, fn ($query) => $query->whereIn('id', $normalizedPositionIds))
+            ->orderBy('id')
+            ->get();
+        $employeesByPosition = Employee::query()
+            ->select(['id', 'position_id', 'position_id_source'])
+            ->whereNotNull('position_id')
+            ->whereNotNull('position_id_source')
+            ->when($normalizedPositionIds !== null, fn ($query) => $query->whereIn('position_id', $normalizedPositionIds))
+            ->orderBy('position_id')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('position_id');
+        $updated = 0;
+        $conflicts = [];
+
+        foreach ($positions as $position) {
+            $externalPositionIds = $employeesByPosition
+                ->get($position->id, collect())
+                ->map(fn (Employee $employee): string => trim((string) $employee->position_id_source))
+                ->filter()
+                ->unique()
+                ->values();
+
+            if ($externalPositionIds->count() > 1) {
+                $conflict = [
+                    'position_id' => (int) $position->id,
+                    'external_position_ids' => $externalPositionIds->all(),
+                ];
+                $conflicts[] = $conflict;
+                Log::warning('Position mempunyai SAP Position ID Employee yang tidak konsisten.', [
+                    ...$conflict,
+                    'position_name' => $position->name,
+                ]);
+
+                continue;
+            }
+
+            $externalPositionId = $externalPositionIds->first();
+            if (! is_string($externalPositionId) || $position->external_position_id === $externalPositionId) {
+                continue;
+            }
+
+            Position::query()->whereKey($position->id)->update(['external_position_id' => $externalPositionId]);
+            $updated++;
+        }
+
+        return [
+            'positions' => $positions->count(),
+            'updated' => $updated,
+            'conflicts' => $conflicts,
+        ];
+    }
+
+    /**
+     * @param  array<int, int|string|null>|null  $positionIds
+     * @return array{levels: array<string, mixed>, external_position_ids: array<string, mixed>}
+     */
+    public function synchronizePositionMetadata(?array $positionIds = null): array
+    {
+        return [
+            'levels' => $this->synchronizePositionLevels($positionIds),
+            'external_position_ids' => $this->synchronizePositionExternalIds($positionIds),
         ];
     }
 
@@ -741,7 +829,7 @@ class EmployeeOrganizationSyncService
         $employees = new Collection;
         $query = Employee::query()
             ->select([
-                'id', 'txt_dir', 'txt_dept', 'txt_biro', 'txt_sect', 'position',
+                'id', 'txt_dir', 'txt_dept', 'txt_biro', 'txt_sect', 'position', 'position_id_source',
                 'directorate_id', 'department_id', 'unit_id', 'section_id', 'position_id',
             ])
             ->orderBy('id');

@@ -48,6 +48,7 @@ Route::middleware('auth')->group(function () {
         ->group(function (): void {
             Route::get('/dashboard', '__invoke')->name('dashboard');
             Route::get('/critical-positions', [CriticalPositionController::class, 'index'])->name('critical-positions.index');
+            Route::get('/critical-positions/positions/{position}', [CriticalPositionController::class, 'positionPreview'])->name('critical-positions.position-preview');
             Route::post('/critical-positions', [CriticalPositionController::class, 'store'])->name('critical-positions.store');
             Route::put('/critical-positions/{criticalPosition}', [CriticalPositionController::class, 'update'])->name('critical-positions.update');
             Route::delete('/critical-positions/{criticalPosition}', [CriticalPositionController::class, 'destroy'])->name('critical-positions.destroy');

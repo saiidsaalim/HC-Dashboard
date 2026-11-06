@@ -48,12 +48,12 @@ class EmployeeImportStagingTest extends TestCase
             'birth_date', 'gender_key', 'personnel_area', 'abrevation_position',
             'abrevation_organization', 'organizational_unit', 'cost_center', 'masa_kontrak',
             'email', 'religious', 'usia', 'tempat_lahir', 'pendidikan', 'hiring', 'organilk', 'alamat',
-            'criticality', 'formation_status', 'talent_mapping', 'succession_readiness', 'idp_percentage',
+            'talent_mapping', 'succession_readiness', 'idp_percentage',
         ] as $canonicalColumn) {
             $this->assertContains($canonicalColumn, $columnNames);
         }
 
-        foreach (['criticality', 'formation_status', 'talent_mapping', 'succession_readiness', 'idp_percentage'] as $nullableColumn) {
+        foreach (['talent_mapping', 'succession_readiness', 'idp_percentage'] as $nullableColumn) {
             $this->assertTrue(collect($columns)->firstWhere('name', $nullableColumn)['nullable']);
             $this->assertContains($nullableColumn, (new Employee)->getFillable());
         }
@@ -79,7 +79,9 @@ class EmployeeImportStagingTest extends TestCase
         $this->assertStringContainsString('"masa_kontrak" date', strtolower($employeeTableDefinition));
         $this->assertStringContainsString('"organilk" date', strtolower($employeeTableDefinition));
         $this->assertTrue(collect($columns)->firstWhere('name', 'name')['nullable']);
-        $this->assertNotContains('name', (new Employee)->getFillable());
+        $this->assertContains('name', (new Employee)->getFillable());
+        $this->assertNotContains('criticality', $columnNames);
+        $this->assertNotContains('formation_status', $columnNames);
         $this->assertFalse(collect(Schema::getIndexes('employees'))->contains(fn (array $index): bool => in_array('personal_number', $index['columns'], true) && $index['unique']));
         $this->assertFalse(collect(Schema::getForeignKeys('employees'))->contains(fn (array $foreignKey): bool => array_intersect(
             ['position_id_source', 'txt_dir', 'txt_dept', 'txt_biro', 'txt_sect', 'organizational_unit'],
@@ -91,14 +93,14 @@ class EmployeeImportStagingTest extends TestCase
     {
         Storage::fake('local');
         $actor = $this->superAdmin();
-        $headers = [...self::HEADERS, 'Criticality', 'Status Formasi', 'Talent Mapping', 'Succession Readiness', 'IDP (%)'];
+        $headers = [...self::HEADERS, 'Talent Mapping', 'Succession Readiness', 'IDP (%)'];
         $rows = [
-            ['SAP' => 'SAP-SUCCESSION-1', 'Criticality' => ' HIGH ', 'Status Formasi' => 'COVERED', 'Talent Mapping' => '1', 'Succession Readiness' => 'READY NOW', 'IDP (%)' => '75'],
-            ['SAP' => 'SAP-SUCCESSION-2', 'Criticality' => 'medium', 'Status Formasi' => 'vacant', 'Talent Mapping' => '9', 'Succession Readiness' => 'ready in one year', 'IDP (%)' => '75.5'],
-            ['SAP' => 'SAP-SUCCESSION-3', 'Criticality' => 'low', 'Status Formasi' => 'covered', 'Talent Mapping' => '5', 'Succession Readiness' => 'ready in two – three years', 'IDP (%)' => '75.50'],
-            ['SAP' => 'SAP-SUCCESSION-4', 'Criticality' => 'high', 'Status Formasi' => 'vacant', 'Talent Mapping' => '2', 'Succession Readiness' => 'ready in three — five years', 'IDP (%)' => '75%'],
-            ['SAP' => 'SAP-SUCCESSION-5', 'Criticality' => 'medium', 'Status Formasi' => 'covered', 'Talent Mapping' => '3', 'Succession Readiness' => 'ready now', 'IDP (%)' => '75,5'],
-            ['SAP' => 'SAP-SUCCESSION-6', 'Criticality' => 'low', 'Status Formasi' => 'vacant', 'Talent Mapping' => '4', 'Succession Readiness' => 'ready in one year', 'IDP (%)' => '0.75'],
+            ['SAP' => 'SAP-SUCCESSION-1', 'Talent Mapping' => '1', 'Succession Readiness' => 'READY NOW', 'IDP (%)' => '75'],
+            ['SAP' => 'SAP-SUCCESSION-2', 'Talent Mapping' => '9', 'Succession Readiness' => 'ready in one year', 'IDP (%)' => '75.5'],
+            ['SAP' => 'SAP-SUCCESSION-3', 'Talent Mapping' => '5', 'Succession Readiness' => 'ready in two – three years', 'IDP (%)' => '75.50'],
+            ['SAP' => 'SAP-SUCCESSION-4', 'Talent Mapping' => '2', 'Succession Readiness' => 'ready in three — five years', 'IDP (%)' => '75%'],
+            ['SAP' => 'SAP-SUCCESSION-5', 'Talent Mapping' => '3', 'Succession Readiness' => 'ready now', 'IDP (%)' => '75,5'],
+            ['SAP' => 'SAP-SUCCESSION-6', 'Talent Mapping' => '4', 'Succession Readiness' => 'ready in one year', 'IDP (%)' => '0.75'],
             ['SAP' => 'SAP-SUCCESSION-7', 'Talent Mapping' => '6'],
             ['SAP' => 'SAP-SUCCESSION-8', 'Talent Mapping' => '7'],
             ['SAP' => 'SAP-SUCCESSION-9', 'Talent Mapping' => '8'],
@@ -114,14 +116,13 @@ class EmployeeImportStagingTest extends TestCase
         $this->assertSame(10, $batch->valid_rows);
         $this->assertSame(0, $batch->invalid_rows);
         $this->assertDatabaseCount('employees', 0);
-        $this->assertSame('high', $stagedRows[0]->normalized_payload['criticality']);
         $this->assertSame('ready in two - three years', $stagedRows[2]->normalized_payload['succession_readiness']);
         $this->assertSame('ready in three - five years', $stagedRows[3]->normalized_payload['succession_readiness']);
         $this->assertSame(['75.00', '75.50', '75.50', '75.00', '75.50', '0.75'], $stagedRows->take(6)
             ->pluck('normalized_payload')->map(fn (array $payload): string => $payload['idp_percentage'])->all());
         $this->assertSame(range(1, 9), $stagedRows->take(9)->pluck('normalized_payload')
             ->map(fn (array $payload): int => $payload['talent_mapping'])->sort()->values()->all());
-        foreach (['criticality', 'formation_status', 'talent_mapping', 'succession_readiness', 'idp_percentage'] as $field) {
+        foreach (['talent_mapping', 'succession_readiness', 'idp_percentage'] as $field) {
             $this->assertNull($stagedRows[9]->normalized_payload[$field]);
         }
 
@@ -136,8 +137,6 @@ class EmployeeImportStagingTest extends TestCase
         $this->assertSame('75.00', $employee->idp_percentage);
         $this->assertDatabaseHas('employees', [
             'sap' => 'SAP-SUCCESSION-BLANK',
-            'criticality' => null,
-            'formation_status' => null,
             'talent_mapping' => null,
             'succession_readiness' => null,
             'idp_percentage' => null,
@@ -148,10 +147,8 @@ class EmployeeImportStagingTest extends TestCase
     {
         Storage::fake('local');
         $actor = $this->superAdmin();
-        $headers = [...self::HEADERS, 'Criticality', 'Status Formasi', 'Talent Mapping', 'Succession Readiness', 'IDP (%)'];
+        $headers = [...self::HEADERS, 'Talent Mapping', 'Succession Readiness', 'IDP (%)'];
         $invalidRows = [
-            ['SAP' => 'SAP-INVALID-CRITICALITY', 'Criticality' => 'urgent'],
-            ['SAP' => 'SAP-INVALID-FORMATION', 'Status Formasi' => 'open'],
             ['SAP' => 'SAP-INVALID-TALENT-LOW', 'Talent Mapping' => '0'],
             ['SAP' => 'SAP-INVALID-TALENT-HIGH', 'Talent Mapping' => '10'],
             ['SAP' => 'SAP-INVALID-TALENT-DECIMAL', 'Talent Mapping' => '1.5'],
@@ -167,18 +164,15 @@ class EmployeeImportStagingTest extends TestCase
         ])->assertRedirect(route('data-pegawai'));
 
         $batch = EmployeeImportBatch::query()->firstOrFail();
-        $this->assertSame(10, $batch->invalid_rows);
+        $this->assertSame(8, $batch->invalid_rows);
         $this->assertDatabaseCount('employees', 0);
         $errors = $batch->rows()->orderBy('source_row')->pluck('validation_errors')->flatten()->all();
-        $this->assertTrue(collect($errors)->contains(fn (string $error): bool => str_contains($error, 'Criticality "urgent"')));
-        $this->assertTrue(collect($errors)->contains(fn (string $error): bool => str_contains($error, 'Status Formasi "open"')));
         $this->assertSame(3, collect($errors)->filter(fn (string $error): bool => str_contains($error, 'Talent Mapping'))->count());
         $this->assertTrue(collect($errors)->contains(fn (string $error): bool => str_contains($error, 'Succession Readiness "ready someday"')));
         $this->assertSame(4, collect($errors)->filter(fn (string $error): bool => str_contains($error, 'IDP (%)'))->count());
 
         $this->actingAs($actor)->get(route('data-pegawai.import.review.show', $batch))
             ->assertOk()
-            ->assertSee('Criticality &quot;urgent&quot;', false)
             ->assertSee('Talent Mapping &quot;0&quot;', false)
             ->assertSee('IDP (%) &quot;-1&quot;', false);
     }
@@ -188,8 +182,6 @@ class EmployeeImportStagingTest extends TestCase
         Storage::fake('local');
         $actor = $this->superAdmin();
         $employee = $this->createEmployee('SAP-LEGACY-SUCCESSION', [
-            'criticality' => 'high',
-            'formation_status' => 'covered',
             'talent_mapping' => 8,
             'succession_readiness' => 'ready now',
             'idp_percentage' => 88.5,
@@ -211,7 +203,6 @@ class EmployeeImportStagingTest extends TestCase
 
         $employee->refresh();
         $this->assertSame('Updated by legacy file', $employee->position);
-        $this->assertSame('high', $employee->criticality);
         $this->assertSame(8, $employee->talent_mapping);
         $this->assertSame('88.50', $employee->idp_percentage);
     }
@@ -924,7 +915,7 @@ class EmployeeImportStagingTest extends TestCase
 
     private function percentageXlsxFile(): UploadedFile
     {
-        $headers = [...self::HEADERS, 'Criticality', 'Status Formasi', 'Talent Mapping', 'Succession Readiness', 'IDP (%)'];
+        $headers = [...self::HEADERS, 'Talent Mapping', 'Succession Readiness', 'IDP (%)'];
         $spreadsheet = new Spreadsheet;
         $worksheet = $spreadsheet->getActiveSheet();
         $worksheet->fromArray($headers, null, 'A1');
@@ -946,7 +937,7 @@ class EmployeeImportStagingTest extends TestCase
             null,
             'A3',
         );
-        $worksheet->getStyle('AG2')->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_PERCENTAGE_00);
+        $worksheet->getStyle('AE2')->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_PERCENTAGE_00);
 
         $temporaryBase = tempnam(sys_get_temp_dir(), 'employee-percent-import-');
         $this->assertNotFalse($temporaryBase);

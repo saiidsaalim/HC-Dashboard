@@ -553,8 +553,6 @@ class EmployeeManagementTest extends TestCase
     {
         $user = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
         Employee::create($this->employeeAttributes('SAPXLS-PTM', [
-            'criticality' => 'high',
-            'formation_status' => 'covered',
             'talent_mapping' => 9,
             'succession_readiness' => 'ready now',
             'idp_percentage' => 75.5,
@@ -562,8 +560,8 @@ class EmployeeManagementTest extends TestCase
 
         $this->actingAs($user)->get(route('performance-talent.data-pegawai.print'))
             ->assertOk()
-            ->assertSee('Criticality')
-            ->assertSee('Status Formasi')
+            ->assertDontSee('Criticality')
+            ->assertDontSee('Status Formasi')
             ->assertSee('Talent Mapping')
             ->assertSee('Succession Readiness')
             ->assertSee('IDP (%)')
@@ -579,37 +577,31 @@ class EmployeeManagementTest extends TestCase
         $worksheet = $spreadsheet->getSheetByName('Data Pegawai');
         $this->assertNotNull($worksheet);
         $this->assertSame([
-            'Criticality',
-            'Status Formasi',
             'Talent Mapping',
             'Succession Readiness',
             'IDP (%)',
-        ], $worksheet->rangeToArray('AC1:AG1')[0]);
+        ], $worksheet->rangeToArray('AC1:AE1')[0]);
 
         $listSheet = $spreadsheet->getSheetByName('Dropdown Lists');
         $this->assertNotNull($listSheet);
         $this->assertSame(Worksheet::SHEETSTATE_VERYHIDDEN, $listSheet->getSheetState());
-        $this->assertSame(Employee::CRITICALITY_OPTIONS, array_column($listSheet->rangeToArray('A1:A3'), 0));
-        $this->assertSame(Employee::FORMATION_STATUS_OPTIONS, array_column($listSheet->rangeToArray('B1:B2'), 0));
         $this->assertSame(Employee::TALENT_MAPPING_OPTIONS, array_map(
             'intval',
-            array_column($listSheet->rangeToArray('C1:C9'), 0),
+            array_column($listSheet->rangeToArray('A1:A9'), 0),
         ));
-        $this->assertSame(Employee::SUCCESSION_READINESS_OPTIONS, array_column($listSheet->rangeToArray('D1:D4'), 0));
+        $this->assertSame(Employee::SUCCESSION_READINESS_OPTIONS, array_column($listSheet->rangeToArray('B1:B4'), 0));
         $this->assertSame(DataValidation::TYPE_LIST, $worksheet->getDataValidation('AC2')->getType());
         $this->assertTrue($worksheet->getDataValidation('AC2')->getShowDropDown());
-        $this->assertSame('CriticalityOptions', $worksheet->getDataValidation('AC2')->getFormula1());
-        $this->assertSame(DataValidation::TYPE_LIST, $worksheet->getDataValidation('AF2')->getType());
-        $this->assertSame('SuccessionReadinessOptions', $worksheet->getDataValidation('AF2')->getFormula1());
-        $this->assertSame(DataValidation::TYPE_DECIMAL, $worksheet->getDataValidation('AG2')->getType());
-        $this->assertSame('0', $worksheet->getDataValidation('AG2')->getFormula1());
-        $this->assertSame('100', $worksheet->getDataValidation('AG2')->getFormula2());
-        $this->assertStringNotContainsString('%', $worksheet->getStyle('AG2')->getNumberFormat()->getFormatCode());
-        $this->assertSame('high', $worksheet->getCell('AC2')->getValue());
-        $this->assertSame('covered', $worksheet->getCell('AD2')->getValue());
-        $this->assertSame(9, $worksheet->getCell('AE2')->getValue());
-        $this->assertSame('ready now', $worksheet->getCell('AF2')->getValue());
-        $this->assertSame(75.5, $worksheet->getCell('AG2')->getValue());
+        $this->assertSame('TalentMappingOptions', $worksheet->getDataValidation('AC2')->getFormula1());
+        $this->assertSame(DataValidation::TYPE_LIST, $worksheet->getDataValidation('AD2')->getType());
+        $this->assertSame('SuccessionReadinessOptions', $worksheet->getDataValidation('AD2')->getFormula1());
+        $this->assertSame(DataValidation::TYPE_DECIMAL, $worksheet->getDataValidation('AE2')->getType());
+        $this->assertSame('0', $worksheet->getDataValidation('AE2')->getFormula1());
+        $this->assertSame('100', $worksheet->getDataValidation('AE2')->getFormula2());
+        $this->assertStringNotContainsString('%', $worksheet->getStyle('AE2')->getNumberFormat()->getFormatCode());
+        $this->assertSame(9, $worksheet->getCell('AC2')->getValue());
+        $this->assertSame('ready now', $worksheet->getCell('AD2')->getValue());
+        $this->assertSame(75.5, $worksheet->getCell('AE2')->getValue());
         $spreadsheet->disconnectWorksheets();
     }
 

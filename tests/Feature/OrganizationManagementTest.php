@@ -244,6 +244,7 @@ class OrganizationManagementTest extends TestCase
             'department_id' => $unit->department_id,
             'unit_id' => $unit->id,
             'code' => 'P01',
+            'external_position_id' => 'SAP-POS-0001',
             'name' => 'Analyst',
             'active' => '1',
         ])->assertRedirect(route('organization.positions.index'));
@@ -251,6 +252,7 @@ class OrganizationManagementTest extends TestCase
         $this->assertDatabaseHas('positions', [
             'unit_id' => $unit->id,
             'code' => 'P01',
+            'external_position_id' => 'SAP-POS-0001',
             'name' => 'Analyst',
         ]);
     }

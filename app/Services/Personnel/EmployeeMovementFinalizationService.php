@@ -83,7 +83,7 @@ class EmployeeMovementFinalizationService
             'employee_subgroup' => $movement->level_baru,
         ]);
 
-        $this->organizationSyncService->synchronizePositionLevels([$oldPositionId, $employee->position_id]);
+        $this->organizationSyncService->synchronizePositionMetadata([$oldPositionId, $employee->position_id]);
         $movement->update([
             'employee_applied_at' => now(),
             'verification_status' => 'Final',

@@ -46,6 +46,7 @@ class PositionController extends Controller
             ->with(['unit.department', 'section'])
             ->when($search !== '', fn ($query) => $query->where(fn ($query) => $query
                 ->where('code', 'like', "%{$search}%")
+                ->orWhere('external_position_id', 'like', "%{$search}%")
                 ->orWhere('name', 'like', "%{$search}%")))
             ->when($departmentId !== '', fn ($query) => $query->whereHas('unit', fn ($query) => $query->where('department_id', $departmentId)))
             ->when($unitId !== '', fn ($query) => $query->where('unit_id', $unitId))
@@ -223,6 +224,12 @@ class PositionController extends Controller
             ]);
         }
 
+        if ($position->criticalPosition()->exists()) {
+            return back()->withErrors([
+                'position' => 'Position tidak dapat dihapus selama masih digunakan pada penilaian Critical Position.',
+            ]);
+        }
+
         if ($position->children()->exists()) {
             return back()->withErrors([
                 'position' => 'Position tidak dapat dihapus selama masih mempunyai Position bawahan.',
@@ -234,7 +241,7 @@ class PositionController extends Controller
         return to_route('organization.positions.index')->with('status', 'Position berhasil dihapus.');
     }
 
-    /** @return array{unit_id: int, section_id: ?int, parent_position_id?: ?int, code: string, name: string, formation_count: int, sort_order: int, active: bool} */
+    /** @return array{unit_id: int, section_id: ?int, parent_position_id?: ?int, code: string, external_position_id: ?string, name: string, formation_count: int, sort_order: int, active: bool} */
     private function validatedData(Request $request, ?Position $position = null): array
     {
         $position?->loadMissing('unit.department');
@@ -278,6 +285,7 @@ class PositionController extends Controller
                 'required', 'string', 'max:50',
                 Rule::unique('positions', 'code')->where('unit_id', $request->input('unit_id'))->ignore($position),
             ],
+            'external_position_id' => ['nullable', 'string', 'max:100'],
             'name' => ['required', 'string', 'max:255'],
             'formation_count' => ['sometimes', 'required', 'integer', 'min:1', 'max:999'],
             'sort_order' => ['sometimes', 'required', 'integer', 'min:0', 'max:999999'],
@@ -296,6 +304,7 @@ class PositionController extends Controller
             'code.required' => 'Kode Position wajib diisi.',
             'code.max' => 'Kode Position maksimal 50 karakter.',
             'code.unique' => 'Kode Position sudah digunakan pada Unit tersebut.',
+            'external_position_id.max' => 'SAP Position ID maksimal 100 karakter.',
             'name.required' => 'Nama Position wajib diisi.',
             'name.max' => 'Nama Position maksimal 255 karakter.',
             'formation_count.required' => 'Jumlah formasi wajib diisi.',

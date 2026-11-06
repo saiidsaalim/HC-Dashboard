@@ -59,8 +59,6 @@ class EmployeeSpreadsheet
     /** @var array<string, array<string, string>> */
     private const PERFORMANCE_TALENT_FIELD_GROUPS = [
         'Succession Planning' => [
-            'Criticality' => 'criticality',
-            'Status Formasi' => 'formation_status',
             'Talent Mapping' => 'talent_mapping',
             'Succession Readiness' => 'succession_readiness',
             'IDP (%)' => 'idp_percentage',
@@ -146,8 +144,6 @@ class EmployeeSpreadsheet
 
         if ($includePerformanceTalentFields) {
             $this->addValidationLists($spreadsheet);
-            $this->addListValidation($dataSheet, $fields, 'Criticality', 'CriticalityOptions');
-            $this->addListValidation($dataSheet, $fields, 'Status Formasi', 'FormationStatusOptions');
             $this->addListValidation($dataSheet, $fields, 'Talent Mapping', 'TalentMappingOptions');
             $this->addListValidation($dataSheet, $fields, 'Succession Readiness', 'SuccessionReadinessOptions');
             $this->addIdpValidation($dataSheet, $fields);
@@ -171,10 +167,8 @@ class EmployeeSpreadsheet
         $listSheet->setTitle('Dropdown Lists');
 
         $lists = [
-            'CriticalityOptions' => ['A', Employee::CRITICALITY_OPTIONS],
-            'FormationStatusOptions' => ['B', Employee::FORMATION_STATUS_OPTIONS],
-            'TalentMappingOptions' => ['C', Employee::TALENT_MAPPING_OPTIONS],
-            'SuccessionReadinessOptions' => ['D', Employee::SUCCESSION_READINESS_OPTIONS],
+            'TalentMappingOptions' => ['A', Employee::TALENT_MAPPING_OPTIONS],
+            'SuccessionReadinessOptions' => ['B', Employee::SUCCESSION_READINESS_OPTIONS],
         ];
 
         foreach ($lists as $name => [$column, $options]) {

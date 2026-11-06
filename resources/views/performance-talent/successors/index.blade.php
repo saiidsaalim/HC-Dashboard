@@ -80,7 +80,7 @@
     successorCounts: @js($successorCounts),
     successorDialogOpen: @js($initialPosition !== null),
     selectedPosition: @js($initialPosition),
-    showSuccessorForm: @js($hasCreateErrors || $hasUpdateErrors),
+    showSuccessorForm: @js($hasCreateErrors || $hasUpdateErrors || (request()->boolean('create') && auth()->user()->can('create', \App\Models\Successor::class))),
     formMode: @js($hasUpdateErrors ? 'edit' : 'create'),
     formAction: @js($initialFormAction),
     form: @js($initialForm),

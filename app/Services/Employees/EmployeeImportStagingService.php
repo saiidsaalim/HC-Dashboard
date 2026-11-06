@@ -35,8 +35,6 @@ class EmployeeImportStagingService
     ];
 
     private const OPTIONAL_HEADERS = [
-        'Criticality',
-        'Status Formasi',
         'Talent Mapping',
         'Succession Readiness',
         'IDP (%)',
@@ -72,8 +70,6 @@ class EmployeeImportStagingService
         'Hiring' => 'hiring',
         'Organilk' => 'organilk',
         'Alamat' => 'alamat',
-        'Criticality' => 'criticality',
-        'Status Formasi' => 'formation_status',
         'Talent Mapping' => 'talent_mapping',
         'Succession Readiness' => 'succession_readiness',
         'IDP (%)' => 'idp_percentage',
@@ -103,8 +99,6 @@ class EmployeeImportStagingService
         'religious' => 100,
         'tempat_lahir' => 255,
         'pendidikan' => 255,
-        'criticality' => 20,
-        'formation_status' => 20,
         'succession_readiness' => 50,
     ];
 
@@ -299,7 +293,7 @@ class EmployeeImportStagingService
         });
 
         if ($result['processed'] > 0) {
-            $this->organizationSyncService->synchronizePositionLevels();
+            $this->organizationSyncService->synchronizePositionMetadata();
         }
 
         $this->refreshBatchCounters($batch);
@@ -710,28 +704,6 @@ class EmployeeImportStagingService
         array $percentageFields,
         array &$validationErrors,
     ): void {
-        if (array_key_exists('criticality', $normalized) && $normalized['criticality'] !== null) {
-            $normalized['criticality'] = mb_strtolower($this->normalizeWhitespace($normalized['criticality']));
-            if (! in_array($normalized['criticality'], Employee::CRITICALITY_OPTIONS, true)) {
-                $validationErrors[] = $this->invalidChoiceMessage(
-                    'Criticality',
-                    $sourceValues['Criticality'] ?? '',
-                    Employee::CRITICALITY_OPTIONS,
-                );
-            }
-        }
-
-        if (array_key_exists('formation_status', $normalized) && $normalized['formation_status'] !== null) {
-            $normalized['formation_status'] = mb_strtolower($this->normalizeWhitespace($normalized['formation_status']));
-            if (! in_array($normalized['formation_status'], Employee::FORMATION_STATUS_OPTIONS, true)) {
-                $validationErrors[] = $this->invalidChoiceMessage(
-                    'Status Formasi',
-                    $sourceValues['Status Formasi'] ?? '',
-                    Employee::FORMATION_STATUS_OPTIONS,
-                );
-            }
-        }
-
         if (array_key_exists('talent_mapping', $normalized) && $normalized['talent_mapping'] !== null) {
             $talentMapping = $this->normalizeWhitespace($normalized['talent_mapping']);
             if (preg_match('/^[1-9]$/', $talentMapping) !== 1) {

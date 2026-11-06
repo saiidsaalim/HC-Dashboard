@@ -88,7 +88,7 @@ class PerformanceTalentWorkspaceTest extends TestCase
             if ($routeName === 'performance-talent.critical-positions.index') {
                 $response
                     ->assertSee('Daftar Critical Position')
-                    ->assertSee('Pantau posisi kritis, tingkat prioritas, dan status keterisian dalam satu tampilan.');
+                    ->assertSee('Struktur organisasi, incumbent, coverage, dan successor selalu mengikuti data sumber terbaru.');
 
                 continue;
             }
@@ -318,20 +318,16 @@ class PerformanceTalentWorkspaceTest extends TestCase
             ->get(route('performance-talent.critical-positions.index'))
             ->assertOk();
 
-        foreach (['No', 'Position', 'Level', 'Department', 'Direktorat', 'Criticality', 'Incumbent', 'SAP', 'Status'] as $column) {
+        foreach (['No', 'Position', 'SAP Position ID', 'Level', 'Department/Direktorat', 'Criticality', 'Incumbent', 'Formasi', 'Coverage', 'Successor', 'Review Berikutnya', 'Aksi'] as $column) {
             $response->assertSee('>'.$column.'</th>', escape: false);
         }
 
         $response
-            ->assertSee('Aksi')
             ->assertSee('Belum ada Critical Position')
-            ->assertSee('colspan="10"', escape: false)
-            ->assertDontSee('Level Jabatan')
-            ->assertDontSee('job_level')
-            ->assertSee('table-fixed', escape: false)
-            ->assertSee('min-w-[1000px]', escape: false)
+            ->assertSee('colspan="12"', escape: false)
+            ->assertSee('Level Jabatan')
+            ->assertSee('min-w-[1780px]', escape: false)
             ->assertSee('overflow-x-auto', escape: false)
-            ->assertDontSee('min-w-[1480px]', escape: false)
             ->assertDontSee('DUMMY-001')
             ->assertDontSee('Fitur sedang dalam tahap pengembangan');
     }
@@ -583,8 +579,6 @@ class PerformanceTalentWorkspaceTest extends TestCase
         $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
         $employee = Employee::query()->create([
             'sap' => 'PTM-SUCCESSION-VISIBILITY',
-            'criticality' => 'high',
-            'formation_status' => 'vacant',
             'talent_mapping' => 8,
             'succession_readiness' => 'ready in one year',
             'idp_percentage' => 75.5,
@@ -608,8 +602,8 @@ class PerformanceTalentWorkspaceTest extends TestCase
             ->assertViewIs('employees.show')
             ->assertViewHas('showPerformanceTalentFields', true)
             ->assertViewHas('employeeIndexRoute', 'performance-talent.data-pegawai.index')
-            ->assertSee('Criticality')
-            ->assertSee('Status Formasi')
+            ->assertDontSee('Criticality')
+            ->assertDontSee('Status Formasi')
             ->assertSee('Talent Mapping')
             ->assertSee('Succession Readiness')
             ->assertSee('IDP (%)')

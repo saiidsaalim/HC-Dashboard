@@ -13,23 +13,10 @@
         $positionName = $employee->position ?: $employee->organizationPosition?->name;
         $departmentName = $employee->organizationDepartment?->name ?: $employee->txt_dept;
         $unitName = $employee->unit?->name ?: $employee->txt_biro;
-        $criticalityValue = trim((string) $employee->criticality);
-        $formationStatusValue = trim((string) $employee->formation_status);
         $successionReadinessValue = trim((string) $employee->succession_readiness);
         $idpIsNumeric = $employee->idp_percentage !== null && is_numeric($employee->idp_percentage);
         $idpProgress = $idpIsNumeric ? max(0, min(100, (float) $employee->idp_percentage)) : 0;
         $idpDisplay = $idpIsNumeric ? number_format((float) $employee->idp_percentage, 2, ',', '.').'%' : '—';
-        $criticalityClasses = match (strtolower($criticalityValue)) {
-            'high' => 'border-rose-200 bg-rose-50 text-rose-700',
-            'medium' => 'border-amber-200 bg-amber-50 text-amber-700',
-            'low' => 'border-emerald-200 bg-emerald-50 text-emerald-700',
-            default => 'border-slate-200 bg-slate-50 text-slate-700',
-        };
-        $formationStatusClasses = match (strtolower($formationStatusValue)) {
-            'covered' => 'border-emerald-200 bg-emerald-50 text-emerald-700',
-            'vacant' => 'border-rose-200 bg-rose-50 text-rose-700',
-            default => 'border-slate-200 bg-slate-50 text-slate-700',
-        };
         $organizationFields = [
             ['label' => 'Position ID', 'value' => $employee->position_id_source, 'icon' => 'tag'],
             ['label' => 'Position', 'value' => $employee->position, 'icon' => 'briefcase'],
@@ -144,30 +131,7 @@
                     </div>
                 </div>
 
-                <dl class="grid items-stretch gap-3 sm:auto-rows-fr sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-                    <div class="flex min-h-24 min-w-0 items-center gap-3 rounded-xl border px-4 py-3 {{ $criticalityClasses }}">
-                        <span class="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
-                            <svg class="h-7 w-7" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                                <path d="M10 3 2.8 16h14.4L10 3Z" stroke-linejoin="round" /><path d="M10 7.5v3.8m0 2.2h.01" stroke-linecap="round" />
-                            </svg>
-                        </span>
-                        <div class="min-w-0">
-                            <dt class="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">Criticality</dt>
-                            <dd class="mt-1 break-words text-xl font-bold text-slate-950">{{ $criticalityValue !== '' ? ucfirst($criticalityValue) : '—' }}</dd>
-                        </div>
-                    </div>
-
-                    <div class="flex min-h-24 min-w-0 items-center gap-3 rounded-xl border px-4 py-3 {{ $formationStatusClasses }}">
-                        <span class="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
-                            <svg class="h-7 w-7" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                                <circle cx="10" cy="10" r="7" /><path d="m6.8 10 2.1 2.1 4.5-4.5" stroke-linecap="round" stroke-linejoin="round" />
-                            </svg>
-                        </span>
-                        <div class="min-w-0">
-                            <dt class="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">Status Formasi</dt>
-                            <dd class="mt-1 break-words text-xl font-bold text-slate-950">{{ $formationStatusValue !== '' ? ucfirst($formationStatusValue) : '—' }}</dd>
-                        </div>
-                    </div>
+                <dl class="grid items-stretch gap-3 sm:auto-rows-fr sm:grid-cols-2 lg:grid-cols-3">
 
                     <div class="flex min-h-24 min-w-0 items-center gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3">
                         <span class="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-700">

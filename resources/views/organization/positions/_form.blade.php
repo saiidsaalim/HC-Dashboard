@@ -123,6 +123,16 @@
         @enderror
     </div>
 
+    <div>
+        <label for="external_position_id" class="text-sm font-semibold text-slate-700">SAP Position ID</label>
+        <input id="external_position_id" name="external_position_id" value="{{ old('external_position_id', $position?->external_position_id) }}" maxlength="100"
+            class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
+        <p class="mt-1 text-xs text-slate-500">ID Position dari SAP, berbeda dari SAP pegawai dan kode internal Position.</p>
+        @error('external_position_id')
+            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+        @enderror
+    </div>
+
     <div class="grid gap-4 sm:grid-cols-2">
         <div>
             <label for="formation_count" class="text-sm font-semibold text-slate-700">Jumlah Formasi <span class="text-red-500" aria-hidden="true">*</span></label>

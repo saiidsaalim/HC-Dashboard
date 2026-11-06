@@ -2,16 +2,20 @@
 
 namespace App\Models;
 
+use App\Enums\CriticalPositionCoverageStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'unit_id',
     'section_id',
     'parent_position_id',
     'code',
+    'external_position_id',
     'name',
     'job_level',
     'formation_count',
@@ -153,6 +157,11 @@ class Position extends Model
         return $this->hasMany(Employee::class, 'position_id');
     }
 
+    public function criticalPosition(): HasOne
+    {
+        return $this->hasOne(CriticalPosition::class);
+    }
+
     public function successors(): HasMany
     {
         return $this->hasMany(Successor::class, 'target_position_id');
@@ -161,5 +170,78 @@ class Position extends Model
     public function wlaAssessments(): HasMany
     {
         return $this->hasMany(WlaAssessment::class);
+    }
+
+    public function incumbentCount(): int
+    {
+        if (array_key_exists('employees_count', $this->attributes)) {
+            return (int) $this->attributes['employees_count'];
+        }
+
+        if ($this->relationLoaded('employees')) {
+            return $this->employees->count();
+        }
+
+        return $this->employees()->count();
+    }
+
+    public function coverageStatus(): CriticalPositionCoverageStatus
+    {
+        return CriticalPositionCoverageStatus::fromCounts(
+            $this->incumbentCount(),
+            max(1, (int) $this->formation_count),
+        );
+    }
+
+    public function successorCount(): int
+    {
+        if (array_key_exists('successors_count', $this->attributes)) {
+            return (int) $this->attributes['successors_count'];
+        }
+
+        if ($this->relationLoaded('successors')) {
+            return $this->successors->count();
+        }
+
+        return $this->successors()->count();
+    }
+
+    public function readyNowSuccessorCount(): int
+    {
+        if ($this->relationLoaded('successors')) {
+            return $this->successors
+                ->filter(fn (Successor $successor): bool => mb_strtolower(trim((string) $successor->succession_readiness)) === 'ready now')
+                ->count();
+        }
+
+        return $this->successors()->whereRaw('LOWER(TRIM(succession_readiness)) = ?', ['ready now'])->count();
+    }
+
+    public function bestSuccessorReadiness(): ?string
+    {
+        $priorities = array_flip(Employee::SUCCESSION_READINESS_OPTIONS);
+        $readinessValues = $this->relationLoaded('successors')
+            ? $this->successors->pluck('succession_readiness')
+            : $this->successors()->pluck('succession_readiness');
+
+        return $readinessValues
+            ->map(fn (mixed $readiness): string => mb_strtolower(trim((string) $readiness)))
+            ->filter()
+            ->sortBy(fn (string $readiness): int => $priorities[$readiness] ?? PHP_INT_MAX)
+            ->first();
+    }
+
+    public function scopeWhereCoverageStatus(Builder $query, CriticalPositionCoverageStatus $status): Builder
+    {
+        $employeeCount = '(select count(*) from employees where employees.position_id = positions.id)';
+
+        return match ($status) {
+            CriticalPositionCoverageStatus::Vacant => $query->whereRaw("{$employeeCount} = 0"),
+            CriticalPositionCoverageStatus::PartiallyCovered => $query
+                ->whereRaw("{$employeeCount} > 0")
+                ->whereRaw("{$employeeCount} < positions.formation_count"),
+            CriticalPositionCoverageStatus::Covered => $query->whereRaw("{$employeeCount} = positions.formation_count"),
+            CriticalPositionCoverageStatus::OverCapacity => $query->whereRaw("{$employeeCount} > positions.formation_count"),
+        };
     }
 }

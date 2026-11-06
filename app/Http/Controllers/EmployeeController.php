@@ -478,7 +478,7 @@ class EmployeeController extends Controller
         EmployeeOrganizationSyncService $organizationSyncService,
     ): RedirectResponse {
         $employee = Employee::create($this->withSelectedOrganizationNames($request->validated()));
-        $organizationSyncService->synchronizePositionLevels([$employee->position_id]);
+        $organizationSyncService->synchronizePositionMetadata([$employee->position_id]);
 
         return to_route('data-pegawai')->with('status', 'Data pegawai berhasil ditambahkan.');
     }
@@ -510,7 +510,7 @@ class EmployeeController extends Controller
             $oldPositionId = $employee->position_id;
             $employee->update($this->withSelectedOrganizationNames($request->validated()));
             $staffUserProvisioningService->synchronizeLinkedUser($employee);
-            $organizationSyncService->synchronizePositionLevels([$oldPositionId, $employee->position_id]);
+            $organizationSyncService->synchronizePositionMetadata([$oldPositionId, $employee->position_id]);
         });
 
         return to_route('data-pegawai')->with('status', 'Data pegawai berhasil diperbarui.');
