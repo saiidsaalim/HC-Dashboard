@@ -34,6 +34,14 @@ class EmployeeImportStagingService
         'Organilk', 'Alamat',
     ];
 
+    private const OPTIONAL_HEADERS = [
+        'Criticality',
+        'Status Formasi',
+        'Talent Mapping',
+        'Succession Readiness',
+        'IDP (%)',
+    ];
+
     /** @var array<string, string> */
     private const CANONICAL_FIELDS = [
         'SAP' => 'sap',
@@ -64,6 +72,11 @@ class EmployeeImportStagingService
         'Hiring' => 'hiring',
         'Organilk' => 'organilk',
         'Alamat' => 'alamat',
+        'Criticality' => 'criticality',
+        'Status Formasi' => 'formation_status',
+        'Talent Mapping' => 'talent_mapping',
+        'Succession Readiness' => 'succession_readiness',
+        'IDP (%)' => 'idp_percentage',
     ];
 
     /** @var array<string, int> */
@@ -90,6 +103,9 @@ class EmployeeImportStagingService
         'religious' => 100,
         'tempat_lahir' => 255,
         'pendidikan' => 255,
+        'criticality' => 20,
+        'formation_status' => 20,
+        'succession_readiness' => 50,
     ];
 
     public function stage(UploadedFile $file, User $actor): EmployeeImportBatch
@@ -291,7 +307,7 @@ class EmployeeImportStagingService
         return $result;
     }
 
-    /** @param array<int, array{source_row: int, values: array<string, string>}> $sourceRows */
+    /** @param array<int, array{source_row: int, values: array<string, string>, percentage_fields?: array<string, bool>}> $sourceRows */
     private function stageRows(EmployeeImportBatch $batch, array $headers, array $sourceRows): void
     {
         $sapCounts = [];
@@ -314,10 +330,22 @@ class EmployeeImportStagingService
             $normalized = [];
 
             foreach (self::CANONICAL_FIELDS as $sourceField => $targetField) {
+                if (in_array($sourceField, self::OPTIONAL_HEADERS, true)
+                    && ! in_array($sourceField, $headers, true)) {
+                    continue;
+                }
+
                 $value = trim((string) $this->sourceValue($sourceRow['values'], $sourceField));
                 $normalized[$targetField] = $value === '' ? null : $value;
             }
             $normalized['sap'] = $sap === '' ? null : $sap;
+
+            $this->normalizeSuccessionFields(
+                $normalized,
+                $sourceRow['values'],
+                $sourceRow['percentage_fields'] ?? [],
+                $validationErrors,
+            );
 
             if ($sap === '') {
                 $validationErrors[] = 'SAP is required.';
@@ -441,7 +469,7 @@ class EmployeeImportStagingService
 
         $duplicates = array_keys(array_filter(array_count_values($normalized), fn (int $count): bool => $count > 1));
         $missing = array_values(array_diff(self::HEADERS, $normalized));
-        $unexpected = array_values(array_diff($normalized, self::HEADERS));
+        $unexpected = array_values(array_diff($normalized, [...self::HEADERS, ...self::OPTIONAL_HEADERS]));
         $errors = [];
         if ($duplicates !== []) {
             $errors[] = 'Duplicate headers: '.implode(', ', $duplicates).'.';
@@ -504,6 +532,7 @@ class EmployeeImportStagingService
 
         try {
             $sharedStrings = $this->readSharedStrings($archive);
+            $percentageStyleIndexes = $this->readPercentageStyleIndexes($archive);
             $sheetXml = $archive->getFromName('xl/worksheets/sheet1.xml');
             if ($sheetXml === false) {
                 throw new RuntimeException('The first worksheet was not found.');
@@ -522,6 +551,7 @@ class EmployeeImportStagingService
 
         foreach ($sheet->sheetData->row as $sheetRow) {
             $rowValues = [];
+            $percentageColumns = [];
             foreach ($sheetRow->c as $cell) {
                 $column = $this->columnIndex((string) $cell['r']);
                 $type = (string) $cell['t'];
@@ -535,6 +565,10 @@ class EmployeeImportStagingService
                     throw new RuntimeException('Formula cells are not accepted in SAP source rows.');
                 }
                 $rowValues[$column] = $value;
+
+                if (in_array((int) ($cell['s'] ?? 0), $percentageStyleIndexes, true)) {
+                    $percentageColumns[$column] = true;
+                }
             }
 
             if ($rowValues === []) {
@@ -553,10 +587,18 @@ class EmployeeImportStagingService
             }
 
             $values = [];
+            $percentageFields = [];
             foreach ($headers as $index => $header) {
                 $values[$header] = (string) ($rowValues[$index] ?? '');
+                if ($percentageColumns[$index] ?? false) {
+                    $percentageFields[$header] = true;
+                }
             }
-            $rows[] = ['source_row' => (int) ($sheetRow['r'] ?: count($rows) + 2), 'values' => $values];
+            $rows[] = [
+                'source_row' => (int) ($sheetRow['r'] ?: count($rows) + 2),
+                'values' => $values,
+                'percentage_fields' => $percentageFields,
+            ];
         }
 
         return [$headers, $rows];
@@ -587,6 +629,49 @@ class EmployeeImportStagingService
         return $strings;
     }
 
+    /** @return list<int> */
+    private function readPercentageStyleIndexes(ZipArchive $archive): array
+    {
+        $xml = $archive->getFromName('xl/styles.xml');
+        if ($xml === false) {
+            return [];
+        }
+
+        $document = simplexml_load_string($xml, SimpleXMLElement::class, LIBXML_NONET);
+        if ($document === false) {
+            throw new RuntimeException('Excel styles XML is invalid.');
+        }
+
+        $customFormats = [];
+        foreach ($document->numFmts->numFmt ?? [] as $format) {
+            $customFormats[(int) $format['numFmtId']] = (string) $format['formatCode'];
+        }
+
+        $percentageStyleIndexes = [];
+        $styleIndex = 0;
+        foreach ($document->cellXfs->xf ?? [] as $style) {
+            $numberFormatId = (int) ($style['numFmtId'] ?? 0);
+            $formatCode = $customFormats[$numberFormatId] ?? null;
+
+            if (in_array($numberFormatId, [9, 10], true)
+                || ($formatCode !== null && $this->isPercentageFormatCode($formatCode))) {
+                $percentageStyleIndexes[] = $styleIndex;
+            }
+
+            $styleIndex++;
+        }
+
+        return $percentageStyleIndexes;
+    }
+
+    private function isPercentageFormatCode(string $formatCode): bool
+    {
+        $withoutQuotedText = preg_replace('/"[^"]*"/', '', $formatCode) ?? $formatCode;
+        $withoutEscapedCharacters = preg_replace('/\\\\./u', '', $withoutQuotedText) ?? $withoutQuotedText;
+
+        return str_contains($withoutEscapedCharacters, '%');
+    }
+
     /** @param array<int, string> $headers @param array<int, string|null> $values @return array<string, string> */
     private function combineValues(array $headers, array $values): array
     {
@@ -611,6 +696,121 @@ class EmployeeImportStagingService
     private function normalizeSap(?string $sap): string
     {
         return preg_replace('/\s+/u', ' ', trim((string) $sap)) ?? '';
+    }
+
+    /**
+     * @param  array<string, mixed>  $normalized
+     * @param  array<string, string>  $sourceValues
+     * @param  array<string, bool>  $percentageFields
+     * @param  list<string>  $validationErrors
+     */
+    private function normalizeSuccessionFields(
+        array &$normalized,
+        array $sourceValues,
+        array $percentageFields,
+        array &$validationErrors,
+    ): void {
+        if (array_key_exists('criticality', $normalized) && $normalized['criticality'] !== null) {
+            $normalized['criticality'] = mb_strtolower($this->normalizeWhitespace($normalized['criticality']));
+            if (! in_array($normalized['criticality'], Employee::CRITICALITY_OPTIONS, true)) {
+                $validationErrors[] = $this->invalidChoiceMessage(
+                    'Criticality',
+                    $sourceValues['Criticality'] ?? '',
+                    Employee::CRITICALITY_OPTIONS,
+                );
+            }
+        }
+
+        if (array_key_exists('formation_status', $normalized) && $normalized['formation_status'] !== null) {
+            $normalized['formation_status'] = mb_strtolower($this->normalizeWhitespace($normalized['formation_status']));
+            if (! in_array($normalized['formation_status'], Employee::FORMATION_STATUS_OPTIONS, true)) {
+                $validationErrors[] = $this->invalidChoiceMessage(
+                    'Status Formasi',
+                    $sourceValues['Status Formasi'] ?? '',
+                    Employee::FORMATION_STATUS_OPTIONS,
+                );
+            }
+        }
+
+        if (array_key_exists('talent_mapping', $normalized) && $normalized['talent_mapping'] !== null) {
+            $talentMapping = $this->normalizeWhitespace($normalized['talent_mapping']);
+            if (preg_match('/^[1-9]$/', $talentMapping) !== 1) {
+                $validationErrors[] = sprintf(
+                    'Talent Mapping "%s" tidak valid; gunakan bilangan bulat 1 sampai 9.',
+                    $sourceValues['Talent Mapping'] ?? $talentMapping,
+                );
+                $normalized['talent_mapping'] = $talentMapping;
+            } else {
+                $normalized['talent_mapping'] = (int) $talentMapping;
+            }
+        }
+
+        if (array_key_exists('succession_readiness', $normalized) && $normalized['succession_readiness'] !== null) {
+            $readiness = mb_strtolower($this->normalizeWhitespace($normalized['succession_readiness']));
+            $readiness = str_replace(['–', '—'], '-', $readiness);
+            $normalized['succession_readiness'] = preg_replace('/\s*-\s*/u', ' - ', $readiness) ?? $readiness;
+
+            if (! in_array($normalized['succession_readiness'], Employee::SUCCESSION_READINESS_OPTIONS, true)) {
+                $validationErrors[] = $this->invalidChoiceMessage(
+                    'Succession Readiness',
+                    $sourceValues['Succession Readiness'] ?? '',
+                    Employee::SUCCESSION_READINESS_OPTIONS,
+                );
+            }
+        }
+
+        if (array_key_exists('idp_percentage', $normalized) && $normalized['idp_percentage'] !== null) {
+            $sourceValue = (string) ($sourceValues['IDP (%)'] ?? $normalized['idp_percentage']);
+
+            try {
+                $normalized['idp_percentage'] = $this->normalizeIdpPercentage(
+                    $sourceValue,
+                    $percentageFields['IDP (%)'] ?? false,
+                );
+            } catch (InvalidArgumentException) {
+                $validationErrors[] = sprintf(
+                    'IDP (%%) "%s" tidak valid; masukkan angka antara 0 dan 100.',
+                    $sourceValue,
+                );
+            }
+        }
+    }
+
+    /** @param list<string|int> $options */
+    private function invalidChoiceMessage(string $header, string $value, array $options): string
+    {
+        return sprintf(
+            '%s "%s" tidak valid; pilihan yang diizinkan: %s.',
+            $header,
+            $value,
+            implode(', ', $options),
+        );
+    }
+
+    private function normalizeWhitespace(mixed $value): string
+    {
+        return preg_replace('/\s+/u', ' ', trim((string) $value)) ?? '';
+    }
+
+    private function normalizeIdpPercentage(string $value, bool $isPercentageCell): string
+    {
+        $value = $this->normalizeWhitespace($value);
+        if (preg_match('/^([+-]?(?:\d+(?:[.,]\d+)?|[.,]\d+))\s*(%)?$/u', $value, $matches) !== 1) {
+            throw new InvalidArgumentException('Invalid IDP percentage.');
+        }
+
+        $number = (float) str_replace(',', '.', $matches[1]);
+        $hasLiteralPercentageSign = ($matches[2] ?? '') === '%';
+
+        if ($isPercentageCell && ! $hasLiteralPercentageSign) {
+            $number *= 100;
+        }
+
+        if (! is_finite($number) || $number < 0 || $number > 100) {
+            throw new InvalidArgumentException('Invalid IDP percentage.');
+        }
+
+        return number_format($number, 2, '.', '');
     }
 
     private function parseDate(string $value): string

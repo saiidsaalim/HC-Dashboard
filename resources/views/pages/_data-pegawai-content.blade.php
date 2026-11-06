@@ -263,7 +263,7 @@
                         </button>
                     @endif
                     @if ($canPrintEmployees || $canExportEmployees)
-                        <button type="button" data-pdf-url="{{ route('data-pegawai.print', ['autoprint' => 1]) }}" data-excel-url="{{ route('data-pegawai.export') }}" @click="chooseExport($el.dataset.pdfUrl, $el.dataset.excelUrl, @js($canPrintEmployees), @js($canExportEmployees))" class="ui-button ui-button-secondary">
+                        <button type="button" data-pdf-url="{{ route($employeePrintRoute, ['autoprint' => 1]) }}" data-excel-url="{{ route($employeeExportRoute) }}" @click="chooseExport($el.dataset.pdfUrl, $el.dataset.excelUrl, @js($canPrintEmployees), @js($canExportEmployees))" class="ui-button ui-button-secondary">
                             <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 2h6l4 4v12H4V2h2Z" stroke-linejoin="round"/><path d="M12 2v5h4M7 12h6M7 15h4" stroke-linecap="round" /></svg>
                             Ekspor Semua
                         </button>
@@ -584,8 +584,15 @@
                     </div>
                     <div>
                         <label for="employee_subgroup" class="text-sm font-semibold text-slate-700">Employee Subgroup</label>
-                        <input id="employee_subgroup" name="employee_subgroup" value="{{ old('employee_subgroup') }}"
+                        <select id="employee_subgroup" name="employee_subgroup"
                             class="mt-1 block w-full rounded-xl border-slate-300 text-sm shadow-sm focus:border-amber-400 focus:ring-amber-400">
+                            <option value="">Pilih Employee Subgroup</option>
+                            @foreach ($employeeSubgroupOptions as $employeeSubgroupOption)
+                                <option value="{{ $employeeSubgroupOption }}" @selected(old('employee_subgroup') === $employeeSubgroupOption)>
+                                    {{ $employeeSubgroupOption }}
+                                </option>
+                            @endforeach
+                        </select>
                     </div>
                     <div>
                         <label for="cost_ctr" class="text-sm font-semibold text-slate-700">Cost Ctr</label>
@@ -816,7 +823,7 @@
                                 </td>
                                 <td class="whitespace-nowrap px-2 py-4 text-center align-top sm:px-3">
                                     <div data-employee-action-buttons class="flex flex-nowrap items-center justify-center gap-2">
-                                        <a href="{{ route('employees.show', $employee->id) }}"
+                                        <a href="{{ route($employeeShowRoute, $employee->id) }}"
                                             class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-sky-200 bg-sky-50 text-sky-700 transition hover:border-sky-300 hover:bg-sky-100"
                                             aria-label="Lihat detail {{ $employee->personal_number ?: $employee->sap }}" title="Detail">
                                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

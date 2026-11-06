@@ -61,6 +61,15 @@ Route::middleware('auth')->group(function () {
             Route::get('/data-pegawai', [EmployeeController::class, 'index'])
                 ->middleware('can:employees.view')
                 ->name('data-pegawai.index');
+            Route::get('/data-pegawai/print', [EmployeeController::class, 'print'])
+                ->middleware('can:employees.print')
+                ->name('data-pegawai.print');
+            Route::get('/data-pegawai/export/excel', [EmployeeController::class, 'exportExcel'])
+                ->middleware('can:employees.export')
+                ->name('data-pegawai.export');
+            Route::get('/data-pegawai/{id}', [EmployeeController::class, 'show'])
+                ->middleware('can:employees.view')
+                ->name('data-pegawai.show');
         });
 
     Route::middleware('can:workspace.hc-od-career-management.view')->group(function (): void {

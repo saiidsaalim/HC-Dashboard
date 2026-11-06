@@ -161,7 +161,7 @@
                 <p class="meta">Dicetak: {{ $printedAt->translatedFormat('d F Y, H:i') }}</p>
             </div>
             <div class="actions no-print">
-                <a href="{{ route('data-pegawai') }}"><span aria-hidden="true">&larr;</span> Kembali</a>
+                <a href="{{ route($employeeIndexRoute) }}"><span aria-hidden="true">&larr;</span> Kembali</a>
                 <button type="button" onclick="window.print()">Cetak / Simpan PDF</button>
             </div>
         </header>

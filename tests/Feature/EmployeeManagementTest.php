@@ -15,6 +15,9 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Tests\TestCase;
 use ZipArchive;
@@ -514,7 +517,12 @@ class EmployeeManagementTest extends TestCase
             ->assertSee('SAP011')
             ->assertSee('ID Number')
             ->assertSee('ID-011')
-            ->assertSee('Alamat lengkap pegawai 011');
+            ->assertSee('Alamat lengkap pegawai 011')
+            ->assertDontSee('Criticality')
+            ->assertDontSee('Status Formasi')
+            ->assertDontSee('Talent Mapping')
+            ->assertDontSee('Succession Readiness')
+            ->assertDontSee('IDP (%)');
     }
 
     public function test_authenticated_user_can_export_all_employee_details_to_excel(): void
@@ -528,17 +536,81 @@ class EmployeeManagementTest extends TestCase
         $response = $this->actingAs($user)->get(route('data-pegawai.export'));
         $response->assertOk()->assertDownload();
 
-        $archive = new ZipArchive;
         $download = $response->baseResponse;
         $this->assertInstanceOf(BinaryFileResponse::class, $download);
-        $this->assertTrue($archive->open($download->getFile()->getPathname()) === true);
-        $worksheet = $archive->getFromName('xl/worksheets/sheet1.xml');
-        $archive->close();
+        $spreadsheet = IOFactory::load($download->getFile()->getPathname());
+        $worksheet = $spreadsheet->getSheetByName('Data Pegawai');
+        $this->assertNotNull($worksheet);
+        $this->assertSame('SAP', $worksheet->getCell('A1')->getValue());
+        $this->assertSame('ID-XLS', $worksheet->getCell('B2')->getValue());
+        $this->assertSame('Alamat Ekspor Excel', $worksheet->getCell('AB2')->getValue());
+        $this->assertNull($worksheet->getCell('AC1')->getValue());
+        $this->assertNull($spreadsheet->getSheetByName('Dropdown Lists'));
+        $spreadsheet->disconnectWorksheets();
+    }
 
-        $this->assertIsString($worksheet);
-        $this->assertStringContainsString('SAP', $worksheet);
-        $this->assertStringContainsString('ID-XLS', $worksheet);
-        $this->assertStringContainsString('Alamat Ekspor Excel', $worksheet);
+    public function test_performance_talent_print_and_export_include_succession_fields(): void
+    {
+        $user = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        Employee::create($this->employeeAttributes('SAPXLS-PTM', [
+            'criticality' => 'high',
+            'formation_status' => 'covered',
+            'talent_mapping' => 9,
+            'succession_readiness' => 'ready now',
+            'idp_percentage' => 75.5,
+        ]));
+
+        $this->actingAs($user)->get(route('performance-talent.data-pegawai.print'))
+            ->assertOk()
+            ->assertSee('Criticality')
+            ->assertSee('Status Formasi')
+            ->assertSee('Talent Mapping')
+            ->assertSee('Succession Readiness')
+            ->assertSee('IDP (%)')
+            ->assertSee('ready now')
+            ->assertSee('75.50');
+
+        $response = $this->get(route('performance-talent.data-pegawai.export'));
+        $response->assertOk()->assertDownload();
+
+        $download = $response->baseResponse;
+        $this->assertInstanceOf(BinaryFileResponse::class, $download);
+        $spreadsheet = IOFactory::load($download->getFile()->getPathname());
+        $worksheet = $spreadsheet->getSheetByName('Data Pegawai');
+        $this->assertNotNull($worksheet);
+        $this->assertSame([
+            'Criticality',
+            'Status Formasi',
+            'Talent Mapping',
+            'Succession Readiness',
+            'IDP (%)',
+        ], $worksheet->rangeToArray('AC1:AG1')[0]);
+
+        $listSheet = $spreadsheet->getSheetByName('Dropdown Lists');
+        $this->assertNotNull($listSheet);
+        $this->assertSame(Worksheet::SHEETSTATE_VERYHIDDEN, $listSheet->getSheetState());
+        $this->assertSame(Employee::CRITICALITY_OPTIONS, array_column($listSheet->rangeToArray('A1:A3'), 0));
+        $this->assertSame(Employee::FORMATION_STATUS_OPTIONS, array_column($listSheet->rangeToArray('B1:B2'), 0));
+        $this->assertSame(Employee::TALENT_MAPPING_OPTIONS, array_map(
+            'intval',
+            array_column($listSheet->rangeToArray('C1:C9'), 0),
+        ));
+        $this->assertSame(Employee::SUCCESSION_READINESS_OPTIONS, array_column($listSheet->rangeToArray('D1:D4'), 0));
+        $this->assertSame(DataValidation::TYPE_LIST, $worksheet->getDataValidation('AC2')->getType());
+        $this->assertTrue($worksheet->getDataValidation('AC2')->getShowDropDown());
+        $this->assertSame('CriticalityOptions', $worksheet->getDataValidation('AC2')->getFormula1());
+        $this->assertSame(DataValidation::TYPE_LIST, $worksheet->getDataValidation('AF2')->getType());
+        $this->assertSame('SuccessionReadinessOptions', $worksheet->getDataValidation('AF2')->getFormula1());
+        $this->assertSame(DataValidation::TYPE_DECIMAL, $worksheet->getDataValidation('AG2')->getType());
+        $this->assertSame('0', $worksheet->getDataValidation('AG2')->getFormula1());
+        $this->assertSame('100', $worksheet->getDataValidation('AG2')->getFormula2());
+        $this->assertStringNotContainsString('%', $worksheet->getStyle('AG2')->getNumberFormat()->getFormatCode());
+        $this->assertSame('high', $worksheet->getCell('AC2')->getValue());
+        $this->assertSame('covered', $worksheet->getCell('AD2')->getValue());
+        $this->assertSame(9, $worksheet->getCell('AE2')->getValue());
+        $this->assertSame('ready now', $worksheet->getCell('AF2')->getValue());
+        $this->assertSame(75.5, $worksheet->getCell('AG2')->getValue());
+        $spreadsheet->disconnectWorksheets();
     }
 
     public function test_super_admin_can_import_and_update_employees_from_csv(): void
@@ -1011,6 +1083,17 @@ class EmployeeManagementTest extends TestCase
             ->assertOk()
             ->assertSee('name="directorate_id"', false)
             ->assertSee('name="section_id"', false)
+            ->assertViewHas('employeeSubgroupOptions', [
+                'General Manager',
+                'Senior Manager',
+                'Manager',
+                'Associate',
+                'Supervisor',
+                'Non-Eselon',
+            ])
+            ->assertSee('<select id="employee_subgroup" name="employee_subgroup"', false)
+            ->assertSee('value="Senior Manager"', false)
+            ->assertDontSee('<input id="employee_subgroup"', false)
             ->assertSee('x-model="txtDir"', false)
             ->assertSee('x-model="txtSect"', false)
             ->assertSee('Pilih berurutan dari Directorate, Department, Unit, Section, lalu Position.');
@@ -1453,25 +1536,25 @@ class EmployeeManagementTest extends TestCase
         ]));
 
         $response = $this->actingAs($user)->get(route('data-pegawai.export'));
-        $archive = new ZipArchive;
         $download = $response->baseResponse;
         $this->assertInstanceOf(BinaryFileResponse::class, $download);
         $downloadPath = $download->getFile()->getPathname();
-        $this->assertTrue($archive->open($downloadPath) === true);
-        $worksheet = $archive->getFromName('xl/worksheets/sheet1.xml');
-        $archive->close();
+        $spreadsheet = IOFactory::load($downloadPath);
+        $worksheet = $spreadsheet->getSheetByName('Data Pegawai');
+        $this->assertNotNull($worksheet);
+        $exportedRows = $worksheet->rangeToArray('A1:AB3');
+        $spreadsheet->disconnectWorksheets();
         if (file_exists($downloadPath)) {
             unlink($downloadPath);
         }
 
-        $this->assertIsString($worksheet);
-        $this->assertStringContainsString('TXT_DEPT', $worksheet);
-        $this->assertStringContainsString('Source Department', $worksheet);
-        $this->assertStringContainsString('Source Unit', $worksheet);
-        $this->assertStringContainsString('Source Position', $worksheet);
-        $this->assertStringContainsString('Other Source Department', $worksheet);
-        $this->assertStringContainsString('Unmapped Unit', $worksheet);
-        $this->assertStringContainsString('Unmapped Position', $worksheet);
+        $this->assertContains('TXT_DEPT', $exportedRows[0]);
+        $this->assertContains('Source Department', $exportedRows[1]);
+        $this->assertContains('Source Unit', $exportedRows[1]);
+        $this->assertContains('Source Position', $exportedRows[1]);
+        $this->assertContains('Other Source Department', $exportedRows[2]);
+        $this->assertContains('Unmapped Unit', $exportedRows[2]);
+        $this->assertContains('Unmapped Position', $exportedRows[2]);
     }
 
     public function test_super_admin_can_delete_all_employees_without_deleting_other_data(): void

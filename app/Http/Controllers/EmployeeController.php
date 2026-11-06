@@ -21,6 +21,7 @@ use App\Models\User;
 use App\Services\Employees\EmployeeDeletionService;
 use App\Services\Employees\EmployeeImportStagingService;
 use App\Services\Employees\EmployeeOrganizationSyncService;
+use App\Services\Personnel\LevelTransitionService;
 use App\Services\Users\StaffUserProvisioningService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -47,7 +48,7 @@ class EmployeeController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request): View
+    public function index(Request $request, LevelTransitionService $levelTransitionService): View
     {
         $routeName = $request->route()?->getName() ?? 'data-pegawai';
         $workspaceFeatureView = self::WORKSPACE_FEATURE_VIEWS[$routeName] ?? null;
@@ -251,10 +252,14 @@ class EmployeeController extends Controller
             'filterPositions' => $filterPositions,
             'statusOptions' => $statusOptions,
             'employeeLevels' => $employeeLevels,
+            'employeeSubgroupOptions' => $levelTransitionService->levels(),
             'genderOptions' => $genderOptions,
             'employeeStatistics' => $this->employeeStatistics(),
             'employeeCharts' => $this->employeeChartData(),
             'employeeIndexRoute' => $workspaceFeatureView === null ? 'data-pegawai' : $routeName,
+            'employeePrintRoute' => $workspaceFeatureView === null ? 'data-pegawai.print' : 'performance-talent.data-pegawai.print',
+            'employeeExportRoute' => $workspaceFeatureView === null ? 'data-pegawai.export' : 'performance-talent.data-pegawai.export',
+            'employeeShowRoute' => $workspaceFeatureView === null ? 'employees.show' : 'performance-talent.data-pegawai.show',
         ];
 
         if ($workspaceFeatureView !== null) {
@@ -268,21 +273,24 @@ class EmployeeController extends Controller
         return view('pages.data-pegawai', $viewData);
     }
 
-    public function print(): View
+    public function print(Request $request): View
     {
+        $showPerformanceTalentFields = $this->isPerformanceTalentRequest($request);
+
         return view('pages.data-pegawai-print', [
             'employees' => Employee::query()
                 ->with(['organizationDepartment', 'unit', 'organizationPosition'])
                 ->orderBy('sap')
                 ->get(),
-            'fieldGroups' => EmployeeSpreadsheet::FIELD_GROUPS,
+            'fieldGroups' => EmployeeSpreadsheet::fieldGroups($showPerformanceTalentFields),
+            'employeeIndexRoute' => $showPerformanceTalentFields ? 'performance-talent.data-pegawai.index' : 'data-pegawai',
             'printedAt' => now(),
         ]);
     }
 
-    public function exportExcel(EmployeeSpreadsheet $spreadsheet): BinaryFileResponse
+    public function exportExcel(Request $request, EmployeeSpreadsheet $spreadsheet): BinaryFileResponse
     {
-        return $spreadsheet->download();
+        return $spreadsheet->download($this->isPerformanceTalentRequest($request));
     }
 
     public function organizationSyncPreview(Request $request, EmployeeOrganizationSyncService $service): View
@@ -478,13 +486,15 @@ class EmployeeController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(int $id): View
+    public function show(Request $request, int $id): View
     {
         $employee = Employee::query()
             ->with(['organizationDepartment', 'unit', 'organizationPosition'])
             ->findOrFail($id);
+        $showPerformanceTalentFields = $this->isPerformanceTalentRequest($request);
+        $employeeIndexRoute = $showPerformanceTalentFields ? 'performance-talent.data-pegawai.index' : 'data-pegawai';
 
-        return view('employees.show', compact('employee'));
+        return view('employees.show', compact('employee', 'employeeIndexRoute', 'showPerformanceTalentFields'));
     }
 
     /**
@@ -547,6 +557,11 @@ class EmployeeController extends Controller
         abort_unless($actor instanceof User && $actor->hasPermission('employees.import'), 403);
 
         return $actor;
+    }
+
+    private function isPerformanceTalentRequest(Request $request): bool
+    {
+        return str_starts_with((string) $request->route()?->getName(), 'performance-talent.');
     }
 
     /**

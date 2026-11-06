@@ -16,6 +16,9 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Tests\TestCase;
 
 class EmployeeImportStagingTest extends TestCase
@@ -45,9 +48,22 @@ class EmployeeImportStagingTest extends TestCase
             'birth_date', 'gender_key', 'personnel_area', 'abrevation_position',
             'abrevation_organization', 'organizational_unit', 'cost_center', 'masa_kontrak',
             'email', 'religious', 'usia', 'tempat_lahir', 'pendidikan', 'hiring', 'organilk', 'alamat',
+            'criticality', 'formation_status', 'talent_mapping', 'succession_readiness', 'idp_percentage',
         ] as $canonicalColumn) {
             $this->assertContains($canonicalColumn, $columnNames);
         }
+
+        foreach (['criticality', 'formation_status', 'talent_mapping', 'succession_readiness', 'idp_percentage'] as $nullableColumn) {
+            $this->assertTrue(collect($columns)->firstWhere('name', $nullableColumn)['nullable']);
+            $this->assertContains($nullableColumn, (new Employee)->getFillable());
+        }
+
+        $castEmployee = new Employee([
+            'talent_mapping' => '9',
+            'idp_percentage' => '75.5',
+        ]);
+        $this->assertSame(9, $castEmployee->talent_mapping);
+        $this->assertSame('75.50', $castEmployee->idp_percentage);
 
         $this->assertContains('id', $columnNames);
         $sapColumn = collect($columns)->firstWhere('name', 'sap');
@@ -69,6 +85,152 @@ class EmployeeImportStagingTest extends TestCase
             ['position_id_source', 'txt_dir', 'txt_dept', 'txt_biro', 'txt_sect', 'organizational_unit'],
             $foreignKey['columns'],
         ) !== []));
+    }
+
+    public function test_optional_succession_fields_accept_valid_values_normalize_blanks_and_wait_for_approval(): void
+    {
+        Storage::fake('local');
+        $actor = $this->superAdmin();
+        $headers = [...self::HEADERS, 'Criticality', 'Status Formasi', 'Talent Mapping', 'Succession Readiness', 'IDP (%)'];
+        $rows = [
+            ['SAP' => 'SAP-SUCCESSION-1', 'Criticality' => ' HIGH ', 'Status Formasi' => 'COVERED', 'Talent Mapping' => '1', 'Succession Readiness' => 'READY NOW', 'IDP (%)' => '75'],
+            ['SAP' => 'SAP-SUCCESSION-2', 'Criticality' => 'medium', 'Status Formasi' => 'vacant', 'Talent Mapping' => '9', 'Succession Readiness' => 'ready in one year', 'IDP (%)' => '75.5'],
+            ['SAP' => 'SAP-SUCCESSION-3', 'Criticality' => 'low', 'Status Formasi' => 'covered', 'Talent Mapping' => '5', 'Succession Readiness' => 'ready in two – three years', 'IDP (%)' => '75.50'],
+            ['SAP' => 'SAP-SUCCESSION-4', 'Criticality' => 'high', 'Status Formasi' => 'vacant', 'Talent Mapping' => '2', 'Succession Readiness' => 'ready in three — five years', 'IDP (%)' => '75%'],
+            ['SAP' => 'SAP-SUCCESSION-5', 'Criticality' => 'medium', 'Status Formasi' => 'covered', 'Talent Mapping' => '3', 'Succession Readiness' => 'ready now', 'IDP (%)' => '75,5'],
+            ['SAP' => 'SAP-SUCCESSION-6', 'Criticality' => 'low', 'Status Formasi' => 'vacant', 'Talent Mapping' => '4', 'Succession Readiness' => 'ready in one year', 'IDP (%)' => '0.75'],
+            ['SAP' => 'SAP-SUCCESSION-7', 'Talent Mapping' => '6'],
+            ['SAP' => 'SAP-SUCCESSION-8', 'Talent Mapping' => '7'],
+            ['SAP' => 'SAP-SUCCESSION-9', 'Talent Mapping' => '8'],
+            ['SAP' => 'SAP-SUCCESSION-BLANK'],
+        ];
+
+        $this->actingAs($actor)->post(route('data-pegawai.import'), [
+            'file' => $this->csvFile($headers, $rows),
+        ])->assertRedirect(route('data-pegawai'));
+
+        $batch = EmployeeImportBatch::query()->firstOrFail();
+        $stagedRows = $batch->rows()->orderBy('source_row')->get();
+        $this->assertSame(10, $batch->valid_rows);
+        $this->assertSame(0, $batch->invalid_rows);
+        $this->assertDatabaseCount('employees', 0);
+        $this->assertSame('high', $stagedRows[0]->normalized_payload['criticality']);
+        $this->assertSame('ready in two - three years', $stagedRows[2]->normalized_payload['succession_readiness']);
+        $this->assertSame('ready in three - five years', $stagedRows[3]->normalized_payload['succession_readiness']);
+        $this->assertSame(['75.00', '75.50', '75.50', '75.00', '75.50', '0.75'], $stagedRows->take(6)
+            ->pluck('normalized_payload')->map(fn (array $payload): string => $payload['idp_percentage'])->all());
+        $this->assertSame(range(1, 9), $stagedRows->take(9)->pluck('normalized_payload')
+            ->map(fn (array $payload): int => $payload['talent_mapping'])->sort()->values()->all());
+        foreach (['criticality', 'formation_status', 'talent_mapping', 'succession_readiness', 'idp_percentage'] as $field) {
+            $this->assertNull($stagedRows[9]->normalized_payload[$field]);
+        }
+
+        $this->actingAs($actor)->post(route('data-pegawai.import-batches.approve-candidates', $batch))
+            ->assertOk()->assertJsonPath('approved', 10);
+        $this->assertDatabaseCount('employees', 0);
+        $this->actingAs($actor)->post(route('data-pegawai.import-batches.process', $batch))
+            ->assertOk()->assertJsonPath('processed', 10);
+
+        $employee = Employee::query()->where('sap', 'SAP-SUCCESSION-1')->firstOrFail();
+        $this->assertSame(1, $employee->talent_mapping);
+        $this->assertSame('75.00', $employee->idp_percentage);
+        $this->assertDatabaseHas('employees', [
+            'sap' => 'SAP-SUCCESSION-BLANK',
+            'criticality' => null,
+            'formation_status' => null,
+            'talent_mapping' => null,
+            'succession_readiness' => null,
+            'idp_percentage' => null,
+        ]);
+    }
+
+    public function test_invalid_succession_values_are_rejected_during_staging_with_specific_errors(): void
+    {
+        Storage::fake('local');
+        $actor = $this->superAdmin();
+        $headers = [...self::HEADERS, 'Criticality', 'Status Formasi', 'Talent Mapping', 'Succession Readiness', 'IDP (%)'];
+        $invalidRows = [
+            ['SAP' => 'SAP-INVALID-CRITICALITY', 'Criticality' => 'urgent'],
+            ['SAP' => 'SAP-INVALID-FORMATION', 'Status Formasi' => 'open'],
+            ['SAP' => 'SAP-INVALID-TALENT-LOW', 'Talent Mapping' => '0'],
+            ['SAP' => 'SAP-INVALID-TALENT-HIGH', 'Talent Mapping' => '10'],
+            ['SAP' => 'SAP-INVALID-TALENT-DECIMAL', 'Talent Mapping' => '1.5'],
+            ['SAP' => 'SAP-INVALID-READINESS', 'Succession Readiness' => 'ready someday'],
+            ['SAP' => 'SAP-INVALID-IDP-LOW', 'IDP (%)' => '-1'],
+            ['SAP' => 'SAP-INVALID-IDP-HIGH', 'IDP (%)' => '101'],
+            ['SAP' => 'SAP-INVALID-IDP-TEXT', 'IDP (%)' => 'seventy five'],
+            ['SAP' => 'SAP-INVALID-IDP-FORMAT', 'IDP (%)' => '75%%'],
+        ];
+
+        $this->actingAs($actor)->post(route('data-pegawai.import'), [
+            'file' => $this->csvFile($headers, $invalidRows),
+        ])->assertRedirect(route('data-pegawai'));
+
+        $batch = EmployeeImportBatch::query()->firstOrFail();
+        $this->assertSame(10, $batch->invalid_rows);
+        $this->assertDatabaseCount('employees', 0);
+        $errors = $batch->rows()->orderBy('source_row')->pluck('validation_errors')->flatten()->all();
+        $this->assertTrue(collect($errors)->contains(fn (string $error): bool => str_contains($error, 'Criticality "urgent"')));
+        $this->assertTrue(collect($errors)->contains(fn (string $error): bool => str_contains($error, 'Status Formasi "open"')));
+        $this->assertSame(3, collect($errors)->filter(fn (string $error): bool => str_contains($error, 'Talent Mapping'))->count());
+        $this->assertTrue(collect($errors)->contains(fn (string $error): bool => str_contains($error, 'Succession Readiness "ready someday"')));
+        $this->assertSame(4, collect($errors)->filter(fn (string $error): bool => str_contains($error, 'IDP (%)'))->count());
+
+        $this->actingAs($actor)->get(route('data-pegawai.import.review.show', $batch))
+            ->assertOk()
+            ->assertSee('Criticality &quot;urgent&quot;', false)
+            ->assertSee('Talent Mapping &quot;0&quot;', false)
+            ->assertSee('IDP (%) &quot;-1&quot;', false);
+    }
+
+    public function test_legacy_file_without_succession_headers_remains_valid_and_does_not_clear_existing_values(): void
+    {
+        Storage::fake('local');
+        $actor = $this->superAdmin();
+        $employee = $this->createEmployee('SAP-LEGACY-SUCCESSION', [
+            'criticality' => 'high',
+            'formation_status' => 'covered',
+            'talent_mapping' => 8,
+            'succession_readiness' => 'ready now',
+            'idp_percentage' => 88.5,
+        ]);
+
+        $this->actingAs($actor)->post(route('data-pegawai.import'), [
+            'file' => $this->csvFile(self::HEADERS, [[
+                'SAP' => $employee->sap,
+                'Position' => 'Updated by legacy file',
+            ]]),
+        ])->assertRedirect(route('data-pegawai'));
+
+        $row = EmployeeImportRow::query()->firstOrFail();
+        $this->assertSame('VALID', $row->validation_status);
+        $this->assertArrayNotHasKey('criticality', $row->normalized_payload);
+        $this->actingAs($actor)->post(route('data-pegawai.import-rows.approve', $row))->assertOk();
+        $this->actingAs($actor)->post(route('data-pegawai.import-batches.process', $row->batch))
+            ->assertOk()->assertJsonPath('processed', 1);
+
+        $employee->refresh();
+        $this->assertSame('Updated by legacy file', $employee->position);
+        $this->assertSame('high', $employee->criticality);
+        $this->assertSame(8, $employee->talent_mapping);
+        $this->assertSame('88.50', $employee->idp_percentage);
+    }
+
+    public function test_xlsx_percentage_cell_is_scaled_but_an_unformatted_decimal_is_not(): void
+    {
+        Storage::fake('local');
+        $actor = $this->superAdmin();
+        $file = $this->percentageXlsxFile();
+
+        $this->actingAs($actor)->post(route('data-pegawai.import'), ['file' => $file])
+            ->assertRedirect(route('data-pegawai'));
+
+        $rows = EmployeeImportRow::query()->orderBy('source_row')->get();
+        $this->assertCount(2, $rows);
+        $this->assertSame('75.00', $rows[0]->normalized_payload['idp_percentage']);
+        $this->assertSame('0.75', $rows[1]->normalized_payload['idp_percentage']);
+        $this->assertSame('VALID', $rows[0]->validation_status);
+        $this->assertSame('VALID', $rows[1]->validation_status);
     }
 
     public function test_source_upload_is_staged_privately_without_writing_employees_and_accepts_position_id_alias(): void
@@ -758,6 +920,49 @@ class EmployeeImportStagingTest extends TestCase
             'sap' => $sap,
             ...$attributes,
         ]);
+    }
+
+    private function percentageXlsxFile(): UploadedFile
+    {
+        $headers = [...self::HEADERS, 'Criticality', 'Status Formasi', 'Talent Mapping', 'Succession Readiness', 'IDP (%)'];
+        $spreadsheet = new Spreadsheet;
+        $worksheet = $spreadsheet->getActiveSheet();
+        $worksheet->fromArray($headers, null, 'A1');
+        $worksheet->fromArray(
+            array_map(fn (string $header): mixed => match ($header) {
+                'SAP' => 'SAP-XLSX-PERCENT',
+                'IDP (%)' => 0.75,
+                default => null,
+            }, $headers),
+            null,
+            'A2',
+        );
+        $worksheet->fromArray(
+            array_map(fn (string $header): mixed => match ($header) {
+                'SAP' => 'SAP-XLSX-DECIMAL',
+                'IDP (%)' => 0.75,
+                default => null,
+            }, $headers),
+            null,
+            'A3',
+        );
+        $worksheet->getStyle('AG2')->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_PERCENTAGE_00);
+
+        $temporaryBase = tempnam(sys_get_temp_dir(), 'employee-percent-import-');
+        $this->assertNotFalse($temporaryBase);
+        $path = $temporaryBase.'.xlsx';
+        @unlink($temporaryBase);
+        (new Xlsx($spreadsheet))->save($path);
+        $spreadsheet->disconnectWorksheets();
+        register_shutdown_function(static fn () => @unlink($path));
+
+        return new UploadedFile(
+            $path,
+            'employee-percent-import.xlsx',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            null,
+            true,
+        );
     }
 
     /** @param array<int, string> $headers @param array<int, array<string, string>> $rows */

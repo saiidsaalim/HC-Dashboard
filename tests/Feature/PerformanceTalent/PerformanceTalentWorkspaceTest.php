@@ -578,6 +578,89 @@ class PerformanceTalentWorkspaceTest extends TestCase
                 && $employees->count() === 1);
     }
 
+    public function test_succession_fields_are_visible_only_on_performance_talent_employee_detail(): void
+    {
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        $employee = Employee::query()->create([
+            'sap' => 'PTM-SUCCESSION-VISIBILITY',
+            'criticality' => 'high',
+            'formation_status' => 'vacant',
+            'talent_mapping' => 8,
+            'succession_readiness' => 'ready in one year',
+            'idp_percentage' => 75.5,
+        ]);
+
+        $this->actingAs($superAdmin)
+            ->get(route('performance-talent.data-pegawai.index'))
+            ->assertOk()
+            ->assertViewHas('employeeShowRoute', 'performance-talent.data-pegawai.show')
+            ->assertSee(route('performance-talent.data-pegawai.show', $employee), escape: false)
+            ->assertDontSee('Criticality')
+            ->assertDontSee('Status Formasi')
+            ->assertDontSee('Talent Mapping')
+            ->assertDontSee('Succession Readiness')
+            ->assertDontSee('IDP (%)')
+            ->assertSee(route('performance-talent.data-pegawai.print'), escape: false)
+            ->assertSee(route('performance-talent.data-pegawai.export'), escape: false);
+
+        $this->get(route('performance-talent.data-pegawai.show', $employee))
+            ->assertOk()
+            ->assertViewIs('employees.show')
+            ->assertViewHas('showPerformanceTalentFields', true)
+            ->assertViewHas('employeeIndexRoute', 'performance-talent.data-pegawai.index')
+            ->assertSee('Criticality')
+            ->assertSee('Status Formasi')
+            ->assertSee('Talent Mapping')
+            ->assertSee('Succession Readiness')
+            ->assertSee('IDP (%)')
+            ->assertSee('Ready in one year')
+            ->assertSee('75,50%');
+
+        $this->get(route('data-pegawai'))
+            ->assertOk()
+            ->assertViewHas('employeeShowRoute', 'employees.show')
+            ->assertDontSee('Criticality')
+            ->assertDontSee('Status Formasi')
+            ->assertDontSee('Talent Mapping')
+            ->assertDontSee('Succession Readiness')
+            ->assertDontSee('IDP (%)');
+
+        $this->get(route('employees.show', $employee))
+            ->assertOk()
+            ->assertViewHas('showPerformanceTalentFields', false)
+            ->assertViewHas('employeeIndexRoute', 'data-pegawai')
+            ->assertDontSee('Criticality')
+            ->assertDontSee('Status Formasi')
+            ->assertDontSee('Talent Mapping')
+            ->assertDontSee('Succession Readiness')
+            ->assertDontSee('IDP (%)');
+    }
+
+    public function test_employee_detail_handles_null_values_and_long_content_safely(): void
+    {
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        $employee = Employee::query()->create([
+            'sap' => 'PTM-DETAIL-NULL',
+            'personal_number' => 'Nama Pegawai Dengan Identitas Yang Sangat Panjang',
+            'position' => 'Posisi dengan nama yang sangat panjang untuk memastikan konten tetap membungkus di dalam kartu profil pegawai',
+            'txt_dept' => 'Departemen dengan nama yang sangat panjang untuk pengujian tampilan responsif',
+            'email' => 'pegawai.dengan.alamat.email.yang.sangat.panjang@example.test',
+            'alamat' => 'Alamat pegawai yang sangat panjang dan tetap harus berada di dalam kartu tanpa menyebabkan overflow horizontal pada halaman detail.',
+        ]);
+
+        $this->actingAs($superAdmin)
+            ->get(route('performance-talent.data-pegawai.show', $employee))
+            ->assertOk()
+            ->assertSee(route('performance-talent.data-pegawai.index'), escape: false)
+            ->assertSee('<span aria-hidden="true">NP</span>', escape: false)
+            ->assertSee('Nama Pegawai Dengan Identitas Yang Sangat Panjang')
+            ->assertSee('pegawai.dengan.alamat.email.yang.sangat.panjang@example.test')
+            ->assertSee('aria-valuenow="0"', escape: false)
+            ->assertSee('style="width: 0%"', escape: false)
+            ->assertSee('break-all', escape: false)
+            ->assertSee('break-words', escape: false);
+    }
+
     public function test_employee_workspace_route_requires_both_workspace_and_employee_permissions(): void
     {
         $admin = User::factory()->create(['role' => UserRole::ADMIN->value]);
