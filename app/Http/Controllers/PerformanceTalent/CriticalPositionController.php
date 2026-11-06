@@ -33,8 +33,7 @@ class CriticalPositionController extends Controller
         $criticality = CriticalPositionCriticality::tryFrom((string) $request->query('criticality', ''));
         $coverageStatus = CriticalPositionCoverageStatus::tryFrom((string) $request->query('coverage_status', ''));
         $successorStatus = trim((string) $request->query('successor_status', ''));
-        $requestedPerPage = (int) $request->query('per_page', 20);
-        $perPage = in_array($requestedPerPage, [20, 40, 60], true) ? $requestedPerPage : 20;
+        $perPage = $this->perPage($request);
 
         $filteredQuery = $this->applyIndexFilters(
             CriticalPosition::query(),

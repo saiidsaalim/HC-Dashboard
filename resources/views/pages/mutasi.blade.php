@@ -168,7 +168,7 @@
                     @if ($selectedBatch)
                         <p class="mt-0.5 text-xs text-slate-500">
                             {{ $selectedBatch->name }} &middot; {{ $mutations->total() }} pegawai ditampilkan.
-                            <a href="{{ route('mutasi') }}#data-mutasi" class="ml-1 font-bold text-sky-700 hover:text-sky-800">Tampilkan semua pegawai</a>
+                            <a href="{{ route('mutasi', ['per_page' => $perPage]) }}#data-mutasi" class="ml-1 font-bold text-sky-700 hover:text-sky-800">Tampilkan semua pegawai</a>
                         </p>
                     @else
                         <p class="mt-0.5 text-xs text-slate-500">Semua pegawai yang dimutasi ditampilkan saat halaman pertama dibuka.</p>
@@ -182,6 +182,7 @@
                     </a>
                 @endif
                 <form method="GET" action="{{ route('mutasi') }}" class="relative w-full lg:w-80">
+                    <input type="hidden" name="per_page" value="{{ $perPage }}">
                     @if ($filter !== 'all')
                         <input type="hidden" name="status" value="{{ $filter }}">
                     @endif
@@ -198,7 +199,8 @@
                         class="ui-input w-full py-2.5 pl-10 pr-4 text-sm">
                 </form>
                 <x-ui.filter-panel id="mutation-filters" title="Filter Mutasi" class="w-full sm:w-auto"
-                    :action="route('mutasi')" :reset-href="route('mutasi')" :active="$search !== '' || $filter !== 'all' || $batchId !== null">
+                    :action="route('mutasi')" :reset-href="route('mutasi', ['per_page' => $perPage])" :active="$search !== '' || $filter !== 'all' || $batchId !== null">
+                    <input type="hidden" name="per_page" value="{{ $perPage }}">
                     @if ($search !== '')
                         <input type="hidden" name="search" value="{{ $search }}">
                     @endif
@@ -397,7 +399,10 @@
                 </table>
             </div>
         </form>
-        <div class="border-t border-slate-100 px-4 py-3">{{ $mutations->links() }}</div>
+        <div class="flex flex-col gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <x-ui.per-page-selector :per-page="$perPage" id="mutation-per-page" />
+            @if ($mutations->hasPages())<div>{{ $mutations->links() }}</div>@endif
+        </div>
     </section>
 
     @foreach ($mutations as $mutation)

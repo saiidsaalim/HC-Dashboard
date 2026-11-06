@@ -34,6 +34,7 @@ class MutationController extends Controller
         MovementApprovalWorkflowService $workflow,
     ): View {
         Gate::authorize('viewAny', EmployeeMutation::class);
+        $perPage = $this->perPage($request);
         $search = trim((string) $request->input('search', ''));
         $filter = in_array($request->input('status'), ['draft', 'waiting', 'returned', 'approved', 'final'], true)
             ? (string) $request->input('status')
@@ -74,7 +75,8 @@ class MutationController extends Controller
         }
 
         return view('pages.mutasi', [
-            'mutations' => $mutationQuery->latest('tmt')->latest()->paginate(15)->withQueryString(),
+            'mutations' => $mutationQuery->latest('tmt')->latest()->paginate($perPage)->withQueryString(),
+            'perPage' => $perPage,
             'totalMutations' => EmployeeMutation::query()->count(),
             'pendingMutations' => EmployeeMutation::query()->where('verification_status', 'Pending')->count(),
             'approvedMutationsThisYear' => EmployeeMutation::query()

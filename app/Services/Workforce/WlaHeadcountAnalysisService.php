@@ -24,7 +24,7 @@ class WlaHeadcountAnalysisService
      *     summary: array{positions_analyzed: int, total_recommended: int, total_actual: int, total_shortage: int, total_surplus: int, balanced_positions: int, incomplete_snapshots: int}
      * }
      */
-    public function analyze(array $filters, int $perPage = 15): array
+    public function analyze(array $filters, int $perPage = 20): array
     {
         $periods = WlaAssessment::query()
             ->where('status', WlaAssessmentStatus::Final->value)

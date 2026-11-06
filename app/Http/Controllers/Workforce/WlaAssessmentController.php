@@ -45,6 +45,7 @@ class WlaAssessmentController extends Controller
     public function index(Request $request): View
     {
         Gate::authorize('viewAny', WlaAssessment::class);
+        $perPage = $this->perPage($request);
 
         $availableYears = WlaAssessment::query()
             ->select('period')
@@ -68,7 +69,7 @@ class WlaAssessmentController extends Controller
             ->with(['department', 'unit', 'position', 'workSchedule', 'workCalendar', 'creator'])
             ->orderByDesc('period')
             ->orderByDesc('id')
-            ->paginate(15)
+            ->paginate($perPage)
             ->withQueryString();
         $analyticsAssessments = (clone $assessmentQuery)
             ->where('status', WlaAssessmentStatus::Final->value)
@@ -81,6 +82,7 @@ class WlaAssessmentController extends Controller
             'assessments',
             'availableYears',
             'selectedYear',
+            'perPage',
         ));
     }
 

@@ -32,6 +32,7 @@ class FitProperController extends Controller
 
     public function index(Request $request): View
     {
+        $perPage = $this->perPage($request);
         $accessibleActivities = FitProperActivity::query()->accessibleTo($request->user());
         $activityCount = (clone $accessibleActivities)->count();
         $activeActivityCount = (clone $accessibleActivities)->where('status', 'Berjalan')->count();
@@ -62,7 +63,7 @@ class FitProperController extends Controller
                     'examiners as submitted_count' => fn ($builder) => $builder->whereNotNull('submitted_at'),
                 ])
                 ->latest()
-                ->paginate(12)
+                ->paginate($perPage)
                 ->withQueryString(),
             'activityCount' => $activityCount,
             'activeActivityCount' => $activeActivityCount,
@@ -70,6 +71,7 @@ class FitProperController extends Controller
             'examinerCount' => $examinerCount,
             'submittedExaminerCount' => $submittedExaminerCount,
             'standard' => FitProperSetting::current(),
+            'perPage' => $perPage,
         ]);
     }
 

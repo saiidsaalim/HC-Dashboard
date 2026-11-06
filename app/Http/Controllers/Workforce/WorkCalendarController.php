@@ -25,6 +25,7 @@ class WorkCalendarController extends Controller
 
         $search = trim((string) $request->input('search', ''));
         $active = $request->input('active', '');
+        $perPage = $this->perPage($request);
 
         $workCalendars = WorkCalendar::query()
             ->when($search !== '', fn ($query) => $query->where(fn ($query) => $query
@@ -32,10 +33,10 @@ class WorkCalendarController extends Controller
                 ->orWhere('notes', 'like', "%{$search}%")))
             ->when(in_array($active, ['0', '1'], true), fn ($query) => $query->where('active', $active))
             ->orderByDesc('year')
-            ->paginate(15)
+            ->paginate($perPage)
             ->withQueryString();
 
-        return view('workforce.work-calendars.index', compact('workCalendars', 'search', 'active'));
+        return view('workforce.work-calendars.index', compact('workCalendars', 'search', 'active', 'perPage'));
     }
 
     public function create(): View

@@ -1,62 +1,75 @@
 @props([
+    'boxNumber',
     'box',
-    'potential',
-    'talents' => [],
+    'count' => 0,
+    'previews' => collect(),
+    'active' => false,
+    'dimmed' => false,
+    'canViewEmployees' => false,
 ])
 
 @php
-    $talentItems = collect($talents)
-        ->map(fn ($talent): array => [
-            'name' => data_get($talent, 'employee.name') ?? data_get($talent, 'name') ?? 'Nama tidak tersedia',
-            'position' => data_get($talent, 'employee.position') ?? data_get($talent, 'position') ?? 'Posisi tidak tersedia',
-        ])
-        ->values();
-    $selectionPayload = [
-        'key' => $box['key'],
-        'number' => $box['number'],
-        'title' => $box['title'],
-        'potential' => $potential,
-        'performance' => $box['performance'],
-        'count' => $talentItems->count(),
-        'talents' => $talentItems->all(),
-    ];
+    $previewItems = collect($previews);
+    $boxUrl = route('performance-talent.talent-pool.index', [
+        ...request()->except(['box', 'page']),
+        'box' => $boxNumber,
+    ]).'#talent-detail';
 @endphp
 
-<button type="button" data-talent-box data-box="{{ $box['key'] }}"
-    data-display-number="{{ $box['number'] }}" data-potential="{{ $potential }}"
+<article data-talent-box data-box="{{ str_pad((string) $boxNumber, 2, '0', STR_PAD_LEFT) }}"
+    data-display-number="{{ $boxNumber }}" data-potential="{{ $box['potential'] }}"
     data-performance="{{ $box['performance'] }}"
-    x-on:click="$dispatch('talent-box-selected', @js($selectionPayload))"
-    x-bind:aria-pressed="selectedBox?.key === @js($box['key'])"
-    aria-label="{{ $box['title'] }}, potensi {{ $potential }}, performa {{ $box['performance'] }}, {{ $talentItems->count() }} talenta"
-    class="talent-matrix-card"
-    style="--matrix-background: {{ $box['background'] }}; --matrix-accent: {{ $box['accent'] }};">
-    <span class="talent-matrix-card__glow" aria-hidden="true"></span>
-
-    <span class="talent-matrix-card__top">
-        <span class="talent-matrix-card__icon" aria-hidden="true">
-            <img src="{{ asset('images/talent-matrix/icons/'.$box['icon']) }}" alt="" width="28" height="28">
+    class="talent-pool-card {{ $active ? 'is-active' : '' }} {{ $dimmed ? 'is-dimmed' : '' }}"
+    style="--talent-accent: {{ $box['accent'] }}; --talent-background: {{ $box['background'] }};">
+    <a href="{{ $boxUrl }}" aria-label="Lihat {{ $box['label'] }}, {{ $count }} pegawai"
+        @if ($active) aria-current="true" @endif
+        @if ($dimmed) aria-disabled="true" tabindex="-1" @endif class="talent-pool-card__link">
+        <span class="talent-pool-card__heading">
+            <span class="talent-pool-card__icon" aria-hidden="true">
+                <img src="{{ asset('images/talent-matrix/icons/'.$box['icon']) }}" alt="" width="24" height="24">
+            </span>
+            <span class="min-w-0">
+                <strong>{{ $box['label'] }}</strong>
+                <small>Potensi {{ $box['potential'] }} <span aria-hidden="true">&bull;</span> Performa {{ $box['performance'] }}</small>
+            </span>
         </span>
-        <span class="talent-matrix-card__number">{{ $box['number'] }}</span>
-    </span>
 
-    <span class="talent-matrix-card__copy">
-        <strong>{{ $box['title'] }}</strong>
-        <span>Potensi {{ $potential }} <span aria-hidden="true">&bull;</span> Performa {{ $box['performance'] }}</span>
-    </span>
+        <span class="talent-pool-card__people">
+            @if ($dimmed)
+                <span class="talent-pool-card__empty-text">Tidak termasuk filter</span>
+            @elseif ($count === 0)
+                <span class="talent-pool-card__empty-text">Belum ada talent</span>
+            @elseif ($canViewEmployees && $previewItems->isNotEmpty())
+                <span class="talent-pool-card__avatars" aria-label="Preview pegawai">
+                    @foreach ($previewItems as $employee)
+                        @php
+                            $displayName = trim((string) ($employee->personal_number ?: $employee->name ?: 'Nama belum tersedia'));
+                            $initials = collect(preg_split('/\s+/', $displayName) ?: [])
+                                ->filter()
+                                ->take(2)
+                                ->map(fn (string $word): string => mb_strtoupper(mb_substr($word, 0, 1)))
+                                ->implode('');
+                        @endphp
+                        <span title="{{ $displayName }}" aria-label="{{ $displayName }}">{{ $initials ?: '—' }}</span>
+                    @endforeach
+                </span>
+            @else
+                <span class="talent-pool-card__empty-preview" aria-hidden="true">
+                    <x-dashboard-icon name="users" class="h-4 w-4" />
+                </span>
+            @endif
 
-    <span class="talent-matrix-card__count">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-            <path d="M16 20v-1.5A4.5 4.5 0 0 0 11.5 14h-3A4.5 4.5 0 0 0 4 18.5V20M10 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7-1a2.5 2.5 0 0 1 0 5m3 6v-1a4 4 0 0 0-2.5-3.7"
-                stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        @if ($talentItems->isEmpty())
-            Belum ada talenta
-        @else
-            {{ $talentItems->count() }} talenta
-        @endif
-    </span>
+            <b>{{ number_format($count, 0, ',', '.') }}</b>
+            @if ($count > 3 && $canViewEmployees)
+                <em>+{{ $count - 3 }}</em>
+            @endif
+        </span>
 
-    <img class="talent-matrix-card__illustration"
-        src="{{ asset('images/talent-matrix/characters/'.$box['illustration']) }}" alt="" width="320" height="220"
-        loading="lazy" decoding="async">
-</button>
+        <span class="talent-pool-card__action">
+            {{ $dimmed ? 'Di luar filter' : 'Lihat Talent' }}
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="m9 18 6-6-6-6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+        </span>
+    </a>
+</article>

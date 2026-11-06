@@ -118,7 +118,7 @@
                     @if ($selectedBatch)
                         <p class="mt-0.5 text-xs text-slate-500">
                             {{ $selectedBatch->name }} &middot; {{ $demotions->total() }} pegawai ditampilkan.
-                            <a href="{{ route('demosi') }}" class="ml-1 font-bold text-sky-700 hover:text-sky-800">Tampilkan semua pegawai</a>
+                            <a href="{{ route('demosi', ['per_page' => $perPage]) }}" class="ml-1 font-bold text-sky-700 hover:text-sky-800">Tampilkan semua pegawai</a>
                         </p>
                     @else
                         <p class="mt-0.5 text-xs text-slate-500">Pantau perjalanan posisi dan status persetujuan pegawai.</p>
@@ -130,6 +130,7 @@
                     <a href="{{ route('demosi.batches.export', $selectedBatch) }}" class="ui-button ui-button-primary">Export Excel</a>
                 @endif
                 <form method="GET" action="{{ route('demosi') }}" class="relative w-full lg:w-80">
+                    <input type="hidden" name="per_page" value="{{ $perPage }}">
                     @if ($filter !== 'all')
                         <input type="hidden" name="status" value="{{ $filter }}">
                     @endif
@@ -146,7 +147,8 @@
                         class="ui-input w-full py-2.5 pl-10 pr-4 text-sm">
                 </form>
                 <x-ui.filter-panel id="demotion-filters" title="Filter Demosi" class="w-full sm:w-auto"
-                    :action="route('demosi')" :reset-href="route('demosi')" :active="$search !== '' || $filter !== 'all' || $batchId !== null">
+                    :action="route('demosi')" :reset-href="route('demosi', ['per_page' => $perPage])" :active="$search !== '' || $filter !== 'all' || $batchId !== null">
+                    <input type="hidden" name="per_page" value="{{ $perPage }}">
                     @if ($search !== '')
                         <input type="hidden" name="search" value="{{ $search }}">
                     @endif
@@ -345,7 +347,10 @@
                 </table>
             </div>
         </form>
-        <div class="border-t border-slate-100 px-4 py-3">{{ $demotions->links() }}</div>
+        <div class="flex flex-col gap-3 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <x-ui.per-page-selector :per-page="$perPage" id="demotion-per-page" />
+            @if ($demotions->hasPages())<div>{{ $demotions->links() }}</div>@endif
+        </div>
     </section>
 
     @foreach ($demotions as $demotion)

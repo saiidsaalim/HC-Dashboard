@@ -39,6 +39,7 @@ class PromotionController extends Controller
         PersonnelMovementFormDataService $formDataService,
     ): View {
         Gate::authorize('viewAny', EmployeePromotion::class);
+        $perPage = $this->perPage($request);
 
         $search = trim((string) $request->input('search', ''));
         $batchId = $request->integer('batch') ?: null;
@@ -91,7 +92,8 @@ class PromotionController extends Controller
         $canManage = $request->user()->can('create', EmployeePromotion::class);
 
         return view('pages.promosi', [
-            'promotions' => $promotionQuery->latest('tmt')->latest()->paginate(15)->withQueryString(),
+            'promotions' => $promotionQuery->latest('tmt')->latest()->paginate($perPage)->withQueryString(),
+            'perPage' => $perPage,
             'totalPromotions' => EmployeePromotion::query()->count(),
             'pendingPromotions' => EmployeePromotion::query()->whereIn('verification_status', [
                 PromotionStatus::WaitingApproval->value,

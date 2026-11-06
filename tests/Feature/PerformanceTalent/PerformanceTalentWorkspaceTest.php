@@ -9,6 +9,7 @@ use App\Http\Controllers\PerformanceTalent\CriticalPositionController;
 use App\Http\Controllers\PerformanceTalent\PerformanceTalentController;
 use App\Http\Controllers\PerformanceTalent\SuccessorController;
 use App\Models\Department;
+use App\Models\Directorate;
 use App\Models\Employee;
 use App\Models\Permission;
 use App\Models\Position;
@@ -119,7 +120,7 @@ class PerformanceTalentWorkspaceTest extends TestCase
                     ->assertViewIs('performance-talent.show')
                     ->assertViewHas('featureView', 'performance-talent.features.talent-pool')
                     ->assertDontSee($page['description'])
-                    ->assertSee('Pemetaan talenta')
+                    ->assertSee('Pemetaan karyawan berdasarkan potensi dan performa')
                     ->assertDontSee('Fitur sedang dalam tahap pengembangan');
 
                 continue;
@@ -135,13 +136,36 @@ class PerformanceTalentWorkspaceTest extends TestCase
     {
         $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
 
+        foreach ([1, 5, 9] as $box) {
+            Employee::query()->create([
+                'sap' => 'TALENT-BOX-'.$box,
+                'personal_number' => 'Talent Box '.$box,
+                'talent_mapping' => $box,
+            ]);
+        }
+
+        Employee::query()->create([
+            'sap' => 'TALENT-UNMAPPED',
+            'personal_number' => 'Talent Belum Dipetakan',
+            'talent_mapping' => null,
+        ]);
+
         $response = $this->actingAs($superAdmin)
             ->get(route('performance-talent.talent-pool.index'))
             ->assertOk()
+            ->assertViewHas('activeBox', 9)
+            ->assertViewHas('summary', [
+                'total' => 3,
+                'high_potential' => 1,
+                'high_performance' => 1,
+            ])
+            ->assertViewHas('unmappedCount', 1)
+            ->assertViewHas('talentCounts', fn ($counts): bool => $counts->get(1) === 1
+                && $counts->get(5) === 1
+                && $counts->get(9) === 1)
             ->assertSee('aria-label="Potential meningkat ke atas"', escape: false)
             ->assertSee('aria-label="Performance meningkat ke kanan"', escape: false)
-            ->assertSee('talent-matrix-scroll', escape: false)
-            ->assertSee('Geser horizontal untuk melihat seluruh matriks.')
+            ->assertSee('talent-pool-matrix-scroll', escape: false)
             ->assertSeeInOrder([
                 'data-box="07"',
                 'data-box="08"',
@@ -175,49 +199,299 @@ class PerformanceTalentWorkspaceTest extends TestCase
                 'Aman Terkendali',
                 'Jagonya Eksekusi',
             ])
-            ->assertSee('Pilih salah satu kotak')
-            ->assertDontSee('desain_3_talent_matrix_3x3.png');
+            ->assertSee('Talent Box 9')
+            ->assertSee('Belum Dipetakan')
+            ->assertDontSee('talent-matrix-card__illustration', escape: false);
 
         $html = $response->getContent();
 
         $this->assertSame(9, substr_count($html, 'data-talent-box'));
-        $this->assertSame(9, substr_count($html, 'Belum ada talenta'));
-        $this->assertSame(9, substr_count($html, 'talent-matrix-card__illustration'));
         $this->assertMatchesRegularExpression('/data-box="07"[\s\S]*?data-potential="Tinggi"[\s\S]*?data-performance="Rendah"/', $html);
         $this->assertMatchesRegularExpression('/data-box="03"[\s\S]*?data-potential="Rendah"[\s\S]*?data-performance="Tinggi"/', $html);
-
-        foreach ([
-            '01_diam_diam_jago.png',
-            '02_lagi_ngebut.png',
-            '03_rising_star.png',
-            '04_butuh_arah.png',
-            '05_tim_andalan.png',
-            '06_gaspol.png',
-            '07_perlu_booster.png',
-            '08_aman_terkendali.png',
-            '09_jagonya_eksekusi.png',
-        ] as $illustration) {
-            $this->assertFileExists(public_path('images/talent-matrix/characters/'.$illustration));
-        }
-
         $this->assertCount(9, glob(public_path('images/talent-matrix/icons/*.svg')) ?: []);
     }
 
-    public function test_talent_pool_renders_supplied_talent_counts_and_details(): void
+    public function test_talent_pool_filters_searches_and_paginates_database_employees(): void
     {
-        $html = view('performance-talent.features.talent-pool', [
-            'talentMatrix' => [
-                '09' => [
-                    ['name' => 'Talent Satu', 'position' => 'Senior Analyst'],
-                    ['name' => 'Talent Dua', 'position' => 'Lead Engineer'],
-                ],
-            ],
-        ])->render();
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        $directorate = Directorate::query()->create(['code' => 'TAL-DIR', 'name' => 'Talent Directorate', 'active' => true]);
+        $department = Department::query()->create([
+            'directorate_id' => $directorate->id,
+            'code' => 'TAL-DEPT',
+            'name' => 'Talent Department',
+            'active' => true,
+        ]);
 
-        $this->assertStringContainsString('Total talent terpetakan', $html);
-        $this->assertStringContainsString('2 talenta', $html);
-        $this->assertStringContainsString('Talent Satu', $html);
-        $this->assertStringContainsString('Senior Analyst', $html);
+        foreach (range(1, 11) as $number) {
+            Employee::query()->create([
+                'sap' => sprintf('TALENT-SAP-%02d', $number),
+                'personal_number' => sprintf('Nama Talent %02d', $number),
+                'talent_mapping' => 9,
+                'directorate_id' => $directorate->id,
+                'department_id' => $department->id,
+            ]);
+        }
+
+        Employee::query()->create([
+            'sap' => 'OUTSIDE-FILTER',
+            'personal_number' => 'Talent Luar Filter',
+            'talent_mapping' => 9,
+        ]);
+
+        $filterQuery = [
+            'box' => 9,
+            'category' => 'talent',
+            'directorate_id' => $directorate->id,
+            'department_id' => $department->id,
+        ];
+
+        $this->actingAs($superAdmin)
+            ->get(route('performance-talent.talent-pool.index', $filterQuery))
+            ->assertOk()
+            ->assertViewHas('summary', fn (array $summary): bool => $summary['total'] === 11)
+            ->assertViewHas('categoryDistribution', fn ($distribution): bool => $distribution->get('talent')['count'] === 11
+                && $distribution->sum('count') === 11)
+            ->assertViewHas('activeTalents', fn ($employees): bool => $employees->total() === 11
+                && $employees->perPage() === 10
+                && $employees->count() === 10)
+            ->assertSee('Nama Talent 01')
+            ->assertDontSee('Talent Luar Filter');
+
+        $this->get(route('performance-talent.talent-pool.index', [...$filterQuery, 'page' => 2]))
+            ->assertOk()
+            ->assertViewHas('activeTalents', fn ($employees): bool => $employees->currentPage() === 2
+                && $employees->count() === 1)
+            ->assertSee('directorate_id='.$directorate->id, escape: false)
+            ->assertSee('department_id='.$department->id, escape: false)
+            ->assertSee('category=talent', escape: false)
+            ->assertSee('box=9', escape: false);
+
+        $this->get(route('performance-talent.talent-pool.index', ['search' => 'TALENT-SAP-07', 'box' => 9]))
+            ->assertOk()
+            ->assertViewHas('summary', fn (array $summary): bool => $summary['total'] === 1)
+            ->assertSee('Nama Talent 07')
+            ->assertDontSee('Nama Talent 08');
+    }
+
+    public function test_talent_pool_classifies_and_filters_employee_mapping_categories(): void
+    {
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+
+        foreach (range(1, 9) as $box) {
+            Employee::query()->create([
+                'sap' => 'CATEGORY-BOX-'.$box,
+                'personal_number' => 'Pegawai Box '.$box,
+                'talent_mapping' => $box,
+            ]);
+        }
+
+        foreach (range(1, 2) as $number) {
+            Employee::query()->create([
+                'sap' => 'CATEGORY-NULL-'.$number,
+                'personal_number' => 'Pegawai Belum Dipetakan '.$number,
+                'talent_mapping' => null,
+            ]);
+        }
+
+        $this->actingAs($superAdmin)
+            ->get(route('performance-talent.talent-pool.index'))
+            ->assertOk()
+            ->assertViewHas('totalEmployeeCount', 11)
+            ->assertViewHas('invalidMappingCount', 0)
+            ->assertViewHas('categoryDistribution', function ($distribution): bool {
+                return $distribution->get('talent')['count'] === 4
+                    && $distribution->get('non_talent')['count'] === 5
+                    && $distribution->get('not_available')['count'] === 2
+                    && $distribution->sum('count') === 11;
+            })
+            ->assertSee('Distribusi Talent')
+            ->assertSee('Komposisi pemetaan pegawai');
+
+        $this->get(route('performance-talent.talent-pool.index', ['category' => 'talent', 'box' => 1]))
+            ->assertOk()
+            ->assertViewHas('activeCategory', 'talent')
+            ->assertViewHas('activeBox', 9)
+            ->assertViewHas('activeTalents', fn ($employees): bool => $employees->total() === 1
+                && $employees->sole()->talent_mapping === 9)
+            ->assertSee('Pegawai Box 9')
+            ->assertDontSee('Pegawai Box 1');
+
+        $this->get(route('performance-talent.talent-pool.index', ['category' => 'non_talent', 'box' => 9]))
+            ->assertOk()
+            ->assertViewHas('activeCategory', 'non_talent')
+            ->assertViewHas('activeBox', 7)
+            ->assertViewHas('activeTalents', fn ($employees): bool => $employees->total() === 1
+                && $employees->sole()->talent_mapping === 7)
+            ->assertSee('Pegawai Box 7')
+            ->assertDontSee('Pegawai Box 9');
+
+        $this->get(route('performance-talent.talent-pool.index', ['category' => 'not_available']))
+            ->assertOk()
+            ->assertViewHas('activeCategory', 'not_available')
+            ->assertViewHas('activeBox', null)
+            ->assertViewHas('activeTalents', fn ($employees): bool => $employees->total() === 2
+                && $employees->every(fn (Employee $employee): bool => $employee->talent_mapping === null))
+            ->assertSee('Pegawai Belum Dipetakan 1')
+            ->assertSee('Pegawai Belum Dipetakan 2')
+            ->assertDontSee('Pegawai Box 9');
+
+        $this->get(route('performance-talent.talent-pool.index', ['category' => 'tidak-valid']))
+            ->assertOk()
+            ->assertViewHas('activeCategory', 'all');
+    }
+
+    public function test_talent_pool_reports_invalid_mapping_and_handles_empty_percentages(): void
+    {
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+
+        $this->actingAs($superAdmin)
+            ->get(route('performance-talent.talent-pool.index'))
+            ->assertOk()
+            ->assertViewHas('categoryDistribution', fn ($distribution): bool => $distribution->every(
+                fn (array $category): bool => $category['count'] === 0 && $category['percentage'] === 0.0,
+            ));
+
+        Employee::query()->create([
+            'sap' => 'INVALID-MAPPING',
+            'personal_number' => 'Pegawai Mapping Tidak Valid',
+            'talent_mapping' => 10,
+        ]);
+
+        $this->get(route('performance-talent.talent-pool.index'))
+            ->assertOk()
+            ->assertViewHas('totalEmployeeCount', 1)
+            ->assertViewHas('invalidMappingCount', 1)
+            ->assertViewHas('categoryDistribution', fn ($distribution): bool => $distribution->sum('count') === 0)
+            ->assertSee('1 pegawai memiliki Talent Mapping tidak valid.');
+    }
+
+    public function test_managerial_category_uses_master_position_job_levels_for_every_talent_box(): void
+    {
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        $directorate = Directorate::query()->create(['code' => 'MGT-DIR', 'name' => 'Managerial Directorate', 'active' => true]);
+        $department = Department::query()->create([
+            'directorate_id' => $directorate->id,
+            'code' => 'MGT-DEPT',
+            'name' => 'Managerial Department',
+            'active' => true,
+        ]);
+        $unit = Unit::query()->create([
+            'department_id' => $department->id,
+            'code' => 'MGT-UNIT',
+            'name' => 'Managerial Unit',
+            'active' => true,
+        ]);
+        $managerialEmployees = [
+            [Position::JOB_LEVEL_GENERAL_MANAGER, 9, 'General Manager Talent'],
+            [Position::JOB_LEVEL_SENIOR_MANAGER, 5, 'Senior Manager Talent'],
+            [Position::JOB_LEVEL_MANAGER, 1, 'Manager Talent'],
+        ];
+
+        foreach ($managerialEmployees as [$jobLevel, $talentMapping, $employeeName]) {
+            $position = Position::query()->create([
+                'unit_id' => $unit->id,
+                'code' => 'MGT-'.$talentMapping,
+                'name' => $jobLevel,
+                'job_level' => $jobLevel,
+                'active' => true,
+            ]);
+            Employee::query()->create([
+                'sap' => 'MGT-SAP-'.$talentMapping,
+                'personal_number' => $employeeName,
+                'talent_mapping' => $talentMapping,
+                'position_id' => $position->id,
+            ]);
+        }
+
+        $staffPosition = Position::query()->create([
+            'unit_id' => $unit->id,
+            'code' => 'MGT-STAFF',
+            'name' => 'Staff Position',
+            'job_level' => Position::JOB_LEVEL_STAFF,
+            'active' => true,
+        ]);
+        Employee::query()->create([
+            'sap' => 'MGT-STAFF-SAP',
+            'personal_number' => 'Staff Bukan Managerial',
+            'talent_mapping' => 9,
+            'position_id' => $staffPosition->id,
+        ]);
+
+        $response = $this->actingAs($superAdmin)
+            ->get(route('performance-talent.talent-pool.index', ['category' => 'managerial']))
+            ->assertOk()
+            ->assertViewHas('activeCategory', 'managerial')
+            ->assertViewHas('summary', fn (array $summary): bool => $summary['total'] === 3)
+            ->assertViewHas('talentCounts', fn ($counts): bool => $counts->get(1) === 1
+                && $counts->get(5) === 1
+                && $counts->get(9) === 1)
+            ->assertViewHas('categoryDistribution', fn ($distribution): bool => $distribution->get('talent')['count'] === 2
+                && $distribution->get('non_talent')['count'] === 1
+                && $distribution->sum('count') === 3)
+            ->assertViewHas('activeTalents', fn ($employees): bool => $employees->total() === 1
+                && $employees->sole()->personal_number === 'General Manager Talent')
+            ->assertSee('Managerial')
+            ->assertSee('General Manager Talent')
+            ->assertDontSee('Staff Bukan Managerial');
+
+        $this->assertSame(0, substr_count($response->getContent(), 'is-dimmed'));
+    }
+
+    public function test_talent_pool_hides_employee_identity_without_employee_view_permission(): void
+    {
+        $admin = User::factory()->create(['role' => UserRole::ADMIN->value]);
+        $this->grantPermissionsToRole(UserRole::ADMIN, [self::PERMISSION]);
+        app(SyncUserWorkspaceAccess::class)->execute($admin, ['performance-talent-management']);
+        $this->removePermissionFromRole(UserRole::ADMIN, 'employees.view');
+        $employee = Employee::query()->create([
+            'sap' => 'RESTRICTED-TALENT',
+            'personal_number' => 'Nama Talent Rahasia',
+            'talent_mapping' => 9,
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('performance-talent.talent-pool.index'))
+            ->assertOk()
+            ->assertViewHas('canViewEmployees', false)
+            ->assertViewHas('summary', fn (array $summary): bool => $summary['total'] === 1)
+            ->assertSee('Detail pegawai dibatasi')
+            ->assertDontSee('Nama Talent Rahasia')
+            ->assertDontSee(route('performance-talent.data-pegawai.show', $employee), escape: false);
+    }
+
+    public function test_talent_pool_query_count_does_not_grow_with_the_number_of_employees(): void
+    {
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        Employee::query()->create([
+            'sap' => 'QUERY-TALENT-01',
+            'personal_number' => 'Query Talent 01',
+            'talent_mapping' => 9,
+        ]);
+
+        $this->actingAs($superAdmin);
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $this->get(route('performance-talent.talent-pool.index'))->assertOk();
+        $singleEmployeeQueryCount = count(DB::getQueryLog());
+
+        foreach (range(2, 25) as $number) {
+            Employee::query()->create([
+                'sap' => sprintf('QUERY-TALENT-%02d', $number),
+                'personal_number' => sprintf('Query Talent %02d', $number),
+                'talent_mapping' => ($number % 9) + 1,
+            ]);
+        }
+
+        DB::flushQueryLog();
+        $this->get(route('performance-talent.talent-pool.index'))->assertOk();
+        $multipleEmployeeQueryCount = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $this->assertLessThanOrEqual(
+            $singleEmployeeQueryCount + 1,
+            $multipleEmployeeQueryCount,
+            'Jumlah query Talent Pool bertambah mengikuti jumlah pegawai.',
+        );
     }
 
     public function test_successor_view_renders_the_master_organization_hierarchy(): void

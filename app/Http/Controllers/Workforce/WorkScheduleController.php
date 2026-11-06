@@ -22,6 +22,7 @@ class WorkScheduleController extends Controller
 
         $search = trim((string) $request->input('search', ''));
         $active = $request->input('active', '');
+        $perPage = $this->perPage($request);
 
         $workSchedules = WorkSchedule::query()
             ->when($search !== '', fn ($query) => $query->where(fn ($query) => $query
@@ -30,10 +31,10 @@ class WorkScheduleController extends Controller
                 ->orWhere('schedule_type', 'like', "%{$search}%")))
             ->when(in_array($active, ['0', '1'], true), fn ($query) => $query->where('active', $active))
             ->orderBy('name')
-            ->paginate(15)
+            ->paginate($perPage)
             ->withQueryString();
 
-        return view('workforce.work-schedules.index', compact('workSchedules', 'search', 'active'));
+        return view('workforce.work-schedules.index', compact('workSchedules', 'search', 'active', 'perPage'));
     }
 
     public function create(): View

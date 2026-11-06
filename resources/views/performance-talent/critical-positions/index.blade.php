@@ -293,19 +293,7 @@
                             Tambah Critical Position
                         </button>
                     @endcan
-                    <form method="GET" action="{{ route('performance-talent.critical-positions.index') }}">
-                        @foreach (request()->except(['per_page', 'page']) as $queryName => $queryValue)
-                            @if (is_scalar($queryValue))
-                                <input type="hidden" name="{{ $queryName }}" value="{{ $queryValue }}">
-                            @endif
-                        @endforeach
-                        <label class="sr-only" for="critical-position-per-page">Jumlah data per halaman</label>
-                        <select id="critical-position-per-page" name="per_page" @change="$el.form.submit()" class="w-full rounded-xl border-slate-300 py-2.5 text-sm font-semibold text-slate-700 focus:border-[#087FC3] focus:ring-[#087FC3] sm:w-40">
-                            @foreach ([20, 40, 60] as $option)
-                                <option value="{{ $option }}" @selected($perPage === $option)>{{ $option }} per halaman</option>
-                            @endforeach
-                        </select>
-                    </form>
+                    <x-ui.per-page-selector :per-page="$perPage" id="critical-position-per-page" />
                 </div>
             </div>
             <div class="overflow-x-auto">

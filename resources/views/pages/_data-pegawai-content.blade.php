@@ -162,6 +162,7 @@
         <section data-employee-toolbar class="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div class="flex flex-col gap-3 p-3 sm:p-4 xl:flex-row xl:items-end">
                 <form method="GET" action="{{ route($employeeIndexRoute) }}" class="grid min-w-0 flex-1 gap-2 md:grid-cols-2 xl:grid-cols-[minmax(280px,2fr)_repeat(4,minmax(125px,1fr))]">
+                    <input type="hidden" name="per_page" value="{{ $perPage }}">
                     <input type="hidden" name="position_id" value="{{ $positionId }}">
                     <input type="hidden" name="status" value="{{ $status }}">
                     <input type="hidden" name="gender" value="{{ $gender }}">
@@ -206,13 +207,14 @@
                     </label>
                 </form>
                 <x-ui.filter-panel id="employee-filters" title="Filter Lanjutan" button-label="Filter Lanjutan"
-                    :action="route($employeeIndexRoute)" :reset-href="route($employeeIndexRoute)"
+                    :action="route($employeeIndexRoute)" :reset-href="route($employeeIndexRoute, ['per_page' => $perPage])"
                     :active="$search !== '' || $directorateId !== '' || $departmentId !== '' || $unitId !== '' || $positionId !== '' || $status !== '' || $level !== '' || $gender !== '' || $sortBy !== 'latest'">
                     <input type="hidden" name="search" value="{{ $search }}">
                     <input type="hidden" name="directorate_id" value="{{ $directorateId }}">
                     <input type="hidden" name="department_id" value="{{ $departmentId }}">
                     <input type="hidden" name="unit_id" value="{{ $unitId }}">
                     <input type="hidden" name="level" value="{{ $level }}">
+                    <input type="hidden" name="per_page" value="{{ $perPage }}">
                     <label for="employee-position-filter" class="block text-sm font-semibold text-slate-700">Position
                         <select id="employee-position-filter" name="position_id" @disabled($unitId === '') class="mt-1 block w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-red-400 focus:ring-red-400 disabled:bg-slate-100">
                             <option value="">Semua position</option>
@@ -284,7 +286,7 @@
                 <div class="flex items-center gap-2 self-end lg:self-auto">
                     <x-dropdown align="right" width="48">
                         <x-slot name="trigger"><button type="button" aria-label="Aksi lainnya" class="ui-button ui-button-secondary px-3"><svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><circle cx="10" cy="4" r="1.4"/><circle cx="10" cy="10" r="1.4"/><circle cx="10" cy="16" r="1.4"/></svg></button></x-slot>
-                        <x-slot name="content"><a href="{{ route($employeeIndexRoute) }}" class="block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">Reset semua filter</a></x-slot>
+                        <x-slot name="content"><a href="{{ route($employeeIndexRoute, ['per_page' => $perPage]) }}" class="block rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">Reset semua filter</a></x-slot>
                     </x-dropdown>
                     @if ($canDeleteEmployees)
                         <button type="submit" form="delete-all-employees" class="ui-button border border-red-300 bg-white text-red-700 hover:border-red-400 hover:bg-red-50">
@@ -865,11 +867,13 @@
                 </table>
             </div>
             <div class="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
-                <p class="text-sm text-slate-500">
-                    Menampilkan <span class="font-semibold text-slate-700">{{ $employees->firstItem() ?? 0 }}–{{ $employees->lastItem() ?? 0 }}</span>
-                    dari <span class="font-semibold text-slate-700">{{ number_format($employees->total(), 0, ',', '.') }}</span> data
-                    <span class="ml-1 rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">20 per halaman</span>
-                </p>
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                    <p class="text-sm text-slate-500">
+                        Menampilkan <span class="font-semibold text-slate-700">{{ $employees->firstItem() ?? 0 }}–{{ $employees->lastItem() ?? 0 }}</span>
+                        dari <span class="font-semibold text-slate-700">{{ number_format($employees->total(), 0, ',', '.') }}</span> data
+                    </p>
+                    <x-ui.per-page-selector :per-page="$perPage" id="employee-per-page" />
+                </div>
                 @if ($employees->hasPages())
                     @php($currentPage = $employees->currentPage())
                     @php($lastPage = $employees->lastPage())

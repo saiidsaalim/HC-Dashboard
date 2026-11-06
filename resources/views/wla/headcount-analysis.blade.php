@@ -14,8 +14,9 @@
         <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
             <div class="p-4">
                 <x-ui.filter-panel id="wla-headcount-filters" title="Filter Analisis WLA"
-                    :reset-href="route('wla.headcount-analysis')"
+                    :reset-href="route('wla.headcount-analysis', ['per_page' => $perPage])"
                     :active="request()->filled('period') || collect($filters)->except('period')->filter()->isNotEmpty()">
+                    <input type="hidden" name="per_page" value="{{ $perPage }}">
                     <div x-data="{
                         departmentId: @js((string) ($filters['department_id'] ?? '')),
                         unitId: @js((string) ($filters['unit_id'] ?? '')),
@@ -138,7 +139,10 @@
                     </tbody>
                 </table>
             </div>
-            <div class="border-t border-slate-200 px-4 py-3">{{ $rows->links() }}</div>
+            <div class="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <x-ui.per-page-selector :per-page="$perPage" id="wla-headcount-per-page" />
+                @if ($rows->hasPages())<div>{{ $rows->links() }}</div>@endif
+            </div>
         </section>
     @endif
 @endsection

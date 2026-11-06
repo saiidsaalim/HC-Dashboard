@@ -17,9 +17,7 @@ class DirectorateController extends Controller
         Gate::authorize('viewAny', Directorate::class);
         $search = trim((string) $request->input('search', ''));
         $active = $request->input('active', '');
-        $perPage = in_array($request->integer('per_page'), [20, 40, 60], true)
-            ? $request->integer('per_page')
-            : 20;
+        $perPage = $this->perPage($request);
         $directorates = Directorate::query()
             ->withCount('departments')
             ->when($search !== '', fn ($query) => $query->where(fn ($query) => $query

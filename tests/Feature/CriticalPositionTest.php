@@ -446,7 +446,21 @@ class CriticalPositionTest extends TestCase
             ->assertViewHas('perPage', 40)
             ->assertViewHas('criticalPositions', fn ($positions): bool => $positions->perPage() === 40
                 && $positions->count() === 21)
+            ->assertSee('data-per-page-selector', false)
             ->assertSee('name="criticality" value="high"', false);
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('performance-talent.critical-positions.index', ['per_page' => 60]))
+            ->assertOk()
+            ->assertViewHas('perPage', 60)
+            ->assertViewHas('criticalPositions', fn ($positions): bool => $positions->perPage() === 60)
+            ->assertSee('value="60" selected', false);
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('performance-talent.critical-positions.index', ['per_page' => 999]))
+            ->assertOk()
+            ->assertViewHas('perPage', 20)
+            ->assertViewHas('criticalPositions', fn ($positions): bool => $positions->perPage() === 20);
     }
 
     public function test_review_schedule_labels_future_today_overdue_and_unscheduled_dates(): void

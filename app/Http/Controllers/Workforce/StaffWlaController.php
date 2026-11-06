@@ -28,6 +28,7 @@ class StaffWlaController extends Controller
     public function index(Request $request): View
     {
         Gate::authorize('viewAny', WlaParticipant::class);
+        $perPage = $this->perPage($request);
 
         /** @var User $user */
         $user = $request->user();
@@ -45,9 +46,10 @@ class StaffWlaController extends Controller
             ->with('assigner:id,name,role')
             ->withCount('activities')
             ->orderByDesc('id')
-            ->paginate(15);
+            ->paginate($perPage)
+            ->withQueryString();
 
-        return view('wla.staff.index', compact('employee', 'participants'));
+        return view('wla.staff.index', compact('employee', 'participants', 'perPage'));
     }
 
     public function show(WlaParticipant $participant): View

@@ -61,8 +61,9 @@
 
             <div class="border-b border-slate-200 bg-slate-50 p-4">
                 <x-ui.filter-panel id="candidate-user-filters" title="Filter Calon User"
-                    :action="route('konfigurasi-user')" :reset-href="route('konfigurasi-user')"
+                    :action="route('konfigurasi-user')" :reset-href="route('konfigurasi-user', ['candidate_per_page' => $candidatePerPage])"
                     :active="collect($candidateFilters)->filter()->isNotEmpty()">
+                    <input type="hidden" name="candidate_per_page" value="{{ $candidatePerPage }}">
                     <label class="block text-sm font-semibold text-slate-700">Pencarian
                         <input name="candidate_search" value="{{ $candidateFilters['search'] }}"
                             placeholder="Cari Personal Number, SAP, atau email"
@@ -148,9 +149,10 @@
                     </tbody>
                 </table>
             </div>
-            @if ($candidates->hasPages())
-                <div class="border-t border-slate-200 p-4">{{ $candidates->links() }}</div>
-            @endif
+            <div class="flex flex-col gap-3 border-t border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <x-ui.per-page-selector :per-page="$candidatePerPage" name="candidate_per_page" page-name="candidate_page" id="candidate-per-page" />
+                @if ($candidates->hasPages())<div>{{ $candidates->links() }}</div>@endif
+            </div>
         </section>
     @endif
 
@@ -288,6 +290,10 @@
                     @endforeach
                 </tbody>
             </table>
+            <div class="flex flex-col gap-3 border-t border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <x-ui.per-page-selector :per-page="$userPerPage" name="user_per_page" page-name="user_page" id="user-per-page" />
+                @if ($users->hasPages())<div>{{ $users->links() }}</div>@endif
+            </div>
         </div>
     </section>
 

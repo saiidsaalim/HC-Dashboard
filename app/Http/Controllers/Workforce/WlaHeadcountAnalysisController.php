@@ -16,6 +16,7 @@ class WlaHeadcountAnalysisController extends Controller
     public function index(Request $request): View
     {
         Gate::authorize('viewAny', WlaAssessment::class);
+        $perPage = $this->perPage($request);
 
         $analysis = $this->analysisService->analyze($request->only([
             'period',
@@ -23,7 +24,8 @@ class WlaHeadcountAnalysisController extends Controller
             'unit_id',
             'position_id',
             'gap_status',
-        ]));
+        ]), $perPage);
+        $analysis['perPage'] = $perPage;
         $analysis['rows']->appends($request->query());
 
         return view('wla.headcount-analysis', $analysis);

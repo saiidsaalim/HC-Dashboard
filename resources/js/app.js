@@ -6,6 +6,7 @@ import './fit-proper';
 import { initializeThemeControls } from './theme';
 import { initializeWlaDashboard } from './wla-dashboard';
 import { initializeCriticalPositionDashboard } from './critical-position-dashboard';
+import { initializeTalentPoolDashboard } from './talent-pool-dashboard';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
@@ -14,6 +15,7 @@ window.Swal = Swal;
 
 document.addEventListener('DOMContentLoaded', initializeThemeControls);
 document.addEventListener('DOMContentLoaded', initializeCriticalPositionDashboard);
+document.addEventListener('DOMContentLoaded', initializeTalentPoolDashboard);
 
 function initializeDashboardAnimations() {
     const cards = [...document.querySelectorAll('[data-dashboard-card]')];

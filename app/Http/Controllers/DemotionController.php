@@ -34,6 +34,7 @@ class DemotionController extends Controller
         MovementApprovalWorkflowService $workflow,
     ): View {
         Gate::authorize('viewAny', EmployeeDemotion::class);
+        $perPage = $this->perPage($request);
         $search = trim((string) $request->input('search', ''));
         $batchId = $request->integer('batch') ?: null;
         $filter = in_array($request->input('status'), ['draft', 'waiting', 'returned', 'approved', 'final'], true)
@@ -73,7 +74,8 @@ class DemotionController extends Controller
         }
 
         return view('pages.demosi', [
-            'demotions' => $demotionQuery->latest('tmt')->latest()->paginate(15)->withQueryString(),
+            'demotions' => $demotionQuery->latest('tmt')->latest()->paginate($perPage)->withQueryString(),
+            'perPage' => $perPage,
             'totalDemotions' => EmployeeDemotion::query()->count(),
             'pendingDemotions' => EmployeeDemotion::query()->where('verification_status', 'Pending')->count(),
             'approvedDemotionsThisYear' => EmployeeDemotion::query()

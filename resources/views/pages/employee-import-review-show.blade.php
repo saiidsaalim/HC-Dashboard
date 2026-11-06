@@ -94,7 +94,8 @@
 
         <x-ui.filter-panel id="employee-import-row-filters" title="Filter Row Import" class="justify-start"
             :action="route('data-pegawai.import.review.show', $batch)"
-            :reset-href="route('data-pegawai.import.review.show', $batch)" :active="$filter !== 'all'">
+            :reset-href="route('data-pegawai.import.review.show', [$batch, 'per_page' => $perPage])" :active="$filter !== 'all'">
+            <input type="hidden" name="per_page" value="{{ $perPage }}">
             <label class="block text-sm font-semibold text-slate-700">Status row
                 <select name="filter" class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
                     <option value="all" @selected($filter === 'all')>Semua ({{ $batch->total_rows }})</option>
@@ -166,9 +167,10 @@
                     <p class="px-4 py-12 text-center text-sm text-slate-500">{{ $filter === 'invalid' ? 'Tidak ada row invalid pada batch ini.' : 'Batch ini belum memiliki row.' }}</p>
                 @endforelse
             </div>
-            @if ($rows->hasPages())
-                <div class="border-t border-slate-200 px-4 py-3">{{ $rows->links() }}</div>
-            @endif
+            <div class="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <x-ui.per-page-selector :per-page="$perPage" id="import-row-per-page" />
+                @if ($rows->hasPages())<div>{{ $rows->links() }}</div>@endif
+            </div>
         </section>
     </div>
 @endsection

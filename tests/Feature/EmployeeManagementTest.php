@@ -1384,6 +1384,19 @@ class EmployeeManagementTest extends TestCase
             ->assertSee('level=Band1', false)
             ->assertSee('gender=M', false)
             ->assertSee('sort_by=organic_oldest', false);
+
+        $this->actingAs($user)->get(route('data-pegawai', [...$filters, 'per_page' => 40]))
+            ->assertOk()
+            ->assertViewHas('perPage', 40)
+            ->assertViewHas('employees', fn ($employees): bool => $employees->perPage() === 40
+                && $employees->count() === 21)
+            ->assertSee('data-per-page-selector', false)
+            ->assertSee('value="40" selected', false);
+
+        $this->actingAs($user)->get(route('data-pegawai', [...$filters, 'per_page' => 999]))
+            ->assertOk()
+            ->assertViewHas('perPage', 20)
+            ->assertViewHas('employees', fn ($employees): bool => $employees->perPage() === 20);
     }
 
     public function test_employee_master_filters_reject_invalid_and_inconsistent_organization_ids(): void

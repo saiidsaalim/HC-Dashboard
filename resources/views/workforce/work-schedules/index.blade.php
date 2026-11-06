@@ -20,7 +20,8 @@
     <section class="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div class="border-b border-slate-200 p-4">
             <x-ui.filter-panel id="work-schedule-filters" title="Filter Work Schedule"
-                :reset-href="route('work-schedules.index')" :active="$search !== '' || $active !== ''">
+                :reset-href="route('work-schedules.index', ['per_page' => $perPage])" :active="$search !== '' || $active !== ''">
+                <input type="hidden" name="per_page" value="{{ $perPage }}">
                 <label class="block text-sm font-semibold text-slate-700">Pencarian
                     <input name="search" value="{{ $search }}" placeholder="Cari kode, nama, atau tipe"
                         class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
@@ -56,6 +57,9 @@
                 </tbody>
             </table>
         </div>
-        <div class="border-t border-slate-200 px-4 py-3">{{ $workSchedules->links() }}</div>
+        <div class="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <x-ui.per-page-selector :per-page="$perPage" id="work-schedule-per-page" />
+            @if ($workSchedules->hasPages())<div>{{ $workSchedules->links() }}</div>@endif
+        </div>
     </section>
 @endsection

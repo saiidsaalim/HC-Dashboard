@@ -50,6 +50,7 @@ class EmployeeController extends Controller
      */
     public function index(Request $request, LevelTransitionService $levelTransitionService): View
     {
+        $perPage = $this->perPage($request);
         $routeName = $request->route()?->getName() ?? 'data-pegawai';
         $workspaceFeatureView = self::WORKSPACE_FEATURE_VIEWS[$routeName] ?? null;
 
@@ -190,7 +191,7 @@ class EmployeeController extends Controller
                 ->orderByDesc('employees.id');
         }
 
-        $employees = $employeeQuery->paginate(20)->withQueryString();
+        $employees = $employeeQuery->paginate($perPage)->withQueryString();
         $directorateIds = $employees->pluck('directorate_id')->filter()->merge($directorateId !== null ? [$directorateId] : [])->unique();
         $departmentIds = $employees->pluck('department_id')->filter()->merge($departmentId !== null ? [$departmentId] : [])->unique()->all();
         $unitIds = $employees->pluck('unit_id')->filter()->merge($unitId !== null ? [$unitId] : [])->unique()->all();
@@ -242,6 +243,7 @@ class EmployeeController extends Controller
             'level' => $level,
             'gender' => $gender,
             'sortBy' => $sortBy,
+            'perPage' => $perPage,
             'organizationDirectorates' => $organizationDirectorates,
             'organizationDepartments' => $organizationDepartments,
             'organizationUnits' => $organizationUnits,
@@ -353,17 +355,20 @@ class EmployeeController extends Controller
     public function importReviewIndex(Request $request): View
     {
         $this->authorizeImportReview($request);
+        $perPage = $this->perPage($request);
         $batches = EmployeeImportBatch::query()
             ->orderByDesc('imported_at')
             ->orderByDesc('id')
-            ->paginate(20);
+            ->paginate($perPage)
+            ->withQueryString();
 
-        return view('pages.employee-import-review-index', compact('batches'));
+        return view('pages.employee-import-review-index', compact('batches', 'perPage'));
     }
 
     public function importReviewShow(Request $request, EmployeeImportBatch $batch): View
     {
         $this->authorizeImportReview($request);
+        $perPage = $this->perPage($request);
         $filter = $request->query('filter', 'all');
         if (! in_array($filter, ['all', 'invalid'], true)) {
             $filter = 'all';
@@ -373,7 +378,7 @@ class EmployeeController extends Controller
         if ($filter === 'invalid') {
             $rowsQuery->where('validation_status', 'INVALID');
         }
-        $rows = $rowsQuery->paginate(25)->withQueryString();
+        $rows = $rowsQuery->paginate($perPage)->withQueryString();
         $invalidCount = $batch->rows()->where('validation_status', 'INVALID')->count();
         $approvableCount = $batch->rows()
             ->where('validation_status', 'VALID')
@@ -381,7 +386,7 @@ class EmployeeController extends Controller
             ->whereNull('processed_at')
             ->count();
 
-        return view('pages.employee-import-review-show', compact('batch', 'rows', 'filter', 'invalidCount', 'approvableCount'));
+        return view('pages.employee-import-review-show', compact('batch', 'rows', 'filter', 'invalidCount', 'approvableCount', 'perPage'));
     }
 
     public function destroyImportBatch(Request $request, EmployeeImportBatch $batch): RedirectResponse

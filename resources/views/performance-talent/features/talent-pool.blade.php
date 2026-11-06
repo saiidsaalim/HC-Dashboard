@@ -1,132 +1,299 @@
 @php
-    $talentMatrixData = collect($talentMatrix ?? []);
-    $matrixRows = [
-        [
-            'potential' => 'Tinggi',
-            'boxes' => [
-                ['key' => '07', 'number' => '7', 'title' => 'Diam-Diam Jago', 'performance' => 'Rendah', 'background' => '#DFF8EB', 'accent' => '#27C696', 'icon' => 'bulb.svg', 'illustration' => '01_diam_diam_jago.png'],
-                ['key' => '08', 'number' => '8', 'title' => 'Lagi Ngebut', 'performance' => 'Sedang', 'background' => '#E1F0FF', 'accent' => '#378CED', 'icon' => 'trending-up.svg', 'illustration' => '02_lagi_ngebut.png'],
-                ['key' => '09', 'number' => '9', 'title' => 'Rising Star', 'performance' => 'Tinggi', 'background' => '#FFF2BA', 'accent' => '#F3AE13', 'icon' => 'star.svg', 'illustration' => '03_rising_star.png'],
-            ],
-        ],
-        [
-            'potential' => 'Sedang',
-            'boxes' => [
-                ['key' => '04', 'number' => '4', 'title' => 'Butuh Arah', 'performance' => 'Rendah', 'background' => '#FFE6EA', 'accent' => '#F47C92', 'icon' => 'signpost.svg', 'illustration' => '04_butuh_arah.png'],
-                ['key' => '05', 'number' => '5', 'title' => 'Tim Andalan', 'performance' => 'Sedang', 'background' => '#EEE3FF', 'accent' => '#9765E8', 'icon' => 'users.svg', 'illustration' => '05_tim_andalan.png'],
-                ['key' => '06', 'number' => '6', 'title' => 'Gaspol', 'performance' => 'Tinggi', 'background' => '#E5F2FF', 'accent' => '#2F91EC', 'icon' => 'rocket.svg', 'illustration' => '06_gaspol.png'],
-            ],
-        ],
-        [
-            'potential' => 'Rendah',
-            'boxes' => [
-                ['key' => '01', 'number' => '1', 'title' => 'Perlu Booster', 'performance' => 'Rendah', 'background' => '#FFEBD8', 'accent' => '#F49B50', 'icon' => 'battery-low.svg', 'illustration' => '07_perlu_booster.png'],
-                ['key' => '02', 'number' => '2', 'title' => 'Aman Terkendali', 'performance' => 'Sedang', 'background' => '#DDF9EE', 'accent' => '#22BE99', 'icon' => 'shield-check.svg', 'illustration' => '08_aman_terkendali.png'],
-                ['key' => '03', 'number' => '3', 'title' => 'Jagonya Eksekusi', 'performance' => 'Tinggi', 'background' => '#F0E5FF', 'accent' => '#9454E7', 'icon' => 'clipboard-check.svg', 'illustration' => '09_jagonya_eksekusi.png'],
-            ],
-        ],
+    $matrixRows = [[7, 8, 9], [4, 5, 6], [1, 2, 3]];
+    $activeBoxMeta = $activeBox === null ? null : $talentBoxes[$activeBox];
+    $activeBoxCategory = $activeBox === null
+        ? null
+        : collect($talentCategories)->first(fn (array $category): bool => in_array($activeBox, $category['boxes'], true));
+    $visibleBoxNumbers = in_array($activeCategory, ['all', 'managerial'], true)
+        ? array_keys($talentBoxes)
+        : $talentCategories[$activeCategory]['boxes'];
+    $departmentOptions = $departments
+        ->map(fn ($department): array => [
+            'id' => (string) $department->id,
+            'directorate_id' => (string) $department->directorate_id,
+            'name' => $department->name,
+        ])
+        ->values();
+    $categoryUrls = collect(['all', ...array_keys($talentCategories), 'managerial'])
+        ->mapWithKeys(function (string $category): array {
+            return [$category => route('performance-talent.talent-pool.index', [
+                ...request()->except(['category', 'box', 'page']),
+                'category' => $category,
+            ])];
+        });
+    $chartPayload = [
+        'labels' => $categoryDistribution->pluck('label')->values(),
+        'series' => $categoryDistribution->pluck('count')->values(),
+        'colors' => $categoryDistribution->pluck('color')->values(),
+        'keys' => $categoryDistribution->keys()->values(),
+        'active' => $activeCategory === 'managerial' ? 'all' : $activeCategory,
+        'total' => $totalEmployeeCount,
     ];
-    $totalTalentCount = $talentMatrixData->sum(fn ($talents): int => collect($talents)->count());
 @endphp
 
-<section x-data="{ selectedBox: null }" x-on:talent-box-selected.window="selectedBox = $event.detail"
-    class="talent-matrix-panel" aria-labelledby="talent-matrix-title">
-    <header class="talent-matrix-header">
-        <div>
-            <span class="talent-matrix-header__eyebrow">9-Box Talent Matrix</span>
-            <h3 id="talent-matrix-title" class="font-display">Talent Matrix <span>3&times;3</span></h3>
-            <p>Pemetaan talenta yang simple, ramah, dan mudah dipahami tanpa mengubah klasifikasi penilaian.</p>
+<div data-talent-pool-dashboard class="talent-pool-page space-y-5"
+    x-data="{
+        directorateId: @js((string) ($filters['directorate_id'] ?? '')),
+        departmentId: @js((string) ($filters['department_id'] ?? '')),
+        departments: @js($departmentOptions),
+        get filteredDepartments() {
+            return this.directorateId === ''
+                ? this.departments
+                : this.departments.filter(department => department.directorate_id === this.directorateId);
+        },
+        changeDirectorate() {
+            if (!this.filteredDepartments.some(department => department.id === this.departmentId)) {
+                this.departmentId = '';
+            }
+        },
+    }">
+    <section class="talent-pool-hero" aria-labelledby="talent-pool-title">
+        <div class="talent-pool-hero__copy">
+            <span>Performance &amp; Talent Management</span>
+            <h1 id="talent-pool-title">Talent Pool</h1>
+            <p>Pemetaan karyawan berdasarkan potensi dan performa</p>
         </div>
-        <div class="talent-matrix-header__summary" aria-label="Ringkasan jumlah talent">
-            <strong>{{ $totalTalentCount }}</strong>
-            <span>Total talent terpetakan</span>
+
+        <div class="talent-pool-summary" aria-label="Ringkasan Talent Pool">
+            <article>
+                <span class="talent-pool-summary__icon is-cyan" aria-hidden="true"><x-dashboard-icon name="users" class="h-6 w-6" /></span>
+                <span><small>Total Talent Terpetakan</small><strong data-talent-summary="total">{{ number_format($summary['total'], 0, ',', '.') }}</strong></span>
+            </article>
+            <article>
+                <span class="talent-pool-summary__icon is-amber" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z" stroke-linejoin="round" /></svg>
+                </span>
+                <span><small>High Potential</small><strong data-talent-summary="high-potential">{{ number_format($summary['high_potential'], 0, ',', '.') }}</strong></span>
+            </article>
+            <article>
+                <span class="talent-pool-summary__icon is-teal" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m4 16 5-5 4 4 7-8M15 7h5v5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                </span>
+                <span><small>High Performance</small><strong data-talent-summary="high-performance">{{ number_format($summary['high_performance'], 0, ',', '.') }}</strong></span>
+            </article>
         </div>
-    </header>
+    </section>
 
-    <p class="talent-matrix-scroll-hint">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M8 7 3 12l5 5m8-10 5 5-5 5M3 12h18" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-        Geser horizontal untuk melihat seluruh matriks.
-    </p>
+    <form method="GET" action="{{ route('performance-talent.talent-pool.index') }}" class="talent-pool-filter"
+        aria-label="Filter Talent Pool">
+        <input type="hidden" name="category" value="{{ $activeCategory }}">
+        @if ($activeBox !== null)
+            <input type="hidden" name="box" value="{{ $activeBox }}">
+        @endif
 
-    <div class="talent-matrix-scroll" tabindex="0" aria-label="Area Talent Matrix dapat digeser horizontal">
-        <div class="talent-matrix-layout">
-            <div class="talent-matrix-axis-y" aria-label="Potential meningkat ke atas">
-                <span>Tinggi</span>
-                <span>Sedang</span>
-                <span>Rendah</span>
-                <strong>Potential <span aria-hidden="true">&rarr;</span></strong>
+        <label>
+            <span>Direktorat</span>
+            <select name="directorate_id" x-model="directorateId" x-on:change="changeDirectorate()">
+                <option value="">Semua Direktorat</option>
+                @foreach ($directorates as $directorate)
+                    <option value="{{ $directorate->id }}">{{ $directorate->name }}</option>
+                @endforeach
+            </select>
+        </label>
+
+        <label>
+            <span>Department</span>
+            <select name="department_id" x-model="departmentId">
+                <option value="">Semua Department</option>
+                <template x-for="department in filteredDepartments" x-bind:key="department.id">
+                    <option x-bind:value="department.id" x-text="department.name"></option>
+                </template>
+            </select>
+        </label>
+
+        <label class="talent-pool-filter__search">
+            <span>Cari pegawai</span>
+            <span class="talent-pool-filter__search-field">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" stroke-linecap="round" /></svg>
+                <input type="search" name="search" value="{{ $filters['search'] }}" maxlength="100"
+                    placeholder="Cari nama, Personal Number, atau SAP">
+            </span>
+        </label>
+
+        <button type="submit" class="talent-pool-filter__submit">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5h16l-6 7v5l-4 2v-7L4 5Z" stroke-linejoin="round" /></svg>
+            Terapkan Filter
+        </button>
+
+        @if ($hasActiveFilters)
+            <a href="{{ route('performance-talent.talent-pool.index') }}" class="talent-pool-filter__reset">Reset</a>
+        @endif
+    </form>
+
+    <section class="talent-pool-category-filter" aria-labelledby="talent-category-filter-title">
+        <span id="talent-category-filter-title">Kategori Pemetaan</span>
+        <div role="group" aria-label="Pilih kategori pemetaan">
+            <a href="{{ $categoryUrls->get('all') }}" @if ($activeCategory === 'all') aria-current="true" @endif>Semua</a>
+            @foreach ($talentCategories as $categoryKey => $category)
+                <a href="{{ $categoryUrls->get($categoryKey) }}" @if ($activeCategory === $categoryKey) aria-current="true" @endif>
+                    {{ $category['short_label'] }}
+                </a>
+            @endforeach
+            <a href="{{ $categoryUrls->get('managerial') }}" @if ($activeCategory === 'managerial') aria-current="true" @endif>
+                Managerial
+            </a>
+        </div>
+    </section>
+
+    @if ($errors->any())
+        <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700" role="alert">{{ $errors->first() }}</div>
+    @endif
+
+    @if ($invalidMappingCount > 0)
+        <div class="talent-pool-unmapped is-invalid" role="alert">
+            <span aria-hidden="true">!</span>
+            <p><strong>{{ number_format($invalidMappingCount, 0, ',', '.') }} pegawai memiliki Talent Mapping tidak valid.</strong> Nilai di luar rentang 1–9 tidak dimasukkan ke Talent, Non Talent, maupun Not Available.</p>
+        </div>
+    @endif
+
+    <div class="talent-pool-visual-grid">
+        <section class="talent-pool-matrix-panel" aria-labelledby="talent-matrix-title">
+            <div class="talent-pool-matrix-panel__header">
+                <div>
+                    <span>9-Box Talent Matrix</span>
+                    <h2 id="talent-matrix-title">Pemetaan Potensi &amp; Performa</h2>
+                </div>
+                <p>Posisi box tetap mengikuti sumbu Potential dan Performance.</p>
             </div>
 
-            <div>
-                <div role="group" aria-label="9-Box Talent Matrix" class="talent-matrix-grid">
-                    @foreach ($matrixRows as $row)
-                        <div class="contents">
-                            @foreach ($row['boxes'] as $box)
-                                <x-performance-talent.talent-matrix-card :box="$box" :potential="$row['potential']"
-                                    :talents="$talentMatrixData->get($box['key'], [])" />
+            @if ($totalEmployeeCount === 0)
+                <x-ui.empty-state class="mx-4 mb-4" title="Data Talent Pool belum tersedia."
+                    :description="$hasActiveFilters ? 'Tidak ada pegawai yang sesuai dengan filter.' : 'Belum ada data pegawai dalam scope Talent Pool.'" />
+            @elseif ($summary['total'] === 0)
+                <div class="talent-pool-matrix-note">Belum ada pegawai yang memiliki Talent Mapping 1–9.</div>
+            @endif
+
+            <div class="talent-pool-matrix-scroll" tabindex="0" aria-label="Matriks Talent Pool dapat digeser horizontal">
+                <div class="talent-pool-matrix">
+                    <div class="talent-pool-axis-y" aria-label="Potential meningkat ke atas">
+                        <span>Tinggi</span><span>Sedang</span><span>Rendah</span>
+                        <strong>Potential</strong>
+                    </div>
+
+                    <div class="talent-pool-matrix__content">
+                        <div class="talent-pool-grid" role="group" aria-label="9-Box Talent Matrix">
+                            @foreach ($matrixRows as $row)
+                                @foreach ($row as $boxNumber)
+                                    <x-performance-talent.talent-matrix-card :box-number="$boxNumber"
+                                        :box="$talentBoxes[$boxNumber]" :count="$talentCounts->get($boxNumber, 0)"
+                                        :previews="$talentPreviews->get($boxNumber, collect())" :active="$activeBox === $boxNumber"
+                                        :dimmed="$activeCategory !== 'all' && ! in_array($boxNumber, $visibleBoxNumbers, true)"
+                                        :can-view-employees="$canViewEmployees" />
+                                @endforeach
                             @endforeach
                         </div>
-                    @endforeach
-                </div>
 
-                <div class="talent-matrix-axis-x" aria-label="Performance meningkat ke kanan">
-                    <div>
-                        <span>Rendah</span>
-                        <span>Sedang</span>
-                        <span>Tinggi</span>
+                        <div class="talent-pool-axis-x" aria-label="Performance meningkat ke kanan">
+                            <div><span>Rendah</span><span>Sedang</span><span>Tinggi</span></div>
+                            <strong>Performance</strong>
+                        </div>
                     </div>
-                    <strong>Performance <span aria-hidden="true">&rarr;</span></strong>
                 </div>
             </div>
-        </div>
+        </section>
+
+        <aside class="talent-pool-distribution" aria-labelledby="talent-distribution-title">
+            <header>
+                <span>Ringkasan Kategori</span>
+                <h2 id="talent-distribution-title">Distribusi Talent</h2>
+                <p>{{ $activeCategory === 'managerial' ? 'Komposisi pemetaan pegawai managerial' : 'Komposisi pemetaan pegawai' }}</p>
+            </header>
+
+            <div data-talent-distribution-chart data-chart='@json($chartPayload)'
+                class="talent-pool-distribution__chart" aria-label="Diagram distribusi Talent Pool"></div>
+
+            <div class="talent-pool-distribution__legend">
+                @foreach ($categoryDistribution as $categoryKey => $category)
+                    <a href="{{ $categoryUrls->get($categoryKey) }}"
+                        class="{{ $activeCategory === $categoryKey ? 'is-active' : '' }}"
+                        @if ($activeCategory === $categoryKey) aria-current="true" @endif>
+                        <span style="--category-color: {{ $category['color'] }}" aria-hidden="true"></span>
+                        <span><strong>{{ $category['short_label'] }}</strong><small>{{ number_format($category['count'], 0, ',', '.') }} pegawai</small></span>
+                        <b>{{ number_format($category['percentage'], 1, ',', '.') }}%</b>
+                        @if ($activeCategory === $categoryKey)
+                            <em aria-label="Kategori aktif">✓</em>
+                        @endif
+                    </a>
+                @endforeach
+            </div>
+        </aside>
     </div>
 
-    <div class="talent-matrix-detail" aria-live="polite">
-        <template x-if="selectedBox === null">
-            <div class="talent-matrix-detail__placeholder">
-                <span aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-                        <path d="M8 10h8m-8 4h5m8-2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
-                </span>
-                <div>
-                    <strong>Pilih salah satu kotak</strong>
-                    <p>Detail kombinasi Potential dan Performance akan tampil di sini.</p>
-                </div>
-            </div>
-        </template>
-
-        <template x-if="selectedBox !== null">
-            <div>
-                <div class="talent-matrix-detail__header">
+    <section id="talent-detail" class="talent-pool-detail" aria-labelledby="talent-detail-title">
+        <header>
+            <div class="talent-pool-detail__title">
+                @if ($activeCategory === 'not_available')
+                    <span class="is-unmapped" aria-hidden="true"><x-dashboard-icon name="users" class="h-6 w-6" /></span>
+                    <div><h2 id="talent-detail-title">Pegawai Belum Dipetakan</h2><p>Talent Mapping belum tersedia</p></div>
+                @else
+                    <span style="--detail-accent: {{ $activeBoxMeta['accent'] }}" aria-hidden="true">
+                        <img src="{{ asset('images/talent-matrix/icons/'.$activeBoxMeta['icon']) }}" alt="" width="26" height="26">
+                    </span>
                     <div>
-                        <span x-text="selectedBox.number"></span>
-                        <h4 class="font-display" x-text="selectedBox.title"></h4>
-                        <p>Potensi <strong x-text="selectedBox.potential"></strong> <span aria-hidden="true">&bull;</span> Performa <strong x-text="selectedBox.performance"></strong></p>
+                        <h2 id="talent-detail-title">{{ $activeBoxMeta['label'] }}</h2>
+                        <p>Potensi {{ $activeBoxMeta['potential'] }} <span aria-hidden="true">&bull;</span> Performa {{ $activeBoxMeta['performance'] }}</p>
                     </div>
-                    <strong class="talent-matrix-detail__count"><span x-text="selectedBox.count"></span> talent</strong>
-                </div>
-
-                <template x-if="selectedBox.count === 0">
-                    <p class="talent-matrix-detail__empty">Belum ada data talent pada kombinasi ini.</p>
-                </template>
-
-                <template x-if="selectedBox.count > 0">
-                    <ul class="talent-matrix-detail__list">
-                        <template x-for="talent in selectedBox.talents" x-bind:key="talent.name + talent.position">
-                            <li>
-                                <span x-text="talent.name.slice(0, 1).toUpperCase()"></span>
-                                <div>
-                                    <strong x-text="talent.name"></strong>
-                                    <p x-text="talent.position"></p>
-                                </div>
-                            </li>
-                        </template>
-                    </ul>
-                </template>
+                @endif
             </div>
-        </template>
-    </div>
-</section>
+            <strong>{{ number_format($activeCategory === 'not_available' ? $unmappedCount : $talentCounts->get($activeBox, 0), 0, ',', '.') }} pegawai</strong>
+        </header>
+
+        @if (! $canViewEmployees)
+            <div class="talent-pool-detail__restricted">
+                <x-dashboard-icon name="users" class="h-6 w-6" />
+                <div><strong>Detail pegawai dibatasi</strong><p>Anda memerlukan permission Data Pegawai untuk melihat identitas talent dan profilnya.</p></div>
+            </div>
+        @elseif ($activeTalents->isEmpty())
+            <x-ui.empty-state
+                :title="$activeCategory === 'not_available' ? 'Semua pegawai telah memiliki talent mapping.' : 'Belum ada pegawai pada kategori ini.'"
+                :description="$hasActiveFilters ? 'Tidak ada pegawai yang sesuai dengan filter.' : 'Pilih kategori lain untuk melihat talent yang tersedia.'" />
+        @else
+            <div class="talent-pool-detail__table-wrap">
+                <table class="talent-pool-detail__table">
+                    <thead>
+                        <tr>
+                            <th>Pegawai</th>
+                            <th>SAP</th>
+                            <th>Jabatan</th>
+                            <th>Department</th>
+                            <th>Direktorat</th>
+                            <th>Status</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($activeTalents as $employee)
+                            @php
+                                $employeeName = trim((string) ($employee->personal_number ?: $employee->name ?: 'Nama belum tersedia'));
+                                $employeeInitials = collect(preg_split('/\s+/', $employeeName) ?: [])->filter()->take(2)
+                                    ->map(fn (string $word): string => mb_strtoupper(mb_substr($word, 0, 1)))->implode('');
+                                $positionName = $employee->organizationPosition?->name ?: $employee->position ?: '—';
+                                $departmentName = $employee->organizationDepartment?->name ?: $employee->txt_dept ?: $employee->department ?: '—';
+                                $directorateName = $employee->organizationDirectorate?->name ?: $employee->txt_dir ?: $employee->directorate ?: '—';
+                                $statusLabel = $activeCategory === 'not_available' ? 'Belum Dipetakan' : ($activeBoxCategory['label'] ?? '—');
+                            @endphp
+                            <tr>
+                                <td data-label="Pegawai">
+                                    <span class="talent-pool-employee">
+                                        <span aria-hidden="true">{{ $employeeInitials ?: '—' }}</span>
+                                        <span><strong>{{ $employeeName }}</strong><small>{{ $employee->name ?: '—' }}</small></span>
+                                    </span>
+                                </td>
+                                <td data-label="SAP"><strong>{{ $employee->sap ?: '—' }}</strong></td>
+                                <td data-label="Jabatan">{{ $positionName }}</td>
+                                <td data-label="Department">{{ $departmentName }}</td>
+                                <td data-label="Direktorat">{{ $directorateName }}</td>
+                                <td data-label="Status"><span class="talent-pool-badge {{ $activeCategory === 'not_available' ? 'is-unmapped' : 'is-potential' }}">{{ $statusLabel }}</span></td>
+                                <td data-label="Aksi"><a href="{{ route('performance-talent.data-pegawai.show', $employee) }}">Lihat Profil <span aria-hidden="true">&rarr;</span></a></td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+
+            @if ($activeTalents->hasPages())
+                <div class="talent-pool-detail__pagination">{{ $activeTalents->onEachSide(1)->links() }}</div>
+            @endif
+        @endif
+    </section>
+</div>

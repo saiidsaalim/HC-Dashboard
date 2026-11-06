@@ -90,6 +90,7 @@
     <div data-wla-dashboard class="space-y-5">
         <div class="flex w-full flex-col justify-end gap-2.5 sm:flex-row sm:items-center">
             <form method="GET" action="{{ route('wla') }}" class="relative w-full sm:w-auto">
+                <input type="hidden" name="per_page" value="{{ $perPage }}">
                 <label for="wla-year" class="sr-only">Filter tahun assessment</label>
                 <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-blue-700" aria-hidden="true">
                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 2v3m10-3v3M3 8h14M4 4h12a1 1 0 0 1 1 1v12H3V5a1 1 0 0 1 1-1Z" stroke-linecap="round" stroke-linejoin="round" /></svg>
@@ -271,9 +272,10 @@
                     </tbody>
                 </table>
             </div>
-            @if ($assessments->hasPages())
-                <div class="border-t border-slate-200 px-4 py-3 sm:px-5">{{ $assessments->links() }}</div>
-            @endif
+            <div class="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                <x-ui.per-page-selector :per-page="$perPage" id="wla-assessment-per-page" />
+                @if ($assessments->hasPages())<div>{{ $assessments->links() }}</div>@endif
+            </div>
         </section>
     </div>
 @endsection

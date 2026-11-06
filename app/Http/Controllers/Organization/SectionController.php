@@ -21,9 +21,7 @@ class SectionController extends Controller
         $search = trim((string) $request->input('search', ''));
         $unitId = trim((string) $request->input('unit_id', ''));
         $active = $request->input('active', '');
-        $perPage = in_array($request->integer('per_page'), [20, 40, 60], true)
-            ? $request->integer('per_page')
-            : 20;
+        $perPage = $this->perPage($request);
         $units = Unit::query()->with('department.directorate')->orderBy('name')->get();
         $sections = Section::query()
             ->with('unit.department.directorate')->withCount('positions')

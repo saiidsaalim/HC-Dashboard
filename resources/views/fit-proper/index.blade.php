@@ -161,6 +161,7 @@
                 <h2 id="activities-heading" class="font-display text-xl font-bold text-slate-950">Kegiatan Berlangsung</h2>
 
                     <form method="GET" action="{{ route('fit-proper') }}" class="flex min-w-0">
+                        <input type="hidden" name="per_page" value="{{ $perPage }}">
                         @if (request()->filled('status'))
                             <input type="hidden" name="status" value="{{ request('status') }}">
                         @endif
@@ -181,7 +182,7 @@
                             $isActiveStatus = request('status', '') === $statusValue;
                         @endphp
                         <a
-                            href="{{ route('fit-proper', array_filter(['q' => request('q'), 'status' => $statusValue], fn ($value) => $value !== null && $value !== '')) }}"
+                            href="{{ route('fit-proper', array_filter(['q' => request('q'), 'status' => $statusValue, 'per_page' => $perPage], fn ($value) => $value !== null && $value !== '')) }}"
                             @class([
                                 'inline-flex shrink-0 items-center rounded-full border px-3.5 py-2 text-xs font-bold transition focus-visible:outline-none',
                                 'border-sky-600 bg-sky-600 text-white shadow-sm' => $isActiveStatus,
@@ -315,9 +316,10 @@
                 @endforelse
             </div>
 
-            @if ($activities->hasPages())
-                <div class="mt-5 border-t border-slate-200 pt-4">{{ $activities->links() }}</div>
-            @endif
+            <div class="mt-5 flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <x-ui.per-page-selector :per-page="$perPage" id="fit-proper-per-page" />
+                @if ($activities->hasPages())<div>{{ $activities->links() }}</div>@endif
+            </div>
         </section>
 
         @if ($firstSummary)

@@ -61,9 +61,10 @@
                     </tbody>
                 </table>
             </div>
-            @if ($batches->hasPages())
-                <div class="border-t border-slate-200 px-4 py-3">{{ $batches->links() }}</div>
-            @endif
+            <div class="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <x-ui.per-page-selector :per-page="$perPage" id="import-batch-per-page" />
+                @if ($batches->hasPages())<div>{{ $batches->links() }}</div>@endif
+            </div>
         </section>
     </div>
 @endsection

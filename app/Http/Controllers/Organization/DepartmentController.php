@@ -22,9 +22,7 @@ class DepartmentController extends Controller
         $search = trim((string) $request->input('search', ''));
         $active = $request->input('active', '');
         $directorateId = trim((string) $request->input('directorate_id', ''));
-        $perPage = in_array($request->integer('per_page'), [20, 40, 60], true)
-            ? $request->integer('per_page')
-            : 20;
+        $perPage = $this->perPage($request);
         $directorates = Directorate::query()->orderBy('name')->get();
 
         $departments = Department::query()

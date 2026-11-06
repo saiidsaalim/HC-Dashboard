@@ -55,7 +55,10 @@
                     </table>
                 </div>
             </section>
-            {{ $participants->links() }}
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <x-ui.per-page-selector :per-page="$perPage" id="staff-wla-per-page" />
+                @if ($participants->hasPages())<div>{{ $participants->links() }}</div>@endif
+            </div>
         @endif
     </div>
 @endsection

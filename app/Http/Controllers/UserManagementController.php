@@ -43,6 +43,8 @@ class UserManagementController extends Controller
         $canApproveCandidates = $actor->hasPermission('users.approve-candidates');
         $canManageAccess = $actor->hasPermission('users.manage-access');
         $canManageWorkspaceAccess = $actor->isSuperAdmin();
+        $userPerPage = $this->perPage($request, 'user_per_page');
+        $candidatePerPage = $this->perPage($request, 'candidate_per_page');
         $canViewAllUsers = $actor->hasAnyPermission([
             'users.create',
             'users.update',
@@ -60,7 +62,8 @@ class UserManagementController extends Controller
             ->with($userRelations)
             ->when(! $canViewAllUsers, fn ($query) => $query->whereKey($actor->getKey()))
             ->orderBy('name')
-            ->get();
+            ->paginate($userPerPage, ['*'], 'user_page')
+            ->withQueryString();
 
         $candidateFilters = [
             'search' => trim((string) $request->input('candidate_search', '')),
@@ -84,7 +87,7 @@ class UserManagementController extends Controller
             ->orderBy('personal_number')
             ->orderBy('sap');
         $candidates = $canApproveCandidates
-            ? $candidateQuery->paginate(15, ['*'], 'candidate_page')->withQueryString()
+            ? $candidateQuery->paginate($candidatePerPage, ['*'], 'candidate_page')->withQueryString()
             : null;
         $employees = $canApproveCandidates
             ? Employee::query()->with('user:id,employee_id')->orderBy('personal_number')->get()
@@ -129,10 +132,12 @@ class UserManagementController extends Controller
                 ])
                 : collect(),
             'candidates' => $candidates,
+            'userPerPage' => $userPerPage,
             'candidateBatchToken' => $canApproveCandidates
                 ? $this->staffUserProvisioningService->candidateBatchToken()
                 : null,
             'candidateFilters' => $candidateFilters,
+            'candidatePerPage' => $candidatePerPage,
             'candidateDepartments' => $canApproveCandidates
                 ? Department::query()->orderBy('name')->get(['id', 'name'])
                 : collect(),

@@ -787,13 +787,13 @@ class PromotionManagementTest extends TestCase
     public function test_list_is_paginated_search_and_filters_persist_and_detail_shows_approver_timeline(): void
     {
         $admin = $this->user(UserRole::ADMIN);
-        foreach (range(1, 16) as $number) {
+        foreach (range(1, 21) as $number) {
             $this->promotion($this->employee('SAP-PAGE-'.$number));
         }
 
         $response = $this->actingAs($admin)->get(route('promosi', ['search' => 'SAP-PAGE', 'status' => 'draft']));
         $response->assertOk()
-            ->assertViewHas('promotions', fn ($promotions): bool => $promotions->perPage() === 15 && $promotions->total() === 16)
+            ->assertViewHas('promotions', fn ($promotions): bool => $promotions->perPage() === 20 && $promotions->total() === 21)
             ->assertSee('page=2', escape: false)
             ->assertSee('search=SAP-PAGE', escape: false)
             ->assertSee('status=draft', escape: false)

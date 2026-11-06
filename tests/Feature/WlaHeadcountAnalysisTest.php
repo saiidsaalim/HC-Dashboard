@@ -210,7 +210,7 @@ class WlaHeadcountAnalysisTest extends TestCase
         $user = $this->user();
         $department = Department::create(['code' => 'D-PAGE', 'name' => 'Pagination Department', 'active' => true]);
 
-        for ($index = 1; $index <= 16; $index++) {
+        for ($index = 1; $index <= 21; $index++) {
             $unit = $department->units()->create([
                 'code' => "U-PAGE-{$index}",
                 'name' => "Pagination Unit {$index}",
