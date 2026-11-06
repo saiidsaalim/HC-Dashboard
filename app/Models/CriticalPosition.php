@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\CriticalPositionCriticality;
+use Carbon\CarbonInterface;
 use Database\Factories\CriticalPositionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -40,5 +41,38 @@ class CriticalPosition extends Model
     public function assessor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assessed_by');
+    }
+
+    /** @return array{date: string, label: string, tone: string} */
+    public function reviewSchedule(?CarbonInterface $today = null): array
+    {
+        if ($this->review_due_at === null) {
+            return [
+                'date' => 'Belum dijadwalkan',
+                'label' => 'Belum dijadwalkan',
+                'tone' => 'neutral',
+            ];
+        }
+
+        $today = ($today ?? now())->copy()->startOfDay();
+        $reviewDate = $this->review_due_at->copy()->startOfDay();
+        $daysUntilReview = (int) $today->diffInDays($reviewDate, false);
+
+        if ($daysUntilReview === 0) {
+            $label = 'Hari ini';
+            $tone = 'warning';
+        } elseif ($daysUntilReview > 0) {
+            $label = $daysUntilReview.' hari lagi';
+            $tone = 'warning';
+        } else {
+            $label = 'Terlambat '.abs($daysUntilReview).' hari';
+            $tone = 'danger';
+        }
+
+        return [
+            'date' => $reviewDate->format('d M Y'),
+            'label' => $label,
+            'tone' => $tone,
+        ];
     }
 }

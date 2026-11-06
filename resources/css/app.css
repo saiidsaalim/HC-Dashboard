@@ -1928,6 +1928,317 @@ html.dark .swal2-textarea {
 	color: #f1f5f9;
 }
 
+/* Critical Position dashboard interactions and dark theme. */
+[data-critical-position-kpi],
+[data-critical-position-analytics] > article,
+[data-critical-position-filter],
+[data-critical-position-list] {
+	position: relative;
+	isolation: isolate;
+	transition:
+		border-color var(--hc-duration-base) ease,
+		background-color var(--hc-duration-base) ease,
+		box-shadow var(--hc-duration-base) ease,
+		transform var(--hc-duration-base) ease;
+}
+
+[data-critical-position-kpi] {
+	overflow: hidden;
+}
+
+[data-critical-position-kpi]::after {
+	position: absolute;
+	inset: -55% -20% auto 45%;
+	z-index: -1;
+	height: 9rem;
+	border-radius: 999px;
+	background: radial-gradient(circle, currentColor 0%, transparent 68%);
+	content: '';
+	opacity: 0;
+	transform: scale(0.72);
+	transition:
+		opacity 300ms ease,
+		transform 300ms ease;
+}
+
+[data-critical-position-kpi] > div:first-child,
+[data-critical-position-analytics] > article > div:first-child > svg {
+	transition:
+		background-color var(--hc-duration-base) ease,
+		box-shadow var(--hc-duration-base) ease,
+		transform var(--hc-duration-base) ease;
+}
+
+[data-critical-position-chart-empty] {
+	border: 1px dashed var(--hc-border-strong);
+}
+
+[data-critical-position-dashboard] :is(button, a)[class*='rounded'],
+[data-critical-position-action-menu] button,
+[data-critical-position-detail] :is(button, a),
+[data-critical-position-form-modal] button {
+	transition:
+		background-color var(--hc-duration-fast) ease,
+		border-color var(--hc-duration-fast) ease,
+		color var(--hc-duration-fast) ease,
+		box-shadow var(--hc-duration-fast) ease,
+		transform var(--hc-duration-fast) ease;
+}
+
+[data-critical-position-dashboard] :is(button:not(:disabled), a[href], select:not(:disabled)),
+[data-critical-position-action-menu] button:not(:disabled),
+[data-critical-position-detail] :is(button:not(:disabled), a[href]),
+[data-critical-position-form-modal] :is(button:not(:disabled), select:not(:disabled)),
+[data-critical-position-form] label.cursor-pointer {
+	cursor: pointer;
+}
+
+[data-critical-position-dashboard] :is(button, a) svg,
+[data-critical-position-form-modal] button svg {
+	transition: transform var(--hc-duration-base) ease;
+}
+
+[data-critical-position-row] {
+	box-shadow: inset 0 0 0 transparent;
+	transition:
+		background-color var(--hc-duration-fast) ease,
+		box-shadow var(--hc-duration-fast) ease;
+}
+
+[data-critical-position-form] [type='radio'] + span {
+	transition:
+		background-color var(--hc-duration-base) ease,
+		border-color var(--hc-duration-base) ease,
+		box-shadow var(--hc-duration-base) ease,
+		color var(--hc-duration-base) ease,
+		transform var(--hc-duration-base) ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+	[data-critical-position-kpi]:hover {
+		box-shadow: 0 18px 34px -22px currentColor;
+		transform: translateY(-4px) scale(1.01);
+	}
+
+	[data-critical-position-kpi]:hover::after {
+		opacity: 0.08;
+		transform: scale(1);
+	}
+
+	[data-critical-position-kpi]:hover > div:first-child {
+		box-shadow: 0 12px 24px -16px currentColor;
+		transform: translateY(-2px) rotate(-2deg) scale(1.06);
+	}
+
+	[data-critical-position-analytics] > article:hover {
+		border-color: #7dd3fc;
+		box-shadow: 0 20px 38px -26px rgba(2, 132, 199, 0.52);
+		transform: translateY(-3px);
+	}
+
+	[data-critical-position-analytics] > article:hover > div:first-child > svg {
+		transform: translateY(-1px) scale(1.1);
+	}
+
+	[data-critical-position-filter]:hover,
+	[data-critical-position-list]:hover {
+		border-color: #bae6fd;
+		box-shadow: 0 18px 36px -28px rgba(2, 132, 199, 0.44);
+	}
+
+	[data-critical-position-dashboard] :is(button, a)[class*='rounded']:hover,
+	[data-critical-position-detail] :is(button, a):hover,
+	[data-critical-position-form-modal] button:hover {
+		transform: translateY(-1px);
+	}
+
+	[data-critical-position-dashboard] :is(button, a):hover svg,
+	[data-critical-position-form-modal] button:hover svg {
+		transform: scale(1.08);
+	}
+
+	[data-critical-position-row]:hover {
+		box-shadow: inset 3px 0 0 #38bdf8;
+	}
+
+	[data-critical-position-action-menu] button:hover {
+		transform: translateX(2px);
+	}
+
+	[data-critical-position-form] [type='radio'] + span:hover {
+		box-shadow: var(--hc-shadow-md);
+		transform: translateY(-2px);
+	}
+}
+
+html.dark [data-critical-position-dashboard] {
+	color: #e2e8f0;
+}
+
+html.dark [data-critical-position-kpi] {
+	border-color: #334155 !important;
+	background: #0f172a !important;
+}
+
+html.dark [data-critical-position-kpi]:nth-child(1) {
+	background: linear-gradient(135deg, rgba(14, 165, 233, 0.18), rgba(15, 23, 42, 0.96) 68%) !important;
+}
+
+html.dark [data-critical-position-kpi]:nth-child(2) {
+	background: linear-gradient(135deg, rgba(244, 63, 94, 0.18), rgba(15, 23, 42, 0.96) 68%) !important;
+}
+
+html.dark [data-critical-position-kpi]:nth-child(3) {
+	background: linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(15, 23, 42, 0.96) 68%) !important;
+}
+
+html.dark [data-critical-position-kpi]:nth-child(4) {
+	background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(15, 23, 42, 0.96) 68%) !important;
+}
+
+html.dark [data-critical-position-kpi] > div:first-child {
+	border: 1px solid rgba(148, 163, 184, 0.18);
+	background: rgba(15, 23, 42, 0.74) !important;
+}
+
+html.dark [data-critical-position-kpi] p:last-child {
+	color: #cbd5e1 !important;
+}
+
+html.dark [data-critical-position-analytics] > article,
+html.dark [data-critical-position-filter],
+html.dark [data-critical-position-list] {
+	border-color: #334155 !important;
+	background: rgba(15, 23, 42, 0.96) !important;
+}
+
+html.dark [data-critical-position-analytics] h2,
+html.dark [data-critical-position-list] h2 {
+	color: #f8fafc !important;
+}
+
+html.dark [data-critical-position-chart-empty] {
+	border-color: #475569;
+	background: #111c2e !important;
+	color: #94a3b8 !important;
+}
+
+html.dark [data-critical-position-filter] :is(input, select),
+html.dark [data-critical-position-list] select {
+	border-color: #3b4a61;
+	background-color: #0b1220;
+	color: #e2e8f0;
+	color-scheme: dark;
+}
+
+html.dark [data-critical-position-filter] :is(input, select):hover,
+html.dark [data-critical-position-list] select:hover {
+	border-color: #64748b;
+	background-color: #111c2e;
+}
+
+html.dark [data-critical-position-list] thead {
+	background: #020617 !important;
+}
+
+html.dark [data-critical-position-list] tbody {
+	background: #0f172a;
+}
+
+html.dark [data-critical-position-row]:hover,
+html.dark [data-critical-position-row]:focus-within {
+	background: #172033 !important;
+}
+
+html.dark [data-critical-position-action-menu] {
+	border-color: #3b4a61 !important;
+	background: #111827 !important;
+	box-shadow: 0 22px 52px -24px rgba(0, 0, 0, 0.9) !important;
+}
+
+html.dark [data-critical-position-action-menu] button:hover,
+html.dark [data-critical-position-action-menu] button:focus {
+	background: #1e293b !important;
+}
+
+html.dark [data-critical-position-detail-panel] {
+	border-color: #334155 !important;
+	background: #0f172a !important;
+	color: #e2e8f0;
+}
+
+html.dark [data-critical-position-detail-panel] > div:first-child {
+	border-color: #334155 !important;
+	background: #0f172a;
+}
+
+html.dark [data-critical-position-detail-panel] > div:nth-child(2) {
+	background: #020617 !important;
+}
+
+html.dark [data-critical-position-detail-panel] section,
+html.dark [data-critical-position-detail-panel] article {
+	border-color: #334155 !important;
+	background: #0f172a !important;
+}
+
+html.dark [data-critical-position-form-panel] {
+	border-color: #3b4a61 !important;
+	background: #0f172a !important;
+	color: #e2e8f0;
+}
+
+html.dark [data-critical-position-form-panel] > header,
+html.dark [data-critical-position-form] > div,
+html.dark [data-critical-position-form] > footer {
+	border-color: #334155 !important;
+	background: #0f172a !important;
+}
+
+html.dark #critical-position-form-title,
+html.dark [data-critical-position-form] :is(label, legend, h3) {
+	color: #f8fafc !important;
+}
+
+html.dark [data-critical-position-form] [type='radio'] + span {
+	border-color: #3b4a61;
+	background: #111827;
+	color: #e2e8f0;
+}
+
+html.dark [data-critical-position-form] [type='radio'] + span:hover {
+	border-color: #64748b;
+	background: #172033;
+}
+
+html.dark [data-critical-position-form] [x-show='dropdownOpen'] {
+	border-color: #334155 !important;
+	background: #0f172a !important;
+}
+
+html.dark [data-critical-position-form] [x-show='dropdownOpen'] button:hover,
+html.dark [data-critical-position-form] [x-show='dropdownOpen'] button:focus-visible {
+	background: #172033 !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+	html.dark [data-critical-position-kpi]:hover {
+		border-color: #475569 !important;
+		box-shadow: 0 20px 42px -24px currentColor !important;
+	}
+
+	html.dark [data-critical-position-analytics] > article:hover {
+		border-color: #0ea5e9 !important;
+		box-shadow: 0 22px 44px -25px rgba(14, 165, 233, 0.42) !important;
+	}
+
+	html.dark [data-critical-position-filter]:hover,
+	html.dark [data-critical-position-list]:hover {
+		border-color: #475569 !important;
+		box-shadow: 0 22px 46px -30px rgba(56, 189, 248, 0.34) !important;
+	}
+}
+
 @media (max-width: 640px) {
 	[data-app-content] dialog {
 		width: calc(100% - 1rem);

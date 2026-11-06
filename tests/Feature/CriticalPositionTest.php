@@ -17,6 +17,7 @@ use App\Models\Successor;
 use App\Models\User;
 use App\Services\Authorization\RolePermissionCache;
 use App\Services\Employees\EmployeeOrganizationSyncService;
+use Carbon\CarbonImmutable;
 use Database\Seeders\PermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -48,7 +49,96 @@ class CriticalPositionTest extends TestCase
             ->assertSee('High Criticality')
             ->assertSee('Belum Memiliki Successor')
             ->assertSee($position->name)
-            ->assertSee('SAP Position ID');
+            ->assertDontSee('>SAP Position ID</th>', false)
+            ->assertDontSee($position->code);
+    }
+
+    public function test_dashboard_starts_with_summary_and_omits_the_page_header(): void
+    {
+        $response = $this->actingAs($this->superAdmin())
+            ->get(route('performance-talent.critical-positions.index'))
+            ->assertOk()
+            ->assertSee('data-critical-position-summary', false)
+            ->assertDontSee('Penilaian posisi kritis yang terhubung langsung dengan Master Organization')
+            ->assertSee('Distribusi Criticality')
+            ->assertSee('Coverage Formasi')
+            ->assertSee('Kesiapan Successor')
+            ->assertViewHas('summary', [
+                'total' => 0,
+                'high' => 0,
+                'vacant' => 0,
+                'without_successor' => 0,
+            ])
+            ->assertViewHas('chartData', function (array $chartData): bool {
+                return $chartData['criticality']['series'] === [0, 0, 0]
+                    && $chartData['coverage']['series'] === [0, 0, 0, 0]
+                    && $chartData['successor']['series'] === [0, 0];
+            });
+
+        $content = $response->getContent();
+        $this->assertLessThan(
+            strpos($content, 'Distribusi Criticality'),
+            strpos($content, 'data-critical-position-summary'),
+        );
+        $this->assertLessThan(
+            strpos($content, 'Daftar Critical Position'),
+            strpos($content, 'data-critical-position-summary'),
+        );
+        $this->assertSame(1, substr_count($content, 'openCreate($event.currentTarget)'));
+        $this->assertGreaterThan(
+            strpos($content, 'Daftar Critical Position'),
+            strpos($content, 'openCreate($event.currentTarget)'),
+        );
+    }
+
+    public function test_kpi_and_chart_data_use_all_filtered_database_records(): void
+    {
+        $covered = $this->position('ANALYTIC-COVERED');
+        $partial = $this->position('ANALYTIC-PARTIAL', formationCount: 2);
+        $vacant = $this->position('ANALYTIC-VACANT');
+        $overCapacity = $this->position('ANALYTIC-OVER');
+
+        $this->criticalPosition($covered, ['criticality' => 'high']);
+        $this->criticalPosition($partial, ['criticality' => 'low']);
+        $this->criticalPosition($vacant, ['criticality' => 'medium']);
+        $this->criticalPosition($overCapacity, ['criticality' => 'high']);
+        $this->employees($covered, 1, 'ANALYTIC-COVERED');
+        $this->employees($partial, 1, 'ANALYTIC-PARTIAL');
+        $this->employees($overCapacity, 2, 'ANALYTIC-OVER');
+        $this->successor($covered, 'Analytic Ready Now', 'ready now');
+        $this->successor($partial, 'Analytic One Year', 'ready in one year');
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('performance-talent.critical-positions.index'))
+            ->assertOk()
+            ->assertViewHas('summary', [
+                'total' => 4,
+                'high' => 2,
+                'vacant' => 1,
+                'without_successor' => 2,
+            ])
+            ->assertViewHas('chartData', function (array $chartData): bool {
+                return $chartData['criticality']['series'] === [2, 1, 1]
+                    && $chartData['coverage']['series'] === [1, 1, 1, 1]
+                    && $chartData['successor']['series'] === [2, 1]
+                    && $chartData['successor']['missing'] === 2;
+            });
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('performance-talent.critical-positions.index', ['criticality' => 'high']))
+            ->assertOk()
+            ->assertViewHas('summary', [
+                'total' => 2,
+                'high' => 2,
+                'vacant' => 0,
+                'without_successor' => 1,
+            ])
+            ->assertViewHas('chartData', function (array $chartData): bool {
+                return $chartData['criticality']['series'] === [2, 0, 0]
+                    && $chartData['coverage']['series'] === [1, 0, 0, 1]
+                    && $chartData['successor']['series'] === [1, 1];
+            })
+            ->assertViewHas('criticalPositions', fn ($positions): bool => $positions->total() === 2);
     }
 
     public function test_user_without_view_permission_is_denied(): void
@@ -60,6 +150,91 @@ class CriticalPositionTest extends TestCase
         $this->actingAs($admin)
             ->get(route('performance-talent.critical-positions.index'))
             ->assertForbidden();
+    }
+
+    public function test_create_and_edit_share_one_accessible_centered_modal_form(): void
+    {
+        $editablePosition = $this->position('MODAL-EDIT');
+        $criticalPosition = $this->criticalPosition($editablePosition);
+        $this->position('MODAL-CREATE');
+
+        $response = $this->actingAs($this->superAdmin())
+            ->get(route('performance-talent.critical-positions.index'))
+            ->assertOk()
+            ->assertSee('openCreate($event.currentTarget)', false)
+            ->assertSee('data-critical-position-form-modal', false)
+            ->assertSee('x-teleport="body"', false)
+            ->assertSee('role="dialog"', false)
+            ->assertSee('aria-modal="true"', false)
+            ->assertSee('aria-labelledby="critical-position-form-title"', false)
+            ->assertSee('items-center justify-center', false)
+            ->assertSee('max-w-4xl', false)
+            ->assertSee('sm:max-h-[90vh]', false)
+            ->assertSee('trapFormFocus($event)', false)
+            ->assertSee('aria-label="Tutup modal"', false)
+            ->assertSee('type="button" @click="closeForm()"', false)
+            ->assertSee('Simpan Critical Position')
+            ->assertSee('Simpan Perubahan')
+            ->assertSee(route('performance-talent.critical-positions.store'), false)
+            ->assertSee(route('performance-talent.critical-positions.update', $criticalPosition), false)
+            ->assertDontSee('fixed inset-y-0 left-0 z-[71]', false);
+
+        $this->assertSame(1, substr_count($response->getContent(), 'data-critical-position-form data-create-action'));
+        foreach (['position_id', 'criticality', 'assessment_reason', 'assessed_at', 'review_due_at', 'notes'] as $field) {
+            $response->assertSee('name="'.$field.'"', false);
+        }
+        foreach (['department', 'directorate', 'incumbent', 'sap', 'status'] as $manualField) {
+            $response->assertDontSee('name="'.$manualField.'"', false);
+        }
+        foreach (['high', 'medium', 'low'] as $criticality) {
+            $response->assertSee('type="radio" name="criticality" value="'.$criticality.'"', false);
+        }
+    }
+
+    public function test_create_validation_reopens_modal_with_old_input(): void
+    {
+        $position = $this->position('CREATE-ERROR');
+        $user = $this->superAdmin();
+        $oldInput = $this->validData($position, [
+            'criticality' => 'medium',
+            'assessment_reason' => '',
+            'notes' => 'Catatan create tetap tampil',
+        ]);
+
+        $this->followingRedirects()
+            ->actingAs($user)
+            ->from(route('performance-talent.critical-positions.index'))
+            ->post(route('performance-talent.critical-positions.store'), $oldInput)
+            ->assertOk()
+            ->assertSee('data-initial-panel="form"', false)
+            ->assertSee('data-initial-form-mode="create"', false)
+            ->assertSee('Catatan create tetap tampil')
+            ->assertSee('Critical Position belum dapat disimpan.')
+            ->assertSee('Alasan penilaian wajib diisi.');
+    }
+
+    public function test_update_validation_reopens_shared_modal_with_update_action_and_old_input(): void
+    {
+        $position = $this->position('UPDATE-ERROR');
+        $criticalPosition = $this->criticalPosition($position);
+        $user = $this->superAdmin();
+        $oldInput = $this->validData($position, [
+            'critical_position_id' => $criticalPosition->id,
+            'criticality' => 'low',
+            'assessment_reason' => '',
+            'notes' => 'Catatan update tetap tampil',
+        ]);
+
+        $this->followingRedirects()
+            ->actingAs($user)
+            ->from(route('performance-talent.critical-positions.index'))
+            ->put(route('performance-talent.critical-positions.update', $criticalPosition), $oldInput)
+            ->assertOk()
+            ->assertSee('data-initial-panel="form"', false)
+            ->assertSee('data-initial-form-mode="edit"', false)
+            ->assertSee(route('performance-talent.critical-positions.update', $criticalPosition), false)
+            ->assertSee('Catatan update tetap tampil')
+            ->assertSee('Alasan penilaian wajib diisi.');
     }
 
     public function test_create_uses_position_id_lowercase_criticality_and_current_assessor(): void
@@ -107,7 +282,7 @@ class CriticalPositionTest extends TestCase
             ->assertDontSee('Department RELATION');
     }
 
-    public function test_incumbents_come_from_employee_position_and_keep_identifiers_separate(): void
+    public function test_incumbents_use_personal_number_as_name_and_show_sap_below_it(): void
     {
         $position = $this->position('INCUMBENT');
         $this->criticalPosition($position);
@@ -122,9 +297,47 @@ class CriticalPositionTest extends TestCase
         $this->actingAs($this->superAdmin())
             ->get(route('performance-talent.critical-positions.index'))
             ->assertOk()
-            ->assertSee('Nama belum tersedia')
-            ->assertSee('Personal Number: PN-INCUMBENT')
-            ->assertSee('SAP-EMP-INCUMBENT');
+            ->assertSeeInOrder(['PN-INCUMBENT', 'SAP Pegawai: SAP-EMP-INCUMBENT'])
+            ->assertDontSee('Personal Number:');
+    }
+
+    public function test_incumbent_name_does_not_fall_back_to_the_employee_name_column(): void
+    {
+        $position = $this->position('INCUMBENT-NO-PERSONAL-NUMBER');
+        $this->criticalPosition($position);
+        Employee::forceCreate([
+            'sap' => 'SAP-EMP-NO-PERSONAL-NUMBER',
+            'name' => 'Nama Dari Kolom Lama',
+            'personal_number' => null,
+            'position_id' => $position->id,
+        ]);
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('performance-talent.critical-positions.index'))
+            ->assertOk()
+            ->assertSeeInOrder(['Nama belum tersedia', 'SAP Pegawai: SAP-EMP-NO-PERSONAL-NUMBER'])
+            ->assertDontSee('Nama Dari Kolom Lama');
+    }
+
+    public function test_position_preview_uses_personal_number_as_incumbent_name_without_position_code(): void
+    {
+        $position = $this->position('PREVIEW-NAME');
+        $this->criticalPosition($position);
+        Employee::forceCreate([
+            'sap' => 'SAP-PREVIEW-NAME',
+            'name' => 'Nama Lama Tidak Digunakan',
+            'personal_number' => 'Nama Dari Personal Number',
+            'position_id' => $position->id,
+        ]);
+
+        $response = $this->actingAs($this->superAdmin())
+            ->getJson(route('performance-talent.critical-positions.position-preview', $position))
+            ->assertOk()
+            ->assertJsonPath('incumbents.0.name', 'Nama Dari Personal Number')
+            ->assertJsonPath('incumbents.0.sap', 'SAP-PREVIEW-NAME');
+
+        $this->assertArrayNotHasKey('code', $response->json());
+        $this->assertArrayNotHasKey('personal_number', $response->json('incumbents.0'));
     }
 
     public function test_incumbent_follows_employee_after_position_move_without_updating_assessment(): void
@@ -223,6 +436,39 @@ class CriticalPositionTest extends TestCase
             ->assertSee('criticality=high', false);
 
         $this->assertMatchesRegularExpression('/>\s*21\s*<\/td>/', $response->getContent());
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('performance-talent.critical-positions.index', [
+                'criticality' => 'high',
+                'per_page' => 40,
+            ]))
+            ->assertOk()
+            ->assertViewHas('perPage', 40)
+            ->assertViewHas('criticalPositions', fn ($positions): bool => $positions->perPage() === 40
+                && $positions->count() === 21)
+            ->assertSee('name="criticality" value="high"', false);
+    }
+
+    public function test_review_schedule_labels_future_today_overdue_and_unscheduled_dates(): void
+    {
+        $today = CarbonImmutable::parse('2026-11-06');
+        $position = $this->position('REVIEW-SCHEDULE');
+
+        $future = $this->criticalPosition($position, ['review_due_at' => '2026-11-19']);
+        $this->assertSame('13 hari lagi', $future->reviewSchedule($today)['label']);
+
+        $future->review_due_at = CarbonImmutable::parse('2026-11-06');
+        $this->assertSame('Hari ini', $future->reviewSchedule($today)['label']);
+
+        $future->review_due_at = CarbonImmutable::parse('2026-11-03');
+        $this->assertSame('Terlambat 3 hari', $future->reviewSchedule($today)['label']);
+
+        $future->review_due_at = null;
+        $this->assertSame([
+            'date' => 'Belum dijadwalkan',
+            'label' => 'Belum dijadwalkan',
+            'tone' => 'neutral',
+        ], $future->reviewSchedule($today));
     }
 
     public function test_update_only_changes_assessment_fields(): void

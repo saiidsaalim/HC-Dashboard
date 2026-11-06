@@ -5,6 +5,7 @@ import { gsap } from 'gsap';
 import './fit-proper';
 import { initializeThemeControls } from './theme';
 import { initializeWlaDashboard } from './wla-dashboard';
+import { initializeCriticalPositionDashboard } from './critical-position-dashboard';
 import Swal from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
@@ -12,6 +13,7 @@ window.Alpine = Alpine;
 window.Swal = Swal;
 
 document.addEventListener('DOMContentLoaded', initializeThemeControls);
+document.addEventListener('DOMContentLoaded', initializeCriticalPositionDashboard);
 
 function initializeDashboardAnimations() {
     const cards = [...document.querySelectorAll('[data-dashboard-card]')];

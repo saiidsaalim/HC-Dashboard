@@ -88,7 +88,7 @@ class PerformanceTalentWorkspaceTest extends TestCase
             if ($routeName === 'performance-talent.critical-positions.index') {
                 $response
                     ->assertSee('Daftar Critical Position')
-                    ->assertSee('Struktur organisasi, incumbent, coverage, dan successor selalu mengikuti data sumber terbaru.');
+                    ->assertSee('Data selalu mengikuti Master Organization, incumbent, dan Successor View.');
 
                 continue;
             }
@@ -318,16 +318,26 @@ class PerformanceTalentWorkspaceTest extends TestCase
             ->get(route('performance-talent.critical-positions.index'))
             ->assertOk();
 
-        foreach (['No', 'Position', 'SAP Position ID', 'Level', 'Department/Direktorat', 'Criticality', 'Incumbent', 'Formasi', 'Coverage', 'Successor', 'Review Berikutnya', 'Aksi'] as $column) {
+        foreach (['No', 'Position &amp; SAP ID', 'Organisasi', 'Criticality', 'Incumbent', 'Formasi &amp; Coverage', 'Successor', 'Review Berikutnya', 'Aksi'] as $column) {
             $response->assertSee('>'.$column.'</th>', escape: false);
         }
 
         $response
             ->assertSee('Belum ada Critical Position')
-            ->assertSee('colspan="12"', escape: false)
-            ->assertSee('Level Jabatan')
-            ->assertSee('min-w-[1780px]', escape: false)
+            ->assertSee('colspan="9"', escape: false)
+            ->assertSee('aria-label="Level Jabatan"', escape: false)
+            ->assertSee('min-w-[1320px]', escape: false)
             ->assertSee('overflow-x-auto', escape: false)
+            ->assertSee('data-critical-position-summary', escape: false)
+            ->assertSee('data-critical-position-kpi', escape: false)
+            ->assertSee('data-critical-position-analytics', escape: false)
+            ->assertSee('data-critical-position-filter', escape: false)
+            ->assertSee('data-critical-position-list', escape: false)
+            ->assertSee('data-criticality-chart', escape: false)
+            ->assertSee('data-coverage-chart', escape: false)
+            ->assertSee('data-successor-chart', escape: false)
+            ->assertSee('xl:col-span-5 xl:justify-end', escape: false)
+            ->assertDontSee('hidden items-center justify-center text-slate-400 xl:flex xl:col-span-1', escape: false)
             ->assertDontSee('DUMMY-001')
             ->assertDontSee('Fitur sedang dalam tahap pengembangan');
     }
