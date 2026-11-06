@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Department;
+use App\Models\Employee;
 use App\Models\Position;
 use App\Models\Successor;
 use App\Models\Unit;
@@ -43,13 +44,25 @@ class SuccessorFactory extends Factory
         return [
             'target_position_id' => $position->id,
             'name' => fake()->name(),
-            'position' => fake()->jobTitle(),
-            'talent_mapping' => fake()->randomElement(['High Potential', 'Key Contributor', 'Solid Performer']),
-            'succession_readiness' => fake()->randomElement(['Ready Now', '1-2 Tahun', '3-5 Tahun']),
-            'idp' => fake()->numberBetween(0, 100),
-            'education' => fake()->randomElement(['S1', 'S2', 'S3']),
-            'tenure' => fake()->numberBetween(1, 25).' tahun',
-            'directorate' => fake()->words(2, true),
+            'sap' => fake()->unique()->numerify('######'),
+            'current_position' => fake()->jobTitle(),
+            'position_history' => [[
+                'period' => '2023 - 2025',
+                'position' => fake()->jobTitle(),
+            ]],
+            'birth_date' => fake()->dateTimeBetween('-60 years', '-25 years')->format('Y-m-d'),
+            'last_education' => fake()->randomElement(['S1', 'S2', 'S3']),
+            'talent_box' => fake()->numberBetween(1, 9),
+            'succession_readiness' => fake()->randomElement(Employee::SUCCESSION_READINESS_OPTIONS),
+            'recommendation' => fake()->sentence(),
+            'targeted_band' => fake()->bothify('Band ##'),
+            'performance_year' => now()->year,
+            'performance_score' => fake()->randomFloat(2, 0, 100),
+            'performance_category' => fake()->randomElement(['Baik', 'Sangat Baik']),
+            'mbti_type' => fake()->randomElement(['ENTJ', 'INTJ', 'ENFP']),
+            'mbti_description' => fake()->sentence(),
+            'top_job_family_1' => fake()->words(2, true),
+            'top_job_family_2' => fake()->words(2, true),
             'photo_path' => null,
         ];
     }

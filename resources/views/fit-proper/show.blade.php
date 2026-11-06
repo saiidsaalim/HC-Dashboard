@@ -122,14 +122,7 @@
     @keydown.escape.window="editOpen = false; closeParticipantModal()"
 >
     <div data-fp-fragment="heading">
-        <a href="{{ route('fit-proper') }}" class="fp-detail-back ui-button ui-button-secondary w-fit">
-            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                <path d="M16 10H4m5-5-5 5 5 5" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-            Daftar Kegiatan
-        </a>
-
-        <header class="fp-detail-hero mt-3 overflow-hidden rounded-2xl border border-sky-900/60 p-5 text-white shadow-lg sm:p-6">
+        <header class="fp-detail-hero overflow-hidden rounded-2xl border border-sky-900/60 p-5 text-white shadow-lg sm:p-6">
             <div class="relative z-10 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                 <div class="flex min-w-0 items-start gap-4">
                     <span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-sky-400/30 bg-sky-400/15 text-sky-300" aria-hidden="true">
@@ -167,6 +160,13 @@
     @include('fit-proper._messages')
 
     <nav data-fp-tabs aria-label="Bagian detail kegiatan" class="fp-detail-nav scrollbar-hidden mx-auto flex w-fit max-w-full gap-1 overflow-x-auto rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+        <a href="{{ route('fit-proper') }}" class="fp-detail-back ui-button ui-button-secondary shrink-0">
+            <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <path d="M16 10H4m5-5-5 5 5 5" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            Kembali
+        </a>
+
         @foreach ($tabs as $id => $label)
             <a
                 href="#{{ $id }}"

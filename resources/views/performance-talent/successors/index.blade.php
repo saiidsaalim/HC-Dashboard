@@ -7,6 +7,23 @@
         ['icon' => 'document', 'class' => 'bg-rose-50 text-rose-600 ring-rose-100'],
         ['icon' => 'clipboard', 'class' => 'bg-cyan-50 text-cyan-600 ring-cyan-100'],
     ];
+    $talentBoxColorClasses = [
+        1 => 'bg-yellow-600',
+        2 => 'bg-yellow-600',
+        3 => 'bg-yellow-600',
+        4 => 'bg-yellow-600',
+        5 => 'bg-blue-600',
+        6 => 'bg-blue-600',
+        7 => 'bg-yellow-600',
+        8 => 'bg-blue-600',
+        9 => 'bg-emerald-600',
+    ];
+    $successionReadinessColorClasses = [
+        'ready now' => 'bg-emerald-600',
+        'ready in one year' => 'bg-blue-600',
+        'ready in two - three years' => 'bg-amber-600',
+        'ready in three - five years' => 'bg-rose-600',
+    ];
     $departmentNames = array_column($departments, 'name');
     $structuredDepartmentNames = array_keys($successorStructures);
     $hasCreateErrors = $errors->getBag('createSuccessor')->any();
@@ -28,17 +45,29 @@
     $initialFormAction = $initialEditSuccessor === null
         ? route('performance-talent.successors.store')
         : route('performance-talent.successors.update', $initialEditSuccessor);
+    $initialPhotoUrl = $initialEditSuccessor?->photo_path
+        ? Storage::disk('public')->url($initialEditSuccessor->photo_path)
+        : null;
     $initialForm = [
         'successor_id' => old('successor_id', ''),
         'target_position_id' => old('target_position_id', $initialPositionId),
         'name' => old('name', ''),
-        'position' => old('position', ''),
-        'talent_mapping' => old('talent_mapping', ''),
+        'sap' => old('sap', ''),
+        'current_position' => old('current_position', ''),
+        'position_history' => old('position_history', [['period' => '', 'position' => '']]),
+        'birth_date' => old('birth_date', ''),
+        'last_education' => old('last_education', ''),
+        'talent_box' => old('talent_box', ''),
         'succession_readiness' => old('succession_readiness', ''),
-        'idp' => old('idp', ''),
-        'education' => old('education', ''),
-        'tenure' => old('tenure', ''),
-        'directorate' => old('directorate', ''),
+        'recommendation' => old('recommendation', ''),
+        'targeted_band' => old('targeted_band', ''),
+        'performance_year' => old('performance_year', ''),
+        'performance_score' => old('performance_score', ''),
+        'performance_category' => old('performance_category', ''),
+        'mbti_type' => old('mbti_type', ''),
+        'mbti_description' => old('mbti_description', ''),
+        'top_job_family_1' => old('top_job_family_1', ''),
+        'top_job_family_2' => old('top_job_family_2', ''),
     ];
 @endphp
 
@@ -55,6 +84,17 @@
     formMode: @js($hasUpdateErrors ? 'edit' : 'create'),
     formAction: @js($initialFormAction),
     form: @js($initialForm),
+    photoPreviewUrl: @js($initialPhotoUrl),
+    talentBoxColorClasses: @js($talentBoxColorClasses),
+    successionReadinessColorClasses: @js($successionReadinessColorClasses),
+    talentBoxColor(value) {
+        return this.talentBoxColorClasses[String(value)] ?? 'bg-slate-500';
+    },
+    successionReadinessColor(value) {
+        const normalizedValue = String(value ?? '').trim().toLocaleLowerCase('id-ID');
+
+        return this.successionReadinessColorClasses[normalizedValue] ?? 'bg-slate-500';
+    },
     matches(name) {
         return name.toLocaleLowerCase('id-ID').includes(this.search.trim().toLocaleLowerCase('id-ID'));
     },
@@ -73,13 +113,22 @@
             successor_id: '',
             target_position_id: positionId,
             name: '',
-            position: '',
-            talent_mapping: '',
+            sap: '',
+            current_position: '',
+            position_history: [{ period: '', position: '' }],
+            birth_date: '',
+            last_education: '',
+            talent_box: '',
             succession_readiness: '',
-            idp: '',
-            education: '',
-            tenure: '',
-            directorate: '',
+            recommendation: '',
+            targeted_band: '',
+            performance_year: '',
+            performance_score: '',
+            performance_category: '',
+            mbti_type: '',
+            mbti_description: '',
+            top_job_family_1: '',
+            top_job_family_2: '',
         };
     },
     openSuccessorDialog(position) {
@@ -88,13 +137,49 @@
         this.showSuccessorForm = false;
     },
     closeSuccessorDialog() {
+        if (this.showSuccessorForm) {
+            this.closeSuccessorForm();
+            return;
+        }
+
         this.successorDialogOpen = false;
         this.showSuccessorForm = false;
+    },
+    closeSuccessorForm() {
+        this.showSuccessorForm = false;
+        this.resetPhotoPreview();
+        if (this.$refs.successorPhoto) {
+            this.$refs.successorPhoto.value = '';
+        }
+    },
+    resetPhotoPreview() {
+        if (this.photoPreviewUrl?.startsWith('blob:')) {
+            URL.revokeObjectURL(this.photoPreviewUrl);
+        }
+        this.photoPreviewUrl = null;
+    },
+    previewSuccessorPhoto(event) {
+        this.resetPhotoPreview();
+        const [file] = event.target.files;
+        if (file instanceof File) {
+            this.photoPreviewUrl = URL.createObjectURL(file);
+        }
+    },
+    addPositionHistory() {
+        if (this.form.position_history.length < 10) {
+            this.form.position_history.push({ period: '', position: '' });
+        }
+    },
+    removePositionHistory(index) {
+        if (this.form.position_history.length > 1) {
+            this.form.position_history.splice(index, 1);
+        }
     },
     openCreateSuccessor() {
         this.formMode = 'create';
         this.formAction = @js(route('performance-talent.successors.store'));
         this.form = this.emptySuccessorForm(this.selectedPosition.key);
+        this.resetPhotoPreview();
         this.$refs.successorPhoto.value = '';
         this.showSuccessorForm = true;
     },
@@ -102,6 +187,8 @@
         this.formMode = 'edit';
         this.formAction = successor.updateUrl;
         this.form = successor;
+        this.resetPhotoPreview();
+        this.photoPreviewUrl = successor.photoUrl;
         this.$refs.successorPhoto.value = '';
         this.showSuccessorForm = true;
     },
@@ -190,9 +277,9 @@
 
     <div x-cloak x-show="successorDialogOpen" class="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-6" role="presentation">
         <button type="button" @click="closeSuccessorDialog()" aria-label="Tutup daftar successor" class="absolute inset-0 h-full w-full bg-slate-950/65 backdrop-blur-sm"></button>
-        <section x-show="successorDialogOpen" class="relative z-[81] flex max-h-[calc(100dvh-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+        <section x-show="successorDialogOpen" class="relative z-[81] flex max-h-[calc(100dvh-1.5rem)] w-full max-w-[96rem] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
             role="dialog" aria-modal="true" aria-labelledby="successor-dialog-title">
-            <div class="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6">
+            <div x-show="!showSuccessorForm" class="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6">
                 <div>
                     <p class="text-xs font-bold uppercase tracking-[0.18em] text-blue-700" x-text="selectedPosition?.level"></p>
                     <h3 id="successor-dialog-title" class="mt-1 font-display text-xl font-bold text-slate-950">Successor - <span x-text="selectedPosition?.name"></span></h3>
@@ -202,65 +289,29 @@
             </div>
 
             <div class="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
-                <div class="flex items-center justify-between gap-3">
-                    <h4 class="font-display text-lg font-bold text-slate-950">Daftar Kandidat</h4>
-                    @can('create', \App\Models\Successor::class)
-                        <button type="button" @click="openCreateSuccessor()" class="ui-button ui-button-primary">Tambah Successor</button>
-                    @endcan
-                </div>
+                <div x-show="!showSuccessorForm">
+                    <div class="flex items-center justify-between gap-3">
+                        <h4 class="font-display text-lg font-bold text-slate-950">Daftar Kandidat</h4>
+                        @can('create', \App\Models\Successor::class)
+                            <button type="button" @click="openCreateSuccessor()" class="ui-button ui-button-primary">Tambah Successor</button>
+                        @endcan
+                    </div>
 
-                <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    @foreach ($successors as $successor)
+                    <div class="mt-4 flex snap-x snap-proximity gap-4 overflow-x-auto pb-4">
+                        @foreach ($successors as $successor)
                         @php($successorInitial = mb_strtoupper(mb_substr(trim($successor->name), 0, 1)))
-                        <article x-show="selectedPosition?.key === @js((string) $successor->target_position_id)" class="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                            <div class="flex items-center gap-3">
-                                @if ($successor->photo_path)
-                                    <img src="{{ Storage::disk('public')->url($successor->photo_path) }}" alt="Foto {{ $successor->name }}" class="h-16 w-16 rounded-2xl object-cover ring-1 ring-slate-200">
-                                @else
-                                    <span class="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-100 text-xl font-bold text-blue-700">{{ $successorInitial }}</span>
-                                @endif
-                                <div class="min-w-0"><h5 class="font-display text-lg font-bold text-slate-950">{{ $successor->name }}</h5><p class="text-sm text-slate-600">{{ $successor->position }}</p></div>
-                            </div>
-                            <div class="mt-4 flex flex-wrap gap-2">
-                                <span class="rounded-full bg-violet-50 px-3 py-1 text-xs font-bold text-violet-700">{{ $successor->talent_mapping }}</span>
-                                <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">{{ $successor->succession_readiness }}</span>
-                            </div>
-                            <p class="mt-3 whitespace-pre-line rounded-lg bg-slate-50 px-3 py-2.5 text-sm text-slate-700">IDP: {{ $successor->idp }}%</p>
-                            <dl class="mt-3 space-y-2 text-sm text-slate-600">
-                                <div><dt class="font-bold">Pendidikan</dt><dd>{{ $successor->education }}</dd></div>
-                                <div><dt class="font-bold">Masa Kerja</dt><dd>{{ $successor->tenure }}</dd></div>
-                                <div><dt class="font-bold">Direktorat</dt><dd>{{ $successor->directorate }}</dd></div>
-                            </dl>
-                            <div class="mt-auto flex justify-end gap-3 pt-4">
-                                @can('update', $successor)
-                                    <button type="button" @click="openEditSuccessor(@js([
-                                        'successor_id' => (string) $successor->id,
-                                        'target_position_id' => (string) $successor->target_position_id,
-                                        'name' => $successor->name,
-                                        'position' => $successor->position,
-                                        'talent_mapping' => $successor->talent_mapping,
-                                        'succession_readiness' => $successor->succession_readiness,
-                                        'idp' => $successor->idp,
-                                        'education' => $successor->education,
-                                        'tenure' => $successor->tenure,
-                                        'directorate' => $successor->directorate,
-                                        'updateUrl' => route('performance-talent.successors.update', $successor),
-                                    ]))" class="text-sm font-bold text-sky-700">Edit</button>
-                                @endcan
-                                @can('delete', $successor)
-                                    <form method="POST" action="{{ route('performance-talent.successors.destroy', $successor) }}" data-confirm-submit data-confirm-title="Hapus Successor ini?" data-confirm-text="Data kandidat {{ $successor->name }} akan dihapus permanen.">
-                                        @csrf @method('DELETE')
-                                        <button type="submit" class="text-sm font-bold text-red-600">Hapus</button>
-                                    </form>
-                                @endcan
-                            </div>
-                        </article>
-                    @endforeach
-                </div>
+                        @php($successorPosition = $successor->current_position ?: $successor->position)
+                        @php($successorEducation = $successor->last_education ?: $successor->education)
+                        @php($successorTalentBox = $successor->talent_box ?: $successor->talent_mapping)
+                        @php($successorHistory = collect($successor->position_history ?? [])->take(3))
+                        @include('performance-talent.successors._candidate-preview')
+                        @endforeach
+                    </div>
 
-                <div x-show="selectedSuccessorCount === 0 && !showSuccessorForm" class="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-10 text-center">
-                    <h4 class="font-display text-lg font-bold text-slate-800">Belum ada successor</h4>
-                    <p class="mt-1 text-sm text-slate-500">Tambahkan data kandidat Successor secara manual.</p>
+                    <div x-show="selectedSuccessorCount === 0" class="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-10 text-center">
+                        <h4 class="font-display text-lg font-bold text-slate-800">Belum ada successor</h4>
+                        <p class="mt-1 text-sm text-slate-500">Tambahkan data kandidat Successor secara manual.</p>
+                    </div>
                 </div>
 
                 @if (auth()->user()->hasPermission('successors.create') || auth()->user()->hasPermission('successors.update'))

@@ -63,14 +63,44 @@ class SuccessorManagementTest extends TestCase
             ->assertSee('Andi Pratama')
             ->assertSee('Manager Human Capital Planning')
             ->assertSee('S2 Manajemen')
-            ->assertSee('12 tahun')
-            ->assertSee('Human Capital Directorate')
-            ->assertSee('IDP: 75%')
+            ->assertSee('SAP-1001')
+            ->assertSee('Band 4')
+            ->assertSeeInOrder(['TALENT', 'BOX', '9'])
+            ->assertSee('data-successor-candidate-preview', escape: false)
+            ->assertSee('overflow-x-auto', escape: false)
+            ->assertSee('xl:w-[27.5%]', escape: false)
+            ->assertSee('data-talent-box-color="bg-emerald-600"', escape: false)
+            ->assertSee('data-succession-readiness-color="bg-emerald-600"', escape: false)
+            ->assertSee('Direkomendasikan untuk posisi target.')
+            ->assertSee('Sangat Baik')
+            ->assertSee('Pemimpin strategis dan tegas.')
+            ->assertSee('Human Capital')
+            ->assertSee('Business Strategy')
             ->assertSee('storage/successors/andi-pratama.jpg', escape: false)
             ->assertSee('data-successor-form', escape: false)
-            ->assertSee('dark:bg-slate-900/90', escape: false)
-            ->assertSee('dark:bg-slate-950', escape: false)
+            ->assertSee('Preview Kandidat')
+            ->assertSee('Riwayat Jabatan')
             ->assertSee(route('performance-talent.successors.update', $successor), escape: false);
+    }
+
+    public function test_successor_preview_uses_grouped_talent_box_colors(): void
+    {
+        $this->createSuccessor([
+            'talent_box' => 8,
+            'succession_readiness' => 'ready in one year',
+        ]);
+        $this->createSuccessor([
+            'name' => 'Kandidat Talent Box Tujuh',
+            'sap' => 'SAP-1007',
+            'talent_box' => 7,
+        ]);
+
+        $this->actingAs($this->superAdmin())
+            ->get(route('performance-talent.successors.index', ['position' => $this->targetPosition->id]))
+            ->assertOk()
+            ->assertSee('data-talent-box-color="bg-blue-600"', escape: false)
+            ->assertSee('data-talent-box-color="bg-yellow-600"', escape: false)
+            ->assertSee('data-succession-readiness-color="bg-blue-600"', escape: false);
     }
 
     public function test_successor_can_be_created_without_employee_using_manual_profile_fields(): void
@@ -82,13 +112,35 @@ class SuccessorManagementTest extends TestCase
             ->assertRedirect(route('performance-talent.successors.index', ['position' => $this->targetPosition->id]))
             ->assertSessionHas('status', 'Successor berhasil ditambahkan.');
 
-        $this->assertDatabaseHas('successors', $this->validData());
+        $successor = Successor::query()->sole();
+        $this->assertSame($this->validData()['position_history'], $successor->position_history);
+        $this->assertSame('1985-05-15', $successor->birth_date?->format('Y-m-d'));
+        $this->assertSame('SAP-1001', $successor->sap);
+        $this->assertSame(9, $successor->talent_box);
+        $this->assertSame('4.50', $successor->performance_score);
         $this->assertDatabaseCount('employees', 0);
     }
 
     public function test_successor_schema_has_no_employee_or_legacy_structure_dependency(): void
     {
         $this->assertTrue(Schema::hasColumn('successors', 'target_position_id'));
+        $this->assertTrue(Schema::hasColumns('successors', [
+            'sap',
+            'current_position',
+            'position_history',
+            'birth_date',
+            'last_education',
+            'talent_box',
+            'recommendation',
+            'targeted_band',
+            'performance_year',
+            'performance_score',
+            'performance_category',
+            'mbti_type',
+            'mbti_description',
+            'top_job_family_1',
+            'top_job_family_2',
+        ]));
         $this->assertFalse(Schema::hasColumn('successors', 'employee_id'));
         $this->assertFalse(Schema::hasTable('successor_structure_departments'));
         $this->assertFalse(Schema::hasTable('successor_structure_positions'));
@@ -105,23 +157,51 @@ class SuccessorManagementTest extends TestCase
         $this->assertDatabaseCount('successors', 0);
     }
 
-    public function test_manual_profile_and_idp_percentage_are_required_and_validated(): void
+    public function test_executive_profile_fields_are_required_and_validated(): void
     {
         $this->actingAs($this->superAdmin())
             ->post(route('performance-talent.successors.store'), [
                 'target_position_id' => $this->targetPosition->id,
-                'idp' => 101,
+                'talent_box' => 10,
             ])
             ->assertSessionHasErrorsIn('createSuccessor', [
                 'name',
-                'position',
-                'talent_mapping',
+                'sap',
+                'current_position',
+                'position_history',
+                'birth_date',
+                'last_education',
+                'talent_box',
                 'succession_readiness',
-                'idp',
-                'education',
-                'tenure',
-                'directorate',
+                'recommendation',
+                'targeted_band',
+                'performance_year',
+                'performance_score',
+                'performance_category',
+                'mbti_type',
+                'mbti_description',
+                'top_job_family_1',
+                'top_job_family_2',
             ]);
+    }
+
+    public function test_validation_errors_reopen_form_and_keep_preview_values(): void
+    {
+        $indexUrl = route('performance-talent.successors.index', ['position' => $this->targetPosition->id]);
+
+        $response = $this->actingAs($this->superAdmin())
+            ->from($indexUrl)
+            ->followingRedirects()
+            ->post(route('performance-talent.successors.store'), $this->validData([
+                'name' => 'Kandidat Preview Lama',
+                'sap' => '',
+            ]));
+
+        $response
+            ->assertOk()
+            ->assertSee('Kandidat Preview Lama')
+            ->assertSee('Periksa kembali data Successor yang dimasukkan.')
+            ->assertSee('Preview Kandidat');
     }
 
     public function test_same_manual_candidate_name_can_target_different_positions(): void
@@ -153,13 +233,12 @@ class SuccessorManagementTest extends TestCase
                 'successor_id' => $successor->id,
                 'target_position_id' => $secondTargetPosition->id,
                 'name' => 'Budi Santoso',
-                'position' => 'Manager Strategy',
-                'talent_mapping' => 'Key Contributor',
-                'succession_readiness' => '1-2 Tahun',
-                'idp' => 80,
-                'education' => 'S1 Teknik Industri',
-                'tenure' => '8 tahun',
-                'directorate' => 'Commercial Directorate',
+                'sap' => 'SAP-2002',
+                'current_position' => 'Manager Strategy',
+                'talent_box' => 8,
+                'succession_readiness' => 'ready in one year',
+                'last_education' => 'S1 Teknik Industri',
+                'targeted_band' => 'Band 5',
             ]))
             ->assertRedirect(route('performance-talent.successors.index', ['position' => $secondTargetPosition->id]))
             ->assertSessionHas('status', 'Successor berhasil diperbarui.');
@@ -168,13 +247,12 @@ class SuccessorManagementTest extends TestCase
             'id' => $successor->id,
             'target_position_id' => $secondTargetPosition->id,
             'name' => 'Budi Santoso',
-            'position' => 'Manager Strategy',
-            'talent_mapping' => 'Key Contributor',
-            'succession_readiness' => '1-2 Tahun',
-            'idp' => 80,
-            'education' => 'S1 Teknik Industri',
-            'tenure' => '8 tahun',
-            'directorate' => 'Commercial Directorate',
+            'sap' => 'SAP-2002',
+            'current_position' => 'Manager Strategy',
+            'talent_box' => 8,
+            'succession_readiness' => 'ready in one year',
+            'last_education' => 'S1 Teknik Industri',
+            'targeted_band' => 'Band 5',
         ]);
     }
 
@@ -290,13 +368,25 @@ class SuccessorManagementTest extends TestCase
         return array_merge([
             'target_position_id' => $this->targetPosition->id,
             'name' => 'Andi Pratama',
-            'position' => 'Manager Human Capital Planning',
-            'talent_mapping' => 'High Potential',
-            'succession_readiness' => 'Ready Now',
-            'idp' => 75,
-            'education' => 'S2 Manajemen',
-            'tenure' => '12 tahun',
-            'directorate' => 'Human Capital Directorate',
+            'sap' => 'SAP-1001',
+            'current_position' => 'Manager Human Capital Planning',
+            'position_history' => [[
+                'period' => '2023 - 2025',
+                'position' => 'Manager Human Capital Planning',
+            ]],
+            'birth_date' => '1985-05-15',
+            'last_education' => 'S2 Manajemen',
+            'talent_box' => 9,
+            'succession_readiness' => 'ready now',
+            'recommendation' => 'Direkomendasikan untuk posisi target.',
+            'targeted_band' => 'Band 4',
+            'performance_year' => 2025,
+            'performance_score' => 4.5,
+            'performance_category' => 'Sangat Baik',
+            'mbti_type' => 'ENTJ',
+            'mbti_description' => 'Pemimpin strategis dan tegas.',
+            'top_job_family_1' => 'Human Capital',
+            'top_job_family_2' => 'Business Strategy',
         ], $overrides);
     }
 
