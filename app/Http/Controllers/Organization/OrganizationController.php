@@ -17,17 +17,24 @@ class OrganizationController extends Controller
     {
         Gate::authorize('viewAny', Department::class);
 
-        return view('organization.index', [
-            'directoratesTotal' => Directorate::query()->count(),
-            'directoratesActive' => Directorate::query()->where('active', true)->count(),
-            'departmentsTotal' => Department::query()->count(),
-            'departmentsActive' => Department::query()->where('active', true)->count(),
-            'unitsTotal' => Unit::query()->count(),
-            'unitsActive' => Unit::query()->where('active', true)->count(),
-            'sectionsTotal' => Section::query()->count(),
-            'sectionsActive' => Section::query()->where('active', true)->count(),
-            'positionsTotal' => Position::query()->count(),
-            'positionsActive' => Position::query()->where('active', true)->count(),
-        ]);
+        $statistics = [];
+
+        foreach ([
+            'directorates' => Directorate::class,
+            'departments' => Department::class,
+            'units' => Unit::class,
+            'sections' => Section::class,
+            'positions' => Position::class,
+        ] as $level => $modelClass) {
+            $counts = $modelClass::query()
+                ->selectRaw('COUNT(*) AS total_count, COALESCE(SUM(CASE WHEN active = ? THEN 1 ELSE 0 END), 0) AS active_count', [true])
+                ->toBase()
+                ->first();
+
+            $statistics[$level.'Total'] = (int) $counts->total_count;
+            $statistics[$level.'Active'] = (int) $counts->active_count;
+        }
+
+        return view('organization.index', $statistics);
     }
 }

@@ -1142,7 +1142,7 @@ class EmployeeManagementTest extends TestCase
             'position_id' => $sourcePosition->id,
         ]);
 
-        $this->actingAs($user)->get(route('data-pegawai'))
+        $this->actingAs($user)->get(route('data-pegawai', ['edit_employee' => $employee->id]))
             ->assertOk()
             ->assertSee('id="edit-directorate-id-'.$employee->id.'"', false)
             ->assertSee('id="edit-section-id-'.$employee->id.'"', false)

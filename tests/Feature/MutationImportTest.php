@@ -258,6 +258,36 @@ class MutationImportTest extends TestCase
         $this->assertDatabaseHas('employee_mutations', ['id' => $mutation->id, 'sap' => 'SAP011']);
     }
 
+    public function test_finalized_mutation_print_preserves_a_name_containing_its_template_placeholder(): void
+    {
+        $superAdmin = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
+        $name = 'Nama [NAMA] <literal>';
+        $mutation = EmployeeMutation::query()->create([
+            ...$this->mutationAttributes('SAFE-PRINT-TOKEN'),
+            'nama' => $name,
+            'verification_status' => 'Final',
+            'finalized_at' => now(),
+        ]);
+
+        $response = $this->actingAs($superAdmin)->get(route('mutasi.print', $mutation));
+
+        $response->assertDownload();
+        $path = $response->baseResponse->getFile()->getPathname();
+        $archive = new \ZipArchive;
+        $this->assertTrue($archive->open($path) === true);
+        try {
+            $xml = $archive->getFromName('word/document.xml');
+        } finally {
+            $archive->close();
+            unlink($path);
+        }
+
+        $document = new \DOMDocument;
+        $this->assertTrue($document->loadXML($xml, LIBXML_NONET));
+        $this->assertStringContainsString($name, $document->textContent);
+        $this->assertStringContainsString('&lt;literal&gt;', $xml);
+    }
+
     public function test_manager_cannot_print_a_final_mutation(): void
     {
         $manager = User::factory()->create(['role' => UserRole::MANAGER->value]);

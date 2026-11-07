@@ -7,23 +7,6 @@
         ['icon' => 'document', 'class' => 'bg-rose-50 text-rose-600 ring-rose-100'],
         ['icon' => 'clipboard', 'class' => 'bg-cyan-50 text-cyan-600 ring-cyan-100'],
     ];
-    $talentBoxColorClasses = [
-        1 => 'bg-yellow-600',
-        2 => 'bg-yellow-600',
-        3 => 'bg-yellow-600',
-        4 => 'bg-yellow-600',
-        5 => 'bg-blue-600',
-        6 => 'bg-blue-600',
-        7 => 'bg-yellow-600',
-        8 => 'bg-blue-600',
-        9 => 'bg-emerald-600',
-    ];
-    $successionReadinessColorClasses = [
-        'ready now' => 'bg-emerald-600',
-        'ready in one year' => 'bg-blue-600',
-        'ready in two - three years' => 'bg-amber-600',
-        'ready in three - five years' => 'bg-rose-600',
-    ];
     $departmentNames = array_column($departments, 'name');
     $structuredDepartmentNames = array_keys($successorStructures);
     $hasCreateErrors = $errors->getBag('createSuccessor')->any();
@@ -75,6 +58,16 @@
     search: '',
     selectedDepartment: @js($initialDepartment['name'] ?? ''),
     selectedFormationCount: @js($initialDepartment['formation_count'] ?? 0),
+    structureLoading: false,
+    structureError: '',
+    candidatesLoading: false,
+    candidatesError: '',
+    fragmentUrl(fragment, key, value) {
+        const url = new URL(@js(route('performance-talent.successors.index')));
+        url.searchParams.set('fragment', fragment);
+        url.searchParams.set(key, value);
+        return url;
+    },
     departmentNames: @js($departmentNames),
     structuredDepartmentNames: @js($structuredDepartmentNames),
     successorCounts: @js($successorCounts),
@@ -98,9 +91,22 @@
     matches(name) {
         return name.toLocaleLowerCase('id-ID').includes(this.search.trim().toLocaleLowerCase('id-ID'));
     },
-    selectDepartment(name, formationCount) {
+    async selectDepartment(name, formationCount, departmentId) {
+        if (this.selectedDepartment === name && !this.structureError) return;
         this.selectedDepartment = name;
         this.selectedFormationCount = formationCount;
+        this.structureLoading = true;
+        this.structureError = '';
+        try {
+            const response = await fetch(this.fragmentUrl('structure', 'department', departmentId), { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            if (!response.ok || response.headers.get('X-Successor-Fragment') !== 'structure') throw new Error('Struktur tidak dapat dimuat.');
+            const html = await response.text();
+            if (this.selectedDepartment === name) this.$refs.successorStructure.innerHTML = html;
+        } catch {
+            if (this.selectedDepartment === name) this.structureError = 'Struktur tidak dapat dimuat. Pilih department kembali untuk mencoba lagi.';
+        } finally {
+            if (this.selectedDepartment === name) this.structureLoading = false;
+        }
     },
     get hasMatches() {
         return this.departmentNames.some((name) => this.matches(name));
@@ -131,10 +137,26 @@
             top_job_family_2: '',
         };
     },
-    openSuccessorDialog(position) {
+    async openSuccessorDialog(position) {
         this.selectedPosition = position;
         this.successorDialogOpen = true;
         this.showSuccessorForm = false;
+        this.candidatesLoading = true;
+        this.candidatesError = '';
+        try {
+            const response = await fetch(this.fragmentUrl('candidates', 'position', position.key), { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            if (!response.ok || response.headers.get('X-Successor-Fragment') !== 'candidates') throw new Error('Kandidat tidak dapat dimuat.');
+            const html = await response.text();
+            await this.$nextTick();
+            if (this.successorDialogOpen && this.selectedPosition?.key === position.key) {
+                this.$refs.successorCandidates.innerHTML = html;
+                this.successorCounts[position.key] = Number(response.headers.get('X-Successor-Count'));
+            }
+        } catch {
+            if (this.selectedPosition?.key === position.key) this.candidatesError = 'Kandidat tidak dapat dimuat. Tutup dan buka kembali posisi untuk mencoba lagi.';
+        } finally {
+            if (this.selectedPosition?.key === position.key) this.candidatesLoading = false;
+        }
     },
     closeSuccessorDialog() {
         if (this.showSuccessorForm) {
@@ -180,7 +202,9 @@
         this.formAction = @js(route('performance-talent.successors.store'));
         this.form = this.emptySuccessorForm(this.selectedPosition.key);
         this.resetPhotoPreview();
-        this.$refs.successorPhoto.value = '';
+        if (this.$refs.successorPhoto) {
+            this.$refs.successorPhoto.value = '';
+        }
         this.showSuccessorForm = true;
     },
     openEditSuccessor(successor) {
@@ -189,7 +213,9 @@
         this.form = successor;
         this.resetPhotoPreview();
         this.photoPreviewUrl = successor.photoUrl;
-        this.$refs.successorPhoto.value = '';
+        if (this.$refs.successorPhoto) {
+            this.$refs.successorPhoto.value = '';
+        }
         this.showSuccessorForm = true;
     },
 }" x-effect="document.body.classList.toggle('overflow-hidden', successorDialogOpen)"
@@ -221,7 +247,7 @@
             @foreach ($departments as $department)
                 @php($style = $departmentStyles[$loop->index % count($departmentStyles)])
                 <button data-successor-department-card type="button" role="listitem" x-show="matches(@js($department['name']))"
-                    @click="selectDepartment(@js($department['name']), @js($department['formation_count']))"
+                    @click="selectDepartment(@js($department['name']), @js($department['formation_count']), @js($department['slug']))"
                     :aria-pressed="selectedDepartment === @js($department['name'])"
                     :class="selectedDepartment === @js($department['name']) ? 'border-blue-500 bg-blue-50/70 ring-1 ring-blue-500' : 'border-slate-200 bg-white hover:border-blue-300'"
                     class="flex min-h-24 items-center gap-3 rounded-xl border p-3.5 text-left transition sm:gap-4 sm:p-4">
@@ -256,28 +282,17 @@
             </div>
         </div>
 
-        @foreach ($successorStructures as $departmentName => $structureRoots)
-            <div x-cloak x-show="selectedDepartment === @js($departmentName)" class="p-4 sm:p-5">
-                <div class="overflow-x-auto rounded-xl border border-slate-200 bg-slate-50/70" tabindex="0" aria-label="Bagan struktur organisasi {{ $departmentName }}">
-                    <div class="successor-org-chart">
-                        <ul>
-                            @foreach ($structureRoots as $structureRoot)
-                                @include('performance-talent.successors._tree-node', ['position' => $structureRoot])
-                            @endforeach
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        @endforeach
-
-        <div x-cloak x-show="!structuredDepartmentNames.includes(selectedDepartment)" class="p-4 sm:p-5">
-            <x-ui.empty-state title="Struktur organisasi belum tersedia" description="Tambahkan Unit, Section, dan Position aktif pada Master Organization." />
+        <p x-cloak x-show="structureLoading" role="status" class="p-4 text-sm text-slate-500">Memuat struktur organisasi...</p>
+        <p x-cloak x-show="structureError" x-text="structureError" role="alert" class="p-4 text-sm text-red-700"></p>
+        <div x-ref="successorStructure" x-show="!structureLoading && !structureError" class="p-4 sm:p-5" data-successor-active-structure>
+            @include('performance-talent.successors._structure', ['departmentName' => $initialDepartmentName, 'structureRoots' => $successorStructures[$initialDepartmentName] ?? []])
         </div>
     </section>
 
-    <div x-cloak x-show="successorDialogOpen" class="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-6" role="presentation">
+    <template x-if="successorDialogOpen">
+    <div class="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-6" role="presentation">
         <button type="button" @click="closeSuccessorDialog()" aria-label="Tutup daftar successor" class="absolute inset-0 h-full w-full bg-slate-950/65 backdrop-blur-sm"></button>
-        <section x-show="successorDialogOpen" class="relative z-[81] flex max-h-[calc(100dvh-1.5rem)] w-full max-w-[96rem] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+        <section class="relative z-[81] flex max-h-[calc(100dvh-1.5rem)] w-full max-w-[96rem] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
             role="dialog" aria-modal="true" aria-labelledby="successor-dialog-title">
             <div x-show="!showSuccessorForm" class="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6">
                 <div>
@@ -297,27 +312,25 @@
                         @endcan
                     </div>
 
-                    <div class="mt-4 flex snap-x snap-proximity gap-4 overflow-x-auto pb-4">
-                        @foreach ($successors as $successor)
-                        @php($successorInitial = mb_strtoupper(mb_substr(trim($successor->name), 0, 1)))
-                        @php($successorPosition = $successor->current_position ?: $successor->position)
-                        @php($successorEducation = $successor->last_education ?: $successor->education)
-                        @php($successorTalentBox = $successor->talent_box ?: $successor->talent_mapping)
-                        @php($successorHistory = collect($successor->position_history ?? [])->take(3))
-                        @include('performance-talent.successors._candidate-preview')
-                        @endforeach
+                    <p x-cloak x-show="candidatesLoading" role="status" class="mt-4 text-sm text-slate-500">Memuat kandidat...</p>
+                    <p x-cloak x-show="candidatesError" x-text="candidatesError" role="alert" class="mt-4 text-sm text-red-700"></p>
+                    <div x-ref="successorCandidates" x-show="!candidatesLoading && !candidatesError" class="mt-4 flex snap-x snap-proximity gap-4 overflow-x-auto pb-4">
+                        @include('performance-talent.successors._candidates', ['successors' => $successors->where('target_position_id', $initialPositionId)])
                     </div>
 
-                    <div x-show="selectedSuccessorCount === 0" class="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-10 text-center">
+                    <div x-show="selectedSuccessorCount === 0 && !candidatesLoading && !candidatesError" class="mt-4 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-5 py-10 text-center">
                         <h4 class="font-display text-lg font-bold text-slate-800">Belum ada successor</h4>
                         <p class="mt-1 text-sm text-slate-500">Tambahkan data kandidat Successor secara manual.</p>
                     </div>
                 </div>
 
                 @if (auth()->user()->hasPermission('successors.create') || auth()->user()->hasPermission('successors.update'))
-                    <div x-cloak x-show="showSuccessorForm">@include('performance-talent.successors._form')</div>
+                    <template x-if="showSuccessorForm">
+                        <div>@include('performance-talent.successors._form')</div>
+                    </template>
                 @endif
             </div>
         </section>
     </div>
+    </template>
 </div>

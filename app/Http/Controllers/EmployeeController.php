@@ -29,6 +29,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -48,7 +49,7 @@ class EmployeeController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index(Request $request, LevelTransitionService $levelTransitionService): View
+    public function index(Request $request, LevelTransitionService $levelTransitionService): View|Response
     {
         $perPage = $this->perPage($request);
         $routeName = $request->route()?->getName() ?? 'data-pegawai';
@@ -56,6 +57,17 @@ class EmployeeController extends Controller
 
         if ($workspaceFeatureView !== null) {
             $request->session()->put('active_workspace', 'performance-talent-management');
+        }
+
+        if ($request->has('edit_employee')) {
+            abort_unless($request->user()?->hasPermission('employees.update'), 403);
+            $validated = $request->validate(['edit_employee' => ['required', 'integer', 'min:1']]);
+
+            return response()->view('employees._edit-dialog', [
+                'employee' => Employee::query()
+                    ->with(['organizationDepartment', 'organizationPosition'])
+                    ->findOrFail($validated['edit_employee']),
+            ])->header('Cache-Control', 'no-store, private');
         }
 
         $search = trim((string) $request->input('search', ''));
@@ -192,11 +204,18 @@ class EmployeeController extends Controller
         }
 
         $employees = $employeeQuery->paginate($perPage)->withQueryString();
-        $directorateIds = $employees->pluck('directorate_id')->filter()->merge($directorateId !== null ? [$directorateId] : [])->unique();
-        $departmentIds = $employees->pluck('department_id')->filter()->merge($departmentId !== null ? [$departmentId] : [])->unique()->all();
-        $unitIds = $employees->pluck('unit_id')->filter()->merge($unitId !== null ? [$unitId] : [])->unique()->all();
-        $sectionIds = $employees->pluck('section_id')->filter()->unique();
-        $positionIds = $employees->pluck('position_id')->filter()->merge($positionId !== null ? [$positionId] : [])->unique()->all();
+        $failedEditEmployee = $request->user()?->hasPermission('employees.update') && old('_form') === 'edit'
+            && filter_var(old('_employee_id'), FILTER_VALIDATE_INT) !== false
+                ? Employee::query()->with(['organizationDepartment', 'organizationPosition'])->find(old('_employee_id'))
+                : null;
+        $formEmployees = $failedEditEmployee === null
+            ? $employees->getCollection()
+            : $employees->getCollection()->concat([$failedEditEmployee]);
+        $directorateIds = $formEmployees->pluck('directorate_id')->filter()->merge($directorateId !== null ? [$directorateId] : [])->unique();
+        $departmentIds = $formEmployees->pluck('department_id')->filter()->merge($departmentId !== null ? [$departmentId] : [])->unique()->all();
+        $unitIds = $formEmployees->pluck('unit_id')->filter()->merge($unitId !== null ? [$unitId] : [])->unique()->all();
+        $sectionIds = $formEmployees->pluck('section_id')->filter()->unique();
+        $positionIds = $formEmployees->pluck('position_id')->filter()->merge($positionId !== null ? [$positionId] : [])->unique()->all();
         $organizationDepartments = Department::query()->where('active', true)->orWhereIn('id', $departmentIds)->orderBy('name')->get();
         $organizationUnits = Unit::query()->with('department')->where('active', true)->orWhereIn('id', $unitIds)->orderBy('name')->get();
         $organizationPositions = Position::query()->with(['unit.department', 'section'])->where('active', true)->orWhereIn('id', $positionIds)->orderBy('name')->get();
@@ -234,6 +253,7 @@ class EmployeeController extends Controller
 
         $viewData = [
             'employees' => $employees,
+            'failedEditEmployee' => $failedEditEmployee,
             'search' => $search,
             'directorateId' => (string) ($directorateId ?? ''),
             'departmentId' => (string) ($departmentId ?? ''),
@@ -491,7 +511,7 @@ class EmployeeController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Request $request, int $id): View
+    public function show(Request $request, string $id): View
     {
         $employee = Employee::query()
             ->with(['organizationDepartment', 'unit', 'organizationPosition'])
@@ -514,7 +534,7 @@ class EmployeeController extends Controller
         DB::transaction(function () use ($request, $employee, $staffUserProvisioningService, $organizationSyncService): void {
             $oldPositionId = $employee->position_id;
             $employee->update($this->withSelectedOrganizationNames($request->validated()));
-            $staffUserProvisioningService->synchronizeLinkedUser($employee);
+            $staffUserProvisioningService->synchronizeLinkedUser($employee, $request->user());
             $organizationSyncService->synchronizePositionMetadata([$oldPositionId, $employee->position_id]);
         });
 

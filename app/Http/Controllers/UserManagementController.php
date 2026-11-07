@@ -173,6 +173,7 @@ class UserManagementController extends Controller
         ]);
 
         $newRole = UserRole::from($validated['role']);
+        abort_if($newRole === UserRole::SUPER_ADMIN && ! $actor->isSuperAdmin(), 403);
 
         if ($actor->is($user) && $newRole !== UserRole::SUPER_ADMIN) {
             throw ValidationException::withMessages([

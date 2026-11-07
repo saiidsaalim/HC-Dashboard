@@ -45,7 +45,7 @@
                 </div>
                 <p class="mt-6 text-sm font-semibold text-slate-500">{{ $stat['label'] }}</p>
                 <p data-dashboard-counter="{{ $stat['value'] }}"
-                    class="mt-1 font-display text-3xl font-bold tracking-tight text-slate-950">0</p>
+                    class="mt-1 font-display text-3xl font-bold tracking-tight text-slate-950">{{ number_format($stat['value'], 0, ',', '.') }}</p>
                 <p class="mt-2 text-xs leading-5 text-slate-500">{{ $stat['description'] }}</p>
             </a>
         @endforeach

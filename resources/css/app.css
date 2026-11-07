@@ -288,7 +288,7 @@ html {
 		min-width: 0;
 	}
 
-	[data-app-content] > *:not([data-dashboard-card-grid]) {
+	[data-app-content] > *:not([data-dashboard-card-grid]):not([data-employee-dashboard]):not([data-fp-root]) {
 		animation: hc-content-enter 240ms ease-out;
 	}
 

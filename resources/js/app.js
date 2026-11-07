@@ -1,14 +1,29 @@
 
 
 import Alpine from 'alpinejs';
-import { gsap } from 'gsap';
 import './fit-proper';
 import { initializeThemeControls } from './theme';
 import { initializeWlaDashboard } from './wla-dashboard';
 import { initializeCriticalPositionDashboard } from './critical-position-dashboard';
 import { initializeTalentPoolDashboard } from './talent-pool-dashboard';
-import Swal from 'sweetalert2';
-import 'sweetalert2/dist/sweetalert2.min.css';
+
+const Swal = {
+    async fire(...args) {
+        try {
+            const [{ default: dialog }] = await Promise.all([
+                import('sweetalert2'),
+                import('sweetalert2/dist/sweetalert2.min.css'),
+            ]);
+
+            return await dialog.fire(...args);
+        } catch (error) {
+            console.error('The confirmation dialog could not be loaded.', error);
+            window.alert('Dialog tidak dapat dimuat. Muat ulang halaman lalu coba kembali.');
+
+            return { isConfirmed: false, isDenied: false, isDismissed: true };
+        }
+    },
+};
 
 window.Alpine = Alpine;
 window.Swal = Swal;
@@ -17,7 +32,17 @@ document.addEventListener('DOMContentLoaded', initializeThemeControls);
 document.addEventListener('DOMContentLoaded', initializeCriticalPositionDashboard);
 document.addEventListener('DOMContentLoaded', initializeTalentPoolDashboard);
 
-function initializeDashboardAnimations() {
+async function loadDashboardAnimationLibrary() {
+    try {
+        return (await import('gsap')).gsap;
+    } catch (error) {
+        console.error('Dashboard animations could not be loaded.', error);
+
+        return null;
+    }
+}
+
+async function initializeDashboardAnimations() {
     const cards = [...document.querySelectorAll('[data-dashboard-card]')];
     const counters = [...document.querySelectorAll('[data-dashboard-counter]')];
 
@@ -33,14 +58,25 @@ function initializeDashboardAnimations() {
     };
 
     counters.forEach((counter, index) => {
+        if (Number.isFinite(counterValues[index])) {
+            renderCounter(counter, counterValues[index]);
+        }
+    });
+
+    if (reduceMotion) {
+        return;
+    }
+
+    const gsap = await loadDashboardAnimationLibrary();
+
+    if (gsap === null) {
+        return;
+    }
+
+    counters.forEach((counter, index) => {
         const finalValue = counterValues[index];
 
         if (!Number.isFinite(finalValue)) {
-            return;
-        }
-
-        if (reduceMotion) {
-            renderCounter(counter, finalValue);
             return;
         }
 
@@ -56,7 +92,7 @@ function initializeDashboardAnimations() {
         });
     });
 
-    if (reduceMotion || cards.length === 0) {
+    if (cards.length === 0) {
         return;
     }
 
@@ -110,6 +146,70 @@ function initializeMutationBatchCarousels() {
 
 document.addEventListener('DOMContentLoaded', initializeMutationBatchCarousels);
 
+document.addEventListener('click', async (event) => {
+    const trigger = event.target instanceof Element ? event.target.closest('[data-employee-edit-trigger]') : null;
+
+    if (!(trigger instanceof HTMLButtonElement) || trigger.disabled) {
+        return;
+    }
+
+    const dashboard = trigger.closest('[data-employee-dashboard]');
+    const dialogId = trigger.dataset.dialogId;
+    const url = new URL(trigger.dataset.dialogUrl, window.location.href);
+
+    if (!(dashboard instanceof HTMLElement) || !dialogId || url.origin !== window.location.origin) {
+        return;
+    }
+
+    const existingDialog = document.getElementById(dialogId);
+
+    if (existingDialog instanceof HTMLDialogElement) {
+        existingDialog.showModal();
+        return;
+    }
+
+    trigger.disabled = true;
+    trigger.setAttribute('aria-busy', 'true');
+
+    try {
+        const response = await fetch(url, {
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: { Accept: 'text/html', 'X-Requested-With': 'XMLHttpRequest' },
+        });
+
+        if (!response.ok) {
+            throw new Error(`Employee edit form returned HTTP ${response.status}.`);
+        }
+
+        const source = new DOMParser().parseFromString(await response.text(), 'text/html');
+        const sourceDialog = source.getElementById(dialogId);
+
+        if (!(sourceDialog instanceof HTMLDialogElement)) {
+            throw new Error('The employee edit form was missing from the response.');
+        }
+
+        const dialog = document.importNode(sourceDialog, true);
+
+        Alpine.mutateDom(() => {
+            dashboard.append(dialog);
+            Alpine.initTree(dialog);
+        });
+        dialog.addEventListener('close', () => dialog.remove(), { once: true });
+        dialog.showModal();
+    } catch (error) {
+        console.error('Employee edit form could not be loaded.', error);
+        await Swal.fire({
+            icon: 'error',
+            title: 'Formulir tidak dapat dibuka',
+            text: 'Muat ulang halaman atau coba kembali.',
+        });
+    } finally {
+        trigger.disabled = false;
+        trigger.removeAttribute('aria-busy');
+    }
+});
+
 async function initializeEmployeeDashboardAnimations() {
     const dashboard = document.querySelector('[data-employee-dashboard]');
 
@@ -131,7 +231,8 @@ async function initializeEmployeeDashboardAnimations() {
             tooltip: isDark ? 'dark' : 'light',
         };
     };
-    const initialChartColors = chartColors();
+    let initialChartColors = chartColors();
+    let chartsDisposed = false;
     const renderCounter = (counter, value) => {
         const decimals = Number(counter.dataset.counterDecimals ?? 0);
         const suffix = counter.dataset.counterSuffix ?? '';
@@ -198,159 +299,127 @@ async function initializeEmployeeDashboardAnimations() {
         },
         tooltip: { theme: initialChartColors.tooltip },
     };
-    const hiringChartElement = dashboard.querySelector('[data-employee-hiring-chart]');
-    const educationChartElement = dashboard.querySelector('[data-employee-education-chart]');
-    const ApexCharts = hiringChartElement instanceof HTMLElement || educationChartElement instanceof HTMLElement
-        ? (await import('apexcharts')).default
-        : null;
-    if (hiringChartElement instanceof HTMLElement && ApexCharts !== null) {
-        const data = parseChartData(hiringChartElement);
-        const hiringChart = new ApexCharts(hiringChartElement, {
-            ...baseChartOptions,
-            chart: { ...baseChartOptions.chart, type: 'line' },
-            series: [{ name: 'Jumlah Hiring', data: data.series ?? [] }],
-            colors: ['#2563eb'],
-            stroke: { curve: 'straight', width: 3 },
-            markers: {
-                size: 4,
-                strokeWidth: 2,
-                hover: { sizeOffset: 3 },
-            },
-            xaxis: {
-                categories: data.categories ?? [],
-                axisBorder: { color: '#cbd5e1' },
-                axisTicks: { color: '#cbd5e1' },
-                labels: {
-                    rotate: -35,
-                    hideOverlappingLabels: true,
-                    style: { colors: initialChartColors.text, fontSize: '11px' },
+    const initializeCharts = async () => {
+        const hiringChartElement = dashboard.querySelector('[data-employee-hiring-chart]');
+        const educationChartElement = dashboard.querySelector('[data-employee-education-chart]');
+        const ApexCharts = hiringChartElement instanceof HTMLElement || educationChartElement instanceof HTMLElement
+            ? (await import('./employee-charts')).default
+            : null;
+
+        if (chartsDisposed) {
+            return;
+        }
+
+        initialChartColors = chartColors();
+        baseChartOptions.grid.borderColor = initialChartColors.grid;
+        baseChartOptions.tooltip.theme = initialChartColors.tooltip;
+        baseChartOptions.noData.style.color = initialChartColors.text;
+
+        if (hiringChartElement instanceof HTMLElement && ApexCharts !== null) {
+            const data = parseChartData(hiringChartElement);
+            const hiringChart = new ApexCharts(hiringChartElement, {
+                ...baseChartOptions,
+                chart: { ...baseChartOptions.chart, type: 'line' },
+                series: [{ name: 'Jumlah Hiring', data: data.series ?? [] }],
+                colors: ['#2563eb'],
+                stroke: { curve: 'straight', width: 3 },
+                markers: {
+                    size: 4,
+                    strokeWidth: 2,
+                    hover: { sizeOffset: 3 },
                 },
-            },
-            yaxis: {
-                min: 0,
-                forceNiceScale: true,
-                labels: {
-                    formatter: (value) => Math.round(value).toLocaleString('id-ID'),
-                    style: { colors: initialChartColors.text, fontSize: '11px' },
+                xaxis: {
+                    categories: data.categories ?? [],
+                    axisBorder: { color: '#cbd5e1' },
+                    axisTicks: { color: '#cbd5e1' },
+                    labels: {
+                        rotate: -35,
+                        hideOverlappingLabels: true,
+                        style: { colors: initialChartColors.text, fontSize: '11px' },
+                    },
                 },
-            },
-        });
-        chartInstances.push(hiringChart);
-        void hiringChart.render();
-    }
-
-    if (educationChartElement instanceof HTMLElement && ApexCharts !== null) {
-        const data = parseChartData(educationChartElement);
-        const educationChart = new ApexCharts(educationChartElement, {
-            ...baseChartOptions,
-            chart: { ...baseChartOptions.chart, type: 'bar' },
-            series: [{ name: 'Pegawai', data: data.series ?? [] }],
-            colors: ['#0f766e'],
-            plotOptions: {
-                bar: {
-                    horizontal: true,
-                    borderRadius: 4,
-                    barHeight: '55%',
+                yaxis: {
+                    min: 0,
+                    forceNiceScale: true,
+                    labels: {
+                        formatter: (value) => Math.round(value).toLocaleString('id-ID'),
+                        style: { colors: initialChartColors.text, fontSize: '11px' },
+                    },
                 },
-            },
-            xaxis: {
-                categories: data.categories ?? [],
-                min: 0,
-                labels: {
-                    formatter: (value) => Math.round(value).toLocaleString('id-ID'),
-                    style: { colors: initialChartColors.text, fontSize: '11px' },
-                },
-            },
-            yaxis: {
-                labels: {
-                    maxWidth: 160,
-                    style: { colors: initialChartColors.text, fontSize: '11px' },
-                },
-            },
-        });
-        chartInstances.push(educationChart);
-        void educationChart.render();
-    }
-
-    if (reduceMotion) {
-        return;
-    }
-
-    const animationContext = gsap.context(() => {
-        gsap.from('[data-employee-stat-card]', {
-            opacity: 0,
-            y: 22,
-            duration: 0.55,
-            delay: 0.12,
-            stagger: 0.1,
-            ease: 'power3.out',
-            clearProps: 'transform,opacity',
-        });
-
-        gsap.from('[data-employee-toolbar]', {
-            opacity: 0,
-            y: 14,
-            duration: 0.45,
-            delay: 0.28,
-            ease: 'power2.out',
-            clearProps: 'transform,opacity',
-        });
-
-        gsap.from('[data-employee-chart-card]', {
-            opacity: 0,
-            y: 18,
-            duration: 0.9,
-            delay: 0.32,
-            stagger: 0.18,
-            ease: 'power3.out',
-            clearProps: 'transform,opacity',
-        });
-
-        gsap.from('[data-employee-table]', {
-            opacity: 0,
-            y: 18,
-            duration: 0.5,
-            delay: 0.34,
-            ease: 'power2.out',
-            clearProps: 'transform,opacity',
-        });
-
-        gsap.from('[data-employee-row]', {
-            opacity: 0,
-            y: 10,
-            duration: 0.35,
-            delay: 0.42,
-            stagger: 0.035,
-            ease: 'power2.out',
-            clearProps: 'transform,opacity',
-        });
-
-        counters.forEach((counter, index) => {
-            const finalValue = Number(counter.dataset.employeeCounter);
-
-            if (!Number.isFinite(finalValue)) {
-                return;
-            }
-
-            const counterState = { value: 0 };
-
-            gsap.to(counterState, {
-                value: finalValue,
-                duration: 0.8,
-                delay: 0.22 + (index * 0.1),
-                ease: 'power2.out',
-                onUpdate: () => renderCounter(counter, counterState.value),
-                onComplete: () => renderCounter(counter, finalValue),
             });
-        });
-    }, dashboard);
+            chartInstances.push(hiringChart);
+            void hiringChart.render();
+        }
+
+        if (educationChartElement instanceof HTMLElement && ApexCharts !== null) {
+            const data = parseChartData(educationChartElement);
+            const educationChart = new ApexCharts(educationChartElement, {
+                ...baseChartOptions,
+                chart: { ...baseChartOptions.chart, type: 'bar' },
+                series: [{ name: 'Pegawai', data: data.series ?? [] }],
+                colors: ['#0f766e'],
+                plotOptions: {
+                    bar: {
+                        horizontal: true,
+                        borderRadius: 4,
+                        barHeight: '55%',
+                    },
+                },
+                xaxis: {
+                    categories: data.categories ?? [],
+                    min: 0,
+                    labels: {
+                        formatter: (value) => Math.round(value).toLocaleString('id-ID'),
+                        style: { colors: initialChartColors.text, fontSize: '11px' },
+                    },
+                },
+                yaxis: {
+                    labels: {
+                        maxWidth: 160,
+                        style: { colors: initialChartColors.text, fontSize: '11px' },
+                    },
+                },
+            });
+            chartInstances.push(educationChart);
+            void educationChart.render();
+        }
+
+    };
+    const renderVisibleCharts = () => {
+        void initializeCharts().catch((error) => console.error('Employee charts could not be loaded.', error));
+    };
+    const chartViewport = dashboard.querySelector('[data-employee-hiring-chart]');
+    const chartObserver = 'IntersectionObserver' in window && chartViewport instanceof HTMLElement
+        ? new IntersectionObserver((entries) => {
+            if (entries.some((entry) => entry.isIntersecting)) {
+                chartObserver.disconnect();
+                renderVisibleCharts();
+            }
+        })
+        : null;
+
+    if (chartObserver === null) {
+        renderVisibleCharts();
+    } else {
+        chartObserver.observe(chartViewport);
+    }
 
     const panelTriggers = [
         ...dashboard.querySelectorAll('[data-employee-import-trigger]'),
         ...dashboard.querySelectorAll('[data-employee-modal-trigger]'),
         ...dashboard.querySelectorAll('[data-filter-trigger]'),
     ];
-    const animateOpenedPanel = (trigger) => {
+    const animateOpenedPanel = async (trigger) => {
+        if (reduceMotion) {
+            return;
+        }
+
+        const gsap = await loadDashboardAnimationLibrary();
+
+        if (gsap === null) {
+            return;
+        }
+
         window.requestAnimationFrame(() => {
             let panel;
 
@@ -410,10 +479,11 @@ async function initializeEmployeeDashboardAnimations() {
     window.addEventListener('themechange', synchronizeChartTheme);
 
     const cleanup = () => {
+        chartsDisposed = true;
+        chartObserver?.disconnect();
         triggerListeners.forEach(([trigger, listener]) => trigger.removeEventListener('click', listener));
         window.removeEventListener('themechange', synchronizeChartTheme);
         chartInstances.forEach((chart) => chart.destroy());
-        animationContext.revert();
     };
 
     window.addEventListener('pagehide', cleanup, { once: true });

@@ -7,6 +7,8 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>HCM | @yield('page-title', 'Dashboard')</title>
     <link rel="preconnect" href="https://fonts.bunny.net">
+    <link rel="preload" href="https://fonts.bunny.net/space-grotesk/files/space-grotesk-latin-700-normal.woff2"
+        as="font" type="font/woff2" crossorigin>
     <link href="https://fonts.bunny.net/css?family=dm-sans:400,500,600,700|space-grotesk:500,600,700&display=swap"
         rel="stylesheet" />
     <script>

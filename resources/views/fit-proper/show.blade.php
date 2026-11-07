@@ -729,7 +729,7 @@
                                 <label class="relative min-w-0 flex-1">
                                     <span class="sr-only">Cari nama atau email</span>
                                     <svg class="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.25" /><path d="m12.5 12.5 4 4" stroke-linecap="round" /></svg>
-                                    <input type="search" x-model.trim="search" class="w-full rounded-xl border-slate-300 py-2.5 pl-10 pr-3 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" placeholder="Cari nama atau email..." autocomplete="off">
+                                    <input type="search" data-fp-user-search x-model.trim="search" class="w-full rounded-xl border-slate-300 py-2.5 pl-10 pr-3 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" placeholder="Cari nama atau email..." autocomplete="off">
                                 </label>
                                 <button type="button" class="ui-button ui-button-secondary w-full shrink-0 sm:w-auto" @click="selected = []" :disabled="selected.length === 0">
                                     <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h12m-8-3h4m-6 3 .5 10h7L14 6M8.5 9v4m3-4v4" stroke-linecap="round" /></svg>
@@ -849,7 +849,7 @@
                         </span>
                         <div>
                             <h3 class="font-display text-base font-bold text-slate-950">Penguji Ditugaskan</h3>
-                            <p class="mt-0.5 text-xs text-slate-500">{{ $examinerCount }} penguji memiliki akses penilaian</p>
+                            <p class="mt-0.5 text-xs text-slate-500">{{ $examinerCount }} penguji ditugaskan</p>
                         </div>
                     </header>
 

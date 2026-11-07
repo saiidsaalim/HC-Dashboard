@@ -80,7 +80,7 @@ class StaffUserProvisioningService
         );
     }
 
-    public function synchronizeLinkedUser(Employee $employee): ?User
+    public function synchronizeLinkedUser(Employee $employee, User $actor): ?User
     {
         $user = $employee->user()->lockForUpdate()->first();
 
@@ -88,10 +88,13 @@ class StaffUserProvisioningService
             return null;
         }
 
-        $user->update([
-            ...$this->identityFor($employee, $user),
-            'role' => UserRole::STAFF->value,
-        ]);
+        $identity = $this->identityFor($employee, $user);
+        abort_if(
+            $user->isSuperAdmin() && ! $actor->isSuperAdmin()
+                && ($user->name !== $identity['name'] || $user->email !== $identity['email']),
+            403,
+        );
+        $user->update($identity);
 
         return $user;
     }

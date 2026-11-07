@@ -776,7 +776,8 @@ class FitProperTest extends TestCase
         $this->participant($activity);
         $this->service()->examiner($activity, ['name' => 'A']);
         $this->service()->transition($activity, 'Berjalan');
-        $this->get(route('dashboard'))->assertViewHas('stats', fn ($stats) => $stats[0]['value'] === 1);
+        $dashboard = $this->get(route('dashboard'))->assertViewHas('stats', fn ($stats) => $stats[0]['value'] === 1);
+        $this->assertMatchesRegularExpression('/data-dashboard-counter="1"[^>]*>1<\/p>/', $dashboard->getContent());
         $this->get(route('fit-proper'))->assertOk()->assertDontSee('Data Simulasi');
     }
 

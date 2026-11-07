@@ -1,11 +1,11 @@
 @php($talentBoxColorClass = $talentBoxColorClasses[(int) $successorTalentBox] ?? 'bg-slate-500')
 @php($successionReadinessColorClass = $successionReadinessColorClasses[mb_strtolower(trim((string) $successor->succession_readiness))] ?? 'bg-slate-500')
 
-<article x-show="selectedPosition?.key === @js((string) $successor->target_position_id)" data-successor-candidate-preview class="w-[86%] shrink-0 snap-start overflow-hidden rounded-2xl border border-slate-200 border-t-4 border-t-[#0B1F3A] bg-white p-3 shadow-lg sm:w-[52%] lg:w-[38%] xl:w-[27.5%]">
+<article data-successor-candidate-preview class="w-[86%] shrink-0 snap-start overflow-hidden rounded-2xl border border-slate-200 border-t-4 border-t-[#0B1F3A] bg-white p-3 shadow-lg sm:w-[52%] lg:w-[38%] xl:w-[27.5%]">
     <div class="grid min-w-0 grid-cols-[4rem_minmax(0,1fr)_3.75rem] gap-2">
         <div class="flex h-16 w-full items-center justify-center overflow-hidden rounded-lg bg-blue-100 text-xl font-bold text-blue-700">
             @if ($successor->photo_path)
-                <img src="{{ Storage::disk('public')->url($successor->photo_path) }}" alt="Foto {{ $successor->name }}" class="h-full w-full object-cover">
+                <img src="{{ Storage::disk('public')->url($successor->photo_path) }}" alt="Foto {{ $successor->name }}" width="64" height="64" loading="lazy" decoding="async" class="h-full w-full object-cover">
             @else
                 <span aria-hidden="true">{{ $successorInitial ?: '?' }}</span>
             @endif

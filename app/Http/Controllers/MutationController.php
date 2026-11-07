@@ -344,13 +344,15 @@ class MutationController extends Controller
             $nodes[] = $textNode;
         }
 
-        while (true) {
-            $paragraphText = implode('', array_map(static fn (DOMNode $node): string => $node->textContent, $nodes));
-            $position = strpos($paragraphText, $placeholder);
-            if ($position === false) {
-                return;
-            }
+        $paragraphText = implode('', array_map(static fn (DOMNode $node): string => $node->textContent, $nodes));
+        $positions = [];
+        $offset = 0;
+        while (($position = strpos($paragraphText, $placeholder, $offset)) !== false) {
+            $positions[] = $position;
+            $offset = $position + strlen($placeholder);
+        }
 
+        foreach (array_reverse($positions) as $position) {
             $endPosition = $position + strlen($placeholder);
             $cursor = 0;
             $startNodeIndex = null;

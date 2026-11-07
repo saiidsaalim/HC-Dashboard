@@ -69,6 +69,7 @@ Route::middleware('auth')->group(function () {
                 ->middleware('can:employees.export')
                 ->name('data-pegawai.export');
             Route::get('/data-pegawai/{id}', [EmployeeController::class, 'show'])
+                ->whereNumber('id')
                 ->middleware('can:employees.view')
                 ->name('data-pegawai.show');
         });
@@ -160,7 +161,7 @@ Route::middleware('auth')->group(function () {
         Route::delete('/data-pegawai/{employee}', [EmployeeController::class, 'destroy'])->middleware('can:employees.delete')->name('data-pegawai.destroy');
         Route::delete('/data-pegawai', [EmployeeController::class, 'destroyMany'])->middleware('can:employees.delete')->name('data-pegawai.destroy-many');
         Route::get('/employees', [EmployeeController::class, 'index'])->middleware('can:employees.view')->name('employees.index');
-        Route::get('/employees/{id}', [EmployeeController::class, 'show'])->middleware('can:employees.view')->name('employees.show');
+        Route::get('/employees/{id}', [EmployeeController::class, 'show'])->whereNumber('id')->middleware('can:employees.view')->name('employees.show');
         Route::get('/wla-saya', [StaffWlaController::class, 'index'])->middleware('can:wla.staff.view')->name('wla.staff.index');
         Route::get('/wla-saya/{participant}', [StaffWlaController::class, 'show'])->middleware('can:wla.staff.view')->name('wla.staff.show');
         Route::post('/wla-saya/{participant}/submit', [StaffWlaController::class, 'submit'])->middleware('can:wla.staff.submit')->name('wla.staff.submit');

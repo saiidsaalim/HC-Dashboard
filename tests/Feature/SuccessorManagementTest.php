@@ -354,6 +354,58 @@ class SuccessorManagementTest extends TestCase
         $this->delete(route('performance-talent.successors.destroy', $successor))->assertForbidden();
     }
 
+    public function test_initial_successor_page_defers_other_department_trees_and_closed_candidate_profiles(): void
+    {
+        $successor = $this->createSuccessor(['name' => 'Deferred Manual Candidate']);
+        $department = Department::query()->create(['code' => 'OTHER', 'name' => 'Other Department', 'active' => true]);
+        $unit = Unit::query()->create(['department_id' => $department->id, 'code' => 'OTHER', 'name' => 'Other Unit', 'active' => true]);
+        $position = Position::query()->create(['unit_id' => $unit->id, 'code' => 'OTHER', 'name' => 'Deferred Other Position', 'active' => true]);
+
+        $this->actingAs($this->superAdmin())->get(route('performance-talent.successors.index'))
+            ->assertSee($department->name)
+            ->assertSee($this->targetPosition->name)
+            ->assertDontSee($position->name)
+            ->assertDontSee($successor->name)
+            ->assertViewHas('successors', fn ($successors): bool => $successors->contains($successor));
+
+        $this->get(route('performance-talent.successors.index', ['fragment' => 'structure', 'department' => $department->id]))
+            ->assertSee($position->name)
+            ->assertDontSee($this->targetPosition->name)
+            ->assertHeader('X-Successor-Fragment', 'structure')
+            ->assertHeader('Cache-Control', 'no-store, private');
+    }
+
+    public function test_candidate_fragment_keeps_all_candidates_for_the_selected_position_and_escapes_their_names(): void
+    {
+        $first = $this->createSuccessor(['name' => 'Candidate <script>alert(1)</script>']);
+        $second = $this->createSuccessor(['name' => 'Second Selected Candidate', 'sap' => 'SAP-SECOND']);
+        $otherPosition = $this->createTargetPosition('OTHER', 'Other Position', 1);
+        $other = $this->createSuccessor(['target_position_id' => $otherPosition->id, 'name' => 'Other Position Candidate', 'sap' => 'SAP-OTHER']);
+
+        $this->actingAs($this->superAdmin())->get(route('performance-talent.successors.index', ['fragment' => 'candidates', 'position' => $this->targetPosition->id]))
+            ->assertSee($first->name)
+            ->assertSee($second->name)
+            ->assertDontSee($other->name)
+            ->assertDontSee('<script>alert(1)</script>', escape: false)
+            ->assertHeader('X-Successor-Fragment', 'candidates')
+            ->assertHeader('X-Successor-Count', '2')
+            ->assertHeader('Cache-Control', 'no-store, private');
+    }
+
+    public function test_successor_fragments_require_feature_access_and_an_active_master_target(): void
+    {
+        $route = route('performance-talent.successors.index', ['fragment' => 'candidates', 'position' => $this->targetPosition->id]);
+        $this->get($route)->assertRedirect(route('login'));
+        $admin = User::factory()->create(['role' => UserRole::ADMIN->value]);
+        $this->actingAs($admin)->get($route)->assertForbidden();
+        $this->targetPosition->update(['active' => false]);
+
+        $this->actingAs($this->superAdmin())->get($route)->assertNotFound();
+        $this->getJson(route('performance-talent.successors.index', ['fragment' => 'unknown']))->assertUnprocessable()->assertJsonValidationErrors('fragment');
+        $this->getJson(route('performance-talent.successors.index', ['fragment' => 'structure', 'department' => 'invalid']))->assertUnprocessable()->assertJsonValidationErrors('department');
+        $this->get(route('performance-talent.successors.index', ['fragment' => 'structure', 'department' => 999999]))->assertNotFound();
+    }
+
     /** @param array<string, mixed> $overrides */
     private function createSuccessor(array $overrides = []): Successor
     {

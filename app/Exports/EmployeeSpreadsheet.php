@@ -4,7 +4,6 @@ namespace App\Exports;
 
 use App\Models\Employee;
 use DateTimeInterface;
-use Illuminate\Support\Collection;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
@@ -78,9 +77,9 @@ class EmployeeSpreadsheet
     public function download(bool $includePerformanceTalentFields = false): BinaryFileResponse
     {
         $employees = Employee::query()
-            ->with(['organizationDepartment', 'unit', 'organizationPosition'])
+            ->select(array_values(array_merge(...array_values(self::fieldGroups($includePerformanceTalentFields)))))
             ->orderBy('sap')
-            ->get();
+            ->lazyById(500, 'sap');
         $temporaryPath = tempnam(sys_get_temp_dir(), 'employee_export_');
 
         if ($temporaryPath === false) {
@@ -98,8 +97,8 @@ class EmployeeSpreadsheet
         )->deleteFileAfterSend();
     }
 
-    /** @param Collection<int, Employee> $employees */
-    private function workbook(Collection $employees, bool $includePerformanceTalentFields): Spreadsheet
+    /** @param iterable<int, Employee> $employees */
+    private function workbook(iterable $employees, bool $includePerformanceTalentFields): Spreadsheet
     {
         $spreadsheet = new Spreadsheet;
         $dataSheet = $spreadsheet->getActiveSheet();

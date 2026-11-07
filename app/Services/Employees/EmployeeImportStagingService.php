@@ -270,7 +270,7 @@ class EmployeeImportStagingService
                     $employee = Employee::query()->create($attributes);
                 } else {
                     $employee->fill($attributes)->save();
-                    $this->staffUserProvisioningService->synchronizeLinkedUser($employee);
+                    $this->staffUserProvisioningService->synchronizeLinkedUser($employee, $actor);
                 }
 
                 $row->forceFill([
@@ -503,15 +503,19 @@ class EmployeeImportStagingService
         $rows = [];
         $rowNumber = 1;
 
-        while (($values = fgetcsv($handle, 0, $delimiter)) !== false) {
-            $rowNumber++;
-            if ($values === [null] || count(array_filter($values, fn ($value): bool => trim((string) $value) !== '')) === 0) {
-                continue;
-            }
+        try {
+            while (($values = fgetcsv($handle, 0, $delimiter)) !== false) {
+                $rowNumber++;
+                if ($values === [null] || count(array_filter($values, fn ($value): bool => trim((string) $value) !== '')) === 0) {
+                    continue;
+                }
 
-            $rows[] = ['source_row' => $rowNumber, 'values' => $this->combineValues($headers, $values)];
+                $this->ensureRowCapacity(count($rows));
+                $rows[] = ['source_row' => $rowNumber, 'values' => $this->combineValues($headers, $values)];
+            }
+        } finally {
+            fclose($handle);
         }
-        fclose($handle);
 
         return [$headers, $rows];
     }
@@ -525,9 +529,10 @@ class EmployeeImportStagingService
         }
 
         try {
+            $this->validateArchiveLimits($archive);
             $sharedStrings = $this->readSharedStrings($archive);
             $percentageStyleIndexes = $this->readPercentageStyleIndexes($archive);
-            $sheetXml = $archive->getFromName('xl/worksheets/sheet1.xml');
+            $sheetXml = $this->readArchiveXml($archive, 'xl/worksheets/sheet1.xml');
             if ($sheetXml === false) {
                 throw new RuntimeException('The first worksheet was not found.');
             }
@@ -535,9 +540,9 @@ class EmployeeImportStagingService
             $archive->close();
         }
 
-        $sheet = simplexml_load_string($sheetXml, SimpleXMLElement::class, LIBXML_NONET);
-        if ($sheet === false) {
-            throw new RuntimeException('Excel worksheet XML is invalid.');
+        $sheet = $this->parseXml($sheetXml, 'worksheet');
+        if (! isset($sheet->sheetData)) {
+            throw new RuntimeException('Excel worksheet must contain sheetData.');
         }
 
         $rows = [];
@@ -588,6 +593,7 @@ class EmployeeImportStagingService
                     $percentageFields[$header] = true;
                 }
             }
+            $this->ensureRowCapacity(count($rows));
             $rows[] = [
                 'source_row' => (int) ($sheetRow['r'] ?: count($rows) + 2),
                 'values' => $values,
@@ -601,15 +607,12 @@ class EmployeeImportStagingService
     /** @return array<int, string> */
     private function readSharedStrings(ZipArchive $archive): array
     {
-        $xml = $archive->getFromName('xl/sharedStrings.xml');
+        $xml = $this->readArchiveXml($archive, 'xl/sharedStrings.xml');
         if ($xml === false) {
             return [];
         }
 
-        $document = simplexml_load_string($xml, SimpleXMLElement::class, LIBXML_NONET);
-        if ($document === false) {
-            throw new RuntimeException('Excel shared strings XML is invalid.');
-        }
+        $document = $this->parseXml($xml, 'shared strings');
 
         $strings = [];
         foreach ($document->si as $item) {
@@ -626,15 +629,12 @@ class EmployeeImportStagingService
     /** @return list<int> */
     private function readPercentageStyleIndexes(ZipArchive $archive): array
     {
-        $xml = $archive->getFromName('xl/styles.xml');
+        $xml = $this->readArchiveXml($archive, 'xl/styles.xml');
         if ($xml === false) {
             return [];
         }
 
-        $document = simplexml_load_string($xml, SimpleXMLElement::class, LIBXML_NONET);
-        if ($document === false) {
-            throw new RuntimeException('Excel styles XML is invalid.');
-        }
+        $document = $this->parseXml($xml, 'styles');
 
         $customFormats = [];
         foreach ($document->numFmts->numFmt ?? [] as $format) {
@@ -656,6 +656,78 @@ class EmployeeImportStagingService
         }
 
         return $percentageStyleIndexes;
+    }
+
+    private function validateArchiveLimits(ZipArchive $archive): void
+    {
+        $maximumEntries = max(1, (int) config('workforce.employee_import.max_archive_entries', 1000));
+        $maximumBytes = max(1, (int) config('workforce.employee_import.max_archive_bytes', 50 * 1024 * 1024));
+        if ($archive->numFiles > $maximumEntries) {
+            throw new RuntimeException('Excel archive contains too many entries.');
+        }
+
+        $expandedBytes = 0;
+        for ($index = 0; $index < $archive->numFiles; $index++) {
+            $entry = $archive->statIndex($index);
+            if ($entry === false) {
+                throw new RuntimeException('Excel archive entry could not be inspected.');
+            }
+            $expandedBytes += $entry['size'];
+            if ($expandedBytes > $maximumBytes) {
+                throw new RuntimeException('Excel archive exceeds the allowed expanded size.');
+            }
+        }
+    }
+
+    private function readArchiveXml(ZipArchive $archive, string $name): string|false
+    {
+        $entry = $archive->statName($name);
+        if ($entry === false) {
+            return false;
+        }
+
+        $maximumBytes = max(1, (int) config('workforce.employee_import.max_xml_bytes', 20 * 1024 * 1024));
+        if ($entry['size'] > $maximumBytes) {
+            throw new RuntimeException('Excel XML exceeds the allowed expanded size.');
+        }
+
+        $xml = $archive->getFromName($name, $maximumBytes + 1);
+        if ($xml === false || strlen($xml) > $maximumBytes) {
+            throw new RuntimeException('Excel XML could not be read within the allowed size.');
+        }
+
+        return $xml;
+    }
+
+    private function parseXml(string $xml, string $part): SimpleXMLElement
+    {
+        if (preg_match('/<!DOCTYPE|<!ENTITY/i', $xml) === 1) {
+            throw new RuntimeException('Excel XML document type declarations are not accepted.');
+        }
+
+        $previousErrorHandling = libxml_use_internal_errors(true);
+        try {
+            $document = simplexml_load_string($xml, SimpleXMLElement::class, LIBXML_NONET);
+            if ($document === false) {
+                throw new RuntimeException("Excel {$part} XML is invalid.");
+            }
+            if (dom_import_simplexml($document)->ownerDocument->doctype !== null) {
+                throw new RuntimeException('Excel XML document type declarations are not accepted.');
+            }
+
+            return $document;
+        } finally {
+            libxml_clear_errors();
+            libxml_use_internal_errors($previousErrorHandling);
+        }
+    }
+
+    private function ensureRowCapacity(int $currentRows): void
+    {
+        $maximumRows = max(1, (int) config('workforce.employee_import.max_rows', 10000));
+        if ($currentRows >= $maximumRows) {
+            throw new RuntimeException("Source file exceeds the maximum of {$maximumRows} employee rows.");
+        }
     }
 
     private function isPercentageFormatCode(string $formatCode): bool

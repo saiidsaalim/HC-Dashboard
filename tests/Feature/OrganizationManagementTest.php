@@ -11,6 +11,7 @@ use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class OrganizationManagementTest extends TestCase
@@ -37,9 +38,22 @@ class OrganizationManagementTest extends TestCase
         $activeUnit->positions()->create(['code' => 'P-HOME-A', 'name' => 'Active Position', 'active' => true]);
         $activeUnit->positions()->create(['code' => 'P-HOME-I', 'name' => 'Inactive Position', 'active' => false]);
 
-        $this->actingAs($this->superAdmin())
-            ->get(route('organization.index'))
+        $this->actingAs($this->superAdmin());
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+
+        $this->get(route('organization.index'))
             ->assertOk()
+            ->assertViewHas('directoratesTotal', 0)
+            ->assertViewHas('directoratesActive', 0)
+            ->assertViewHas('departmentsTotal', 2)
+            ->assertViewHas('departmentsActive', 1)
+            ->assertViewHas('unitsTotal', 2)
+            ->assertViewHas('unitsActive', 1)
+            ->assertViewHas('sectionsTotal', 0)
+            ->assertViewHas('sectionsActive', 0)
+            ->assertViewHas('positionsTotal', 2)
+            ->assertViewHas('positionsActive', 1)
             ->assertSee('Kelola Department')
             ->assertSee('Kelola Unit')
             ->assertSee('Kelola Position')
@@ -49,6 +63,11 @@ class OrganizationManagementTest extends TestCase
             ->assertSee('<a href="'.route('organization.index').'" title="Master Organization"', false)
             ->assertSee('Total')
             ->assertSee('Aktif');
+
+        $countQueries = collect(DB::getQueryLog())->filter(fn (array $query): bool => preg_match('/select .*count\(\*\).* from "(directorates|departments|units|sections|positions)"/i', $query['query']) === 1);
+        DB::disableQueryLog();
+
+        $this->assertLessThanOrEqual(5, $countQueries->count(), 'Master Organization repeats aggregate scans for each level.');
     }
 
     public function test_organization_tables_support_20_40_and_60_rows_per_page(): void

@@ -105,7 +105,7 @@ function linkPanel(url, row) {
 
 function updateFragments(root, html, data) {
     const doc = new DOMParser().parseFromString(html, 'text/html');
-    const selector = data.structure_changed ? '[data-fp-structure], [data-fp-fragment="progres"], [data-fp-fragment="rekap"], [data-fp-fragment="hasil"], [data-fp-fragment="riwayat"]' : '[data-fp-fragment]';
+    const selector = data.structure_changed ? '[data-fp-structure], [data-fp-fragment]' : '[data-fp-fragment]';
     for (const source of doc.querySelectorAll(selector)) {
         const target = Array.from(root.querySelectorAll(selector)).find(node => (node.dataset.fpStructure || node.dataset.fpFragment) === (source.dataset.fpStructure || source.dataset.fpFragment));
         if (!target) continue;

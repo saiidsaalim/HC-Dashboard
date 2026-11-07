@@ -9,16 +9,47 @@ use App\Models\Successor;
 use App\Support\SuccessorOrganizationStructure;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use Throwable;
 
 class SuccessorController extends Controller
 {
-    public function index(Request $request, SuccessorOrganizationStructure $structure): View
+    public function index(Request $request, SuccessorOrganizationStructure $structure): View|Response
     {
         Gate::authorize('viewAny', Successor::class);
+
+        if ($request->query('fragment') !== null) {
+            $validated = $request->validate([
+                'fragment' => ['required', Rule::in(['structure', 'candidates'])],
+                'department' => ['required_if:fragment,structure', 'nullable', 'integer'],
+                'position' => ['required_if:fragment,candidates', 'nullable', 'integer'],
+            ]);
+
+            if ($validated['fragment'] === 'structure') {
+                $department = collect($structure->departments())->firstWhere('slug', (string) $validated['department']);
+                abort_if($department === null, 404);
+
+                return response()->view('performance-talent.successors._structure', [
+                    'departmentName' => $department['name'],
+                    'structureRoots' => $structure->structures()[$department['name']] ?? [],
+                ])->header('Cache-Control', 'private, no-store')->header('X-Successor-Fragment', 'structure');
+            }
+
+            $positionId = (string) $validated['position'];
+            abort_unless(isset($structure->positions()[$positionId]), 404);
+            $successors = Successor::query()->where('target_position_id', $positionId)->orderBy('name')->orderBy('id')->get();
+
+            return response()->view('performance-talent.successors._candidates', [
+                'successors' => $successors,
+                ...$this->profileColors(),
+            ])->header('Cache-Control', 'private, no-store')
+                ->header('X-Successor-Fragment', 'candidates')
+                ->header('X-Successor-Count', (string) $successors->count());
+        }
 
         $successors = Successor::query()
             ->with('targetPosition')
@@ -49,7 +80,32 @@ class SuccessorController extends Controller
             'successorCounts' => $successorCounts->all(),
             'selectedPositionKey' => $selectedPositionKey,
             'selectedDepartmentName' => $selectedDepartmentName,
+            ...$this->profileColors(),
         ]);
+    }
+
+    /** @return array{talentBoxColorClasses: array<int, string>, successionReadinessColorClasses: array<string, string>} */
+    private function profileColors(): array
+    {
+        return [
+            'talentBoxColorClasses' => [
+                1 => 'bg-yellow-600',
+                2 => 'bg-yellow-600',
+                3 => 'bg-yellow-600',
+                4 => 'bg-yellow-600',
+                5 => 'bg-blue-600',
+                6 => 'bg-blue-600',
+                7 => 'bg-yellow-600',
+                8 => 'bg-blue-600',
+                9 => 'bg-emerald-600',
+            ],
+            'successionReadinessColorClasses' => [
+                'ready now' => 'bg-emerald-600',
+                'ready in one year' => 'bg-blue-600',
+                'ready in two - three years' => 'bg-amber-600',
+                'ready in three - five years' => 'bg-rose-600',
+            ],
+        ];
     }
 
     public function store(StoreSuccessorRequest $request): RedirectResponse
