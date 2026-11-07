@@ -1,6 +1,7 @@
 @import './fit-proper-detail.css';
 @import './fit-proper-index.css';
 @import './hc-od-dashboard.css';
+@import './hc-od-personal.css';
 @import './formasi.css';
 
 @tailwind base;

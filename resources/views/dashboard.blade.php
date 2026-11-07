@@ -1,203 +1,115 @@
 @extends('layouts.app')
 
-@section('page-title', 'Dashboard')
+@section('page-title', 'Organisasi & Karier')
 
 @section('content')
-    <div class="hc-od-dashboard" data-hc-od-dashboard>
+    @php
+        $widgetCatalog = collect($dashboardWidgets)->keyBy('id');
+        $dashboardSlots = [
+            'compact-1' => ['type' => 'compact', 'label' => 'Kiri · Slot 1'],
+            'compact-2' => ['type' => 'compact', 'label' => 'Kiri · Slot 2'],
+            'main-1' => ['type' => 'main', 'label' => 'Tengah · Slot 1'],
+            'main-2' => ['type' => 'main', 'label' => 'Tengah · Slot 2'],
+            'right-1' => ['type' => 'main', 'label' => 'Kanan · Slot 1'],
+            'right-2' => ['type' => 'main', 'label' => 'Kanan · Slot 2'],
+        ];
+        $dashboardConfig = ['workspace' => 'hc-od-career-management', 'slots' => $dashboardLayout, 'widgets' => $dashboardWidgets, 'saveUrl' => route('dashboard.layout'), 'calendarUrl' => route('dashboard.calendar'), 'canViewCalendar' => $canViewCalendar];
+    @endphp
+    <div class="hc-od-dashboard hc-od-personal" data-hc-od-dashboard data-editing="false" data-gallery-open="false" x-data="hcOdDashboard" :data-editing="editing.toString()" :data-gallery-open="(editing && galleryOpen).toString()" :data-choosing-type="choosingType" @keydown.escape.window="closeGallery()">
+        <script type="application/json" data-dashboard-config>@json($dashboardConfig)</script>
+
         <div class="hc-od-heading">
             <div>
-                <h1>Organisasi &amp; Karier</h1>
-                <p>Ringkasan tenaga kerja dan proses pengembangan karier</p>
+                <div class="hc-od-heading-title"><h1>Organisasi &amp; Karier</h1><span x-cloak x-show="editing" class="hc-od-edit-badge">Mode Edit</span></div>
+                <p x-text="editing ? 'Pilih widget dan susun sesuai kebutuhan Anda.' : 'Ringkasan tenaga kerja dan proses pengembangan karier'">Ringkasan tenaga kerja dan proses pengembangan karier</p>
             </div>
-            <div class="hc-od-heading-meta">
-                <span class="hc-od-live"><span aria-hidden="true"></span>Data aktual</span>
-                <time datetime="{{ now()->toDateString() }}">{{ now()->translatedFormat('d M Y') }}</time>
+            <div class="hc-od-edit-actions">
+                <button type="button" class="ui-button ui-button-secondary" data-dashboard-edit x-show="!editing" @click="startEditing()"><x-dashboard-icon name="edit" aria-hidden="true" />Atur Dashboard</button>
+                <button x-cloak x-show="editing" type="button" class="ui-button ui-button-secondary hc-od-gallery-toggle" data-dashboard-gallery-toggle @click="openGallery()" :disabled="saving" :aria-expanded="galleryOpen.toString()" aria-controls="dashboard-widget-gallery"><span aria-hidden="true">+</span> Tambah Widget</button>
+                <button x-cloak x-show="editing" type="button" class="ui-button ui-button-secondary" data-dashboard-cancel :disabled="saving" @click="cancelEditing()">Batal</button>
+                <button x-cloak x-show="editing" type="button" class="ui-button ui-button-primary" data-dashboard-save :disabled="saving" @click="saveLayout()" x-text="saving ? 'Menyimpan…' : 'Simpan Susunan'">Simpan Susunan</button>
+            </div>
+        </div>
+        <p x-cloak x-show="error" x-text="error" class="hc-od-save-error" role="alert" data-dashboard-error></p>
+        <p x-cloak x-show="notice" x-text="notice" class="hc-od-save-notice" role="status"></p>
+
+        <div class="hc-od-workbench">
+        <div class="hc-od-workspace">
+            <div class="hc-od-left-column">
+                <section class="hc-od-panel hc-od-calendar" data-dashboard-calendar aria-labelledby="dashboard-calendar-title">
+                    <div class="hc-od-panel-heading"><h2 id="dashboard-calendar-title">Kalender Kegiatan</h2><span class="hc-od-calendar-dot" title="Jadwal Fit & Proper" aria-hidden="true"></span></div>
+                    <div data-dashboard-month class="hc-od-month"></div>
+                    <p x-show="calendarLoading" class="hc-od-calendar-note" role="status">Memuat kalender…</p>
+                    <p x-cloak x-show="calendarError" class="hc-od-calendar-note" role="alert" x-text="calendarError"></p>
+                    <button x-cloak x-show="calendarError && canViewCalendar" type="button" class="hc-od-link" @click="retryCalendar()">Coba lagi</button>
+                    <div class="hc-od-agenda" data-dashboard-agenda>
+                        <h3 x-text="selectedDateLabel">Agenda hari ini</h3>
+                        <p x-show="!canViewCalendar" class="hc-od-calendar-note">Anda belum memiliki akses agenda Fit &amp; Proper.</p>
+                        <p x-cloak x-show="canViewCalendar && !calendarLoading && !calendarError && selectedEvents.length === 0" class="hc-od-calendar-note">Tidak ada kegiatan</p>
+                        <template x-for="event in selectedEvents" :key="event.id"><a :href="event.url"><span x-text="event.title"></span><span aria-hidden="true">↗</span></a></template>
+                    </div>
+                </section>
+                @foreach (array_slice($dashboardSlots, 0, 2, true) as $slotId => $slot)
+                    @include('pages._hc-od-slot')
+                @endforeach
+            </div>
+            <div class="hc-od-main-column">
+                @foreach (array_slice($dashboardSlots, 2, 2, true) as $slotId => $slot)
+                    @include('pages._hc-od-slot')
+                @endforeach
+                <p x-cloak x-show="!editing && !hasMainWidgets" class="hc-od-no-widgets">Tambahkan grafik atau panel melalui Atur Dashboard.</p>
+            </div>
+            <div class="hc-od-right-column">
+                @foreach (array_slice($dashboardSlots, 4, 2, true) as $slotId => $slot)
+                    @include('pages._hc-od-slot')
+                @endforeach
             </div>
         </div>
 
-        @if ($totalEmployees !== null || $wlaSummary !== null || $fitProperSummary !== null || $pendingTotal !== null)
-            <div class="hc-od-metrics">
-                @if ($totalEmployees !== null)
-                    <a href="{{ route('data-pegawai') }}" class="hc-od-metric" data-dashboard-metric="employees">
-                        <span class="hc-od-metric-icon hc-od-tone-blue"><x-dashboard-icon name="users" aria-hidden="true" /></span>
-                        <span class="hc-od-metric-copy">
-                            <span class="hc-od-metric-label">Total Pegawai</span>
-                            <strong>{{ number_format($totalEmployees, 0, ',', '.') }}</strong>
-                            <span class="hc-od-metric-note">Pegawai terdaftar</span>
-                        </span>
-                    </a>
-                @endif
-                @if ($wlaSummary !== null)
-                    <a href="{{ route('wla') }}" class="hc-od-metric" data-dashboard-metric="wla">
-                        <span class="hc-od-metric-icon hc-od-tone-teal"><x-dashboard-icon name="formasi" aria-hidden="true" /></span>
-                        <span class="hc-od-metric-copy">
-                            <span class="hc-od-metric-label">WLA Berjalan</span>
-                            <strong>{{ number_format($wlaSummary['running'], 0, ',', '.') }}</strong>
-                            <span class="hc-od-metric-note">Assessment berstatus Draft</span>
-                        </span>
-                    </a>
-                @endif
-                @if ($fitProperSummary !== null)
-                    <a href="{{ route('fit-proper') }}" class="hc-od-metric" data-dashboard-metric="fit-proper">
-                        <span class="hc-od-metric-icon hc-od-tone-blue"><x-dashboard-icon name="clipboard" aria-hidden="true" /></span>
-                        <span class="hc-od-metric-copy">
-                            <span class="hc-od-metric-label">Peserta Fit &amp; Proper</span>
-                            <strong>{{ number_format($fitProperSummary['activeParticipants'], 0, ',', '.') }}</strong>
-                            <span class="hc-od-metric-note">Pada kegiatan Berjalan</span>
-                        </span>
-                    </a>
-                @endif
-                @if ($pendingTotal !== null)
-                    <a href="#tindak-lanjut" class="hc-od-metric" data-dashboard-metric="pending">
-                        <span class="hc-od-metric-icon hc-od-tone-amber"><x-dashboard-icon name="document" aria-hidden="true" /></span>
-                        <span class="hc-od-metric-copy">
-                            <span class="hc-od-metric-label">Pengajuan Menunggu</span>
-                            <strong>{{ number_format($pendingTotal, 0, ',', '.') }}</strong>
-                            <span class="hc-od-metric-note">Menunggu persetujuan</span>
-                        </span>
-                    </a>
-                @endif
-            </div>
-
-            @if (count($movements) > 0 || $fitProperSummary !== null)
-                <div class="hc-od-overview {{ count($movements) > 0 && $fitProperSummary !== null ? '' : 'hc-od-single-panel' }}">
-                    @if (count($movements) > 0)
-                        @php
-                            $maximumMovementCount = max(1, ...collect($movements)->flatMap(fn (array $movement): array => $movement['values'])->all());
-                            $chartStep = max(1, (int) ceil($maximumMovementCount / 4));
-                            $chartMaximum = $chartStep * 4;
-                            $chartSeriesCount = count($movements);
-                            $chartBarWidth = 16;
-                            $chartBarGap = 3;
-                            $chartGroupWidth = ($chartSeriesCount * $chartBarWidth) + (($chartSeriesCount - 1) * $chartBarGap);
-                            $hasFinalMovements = collect($movements)->sum(fn (array $movement): int => array_sum($movement['values'])) > 0;
-                        @endphp
-                        <section class="hc-od-panel hc-od-career" aria-labelledby="career-title">
-                            <div class="hc-od-panel-heading">
-                                <div>
-                                    <h2 id="career-title">Pergerakan Karier</h2>
-                                    <p>Rekaman Final berdasarkan tanggal efektif</p>
-                                </div>
-                                <span class="hc-od-period">{{ $movementPeriod }}</span>
+            <aside x-cloak x-show="editing && galleryOpen" id="dashboard-widget-gallery" class="hc-od-gallery" data-dashboard-gallery aria-labelledby="dashboard-gallery-title" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="translate-x-8 opacity-0" x-transition:enter-end="translate-x-0 opacity-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="translate-x-0 opacity-100" x-transition:leave-end="translate-x-8 opacity-0">
+                <div class="hc-od-gallery-heading"><h2 id="dashboard-gallery-title">Tambah Widget</h2><button class="hc-od-gallery-close" type="button" @click="closeGallery()" aria-label="Tutup galeri">×</button></div>
+                <p>Seret atau tekan + untuk menambahkan.</p>
+                <div class="hc-od-gallery-scroll">
+                @foreach (['compact' => 'Widget Ringkas', 'main' => 'Widget Utama'] as $type => $typeLabel)
+                    <section class="hc-od-gallery-group" x-show="!choosingId || choosingType === '{{ $type }}'">
+                    <h3>{{ $typeLabel }}</h3>
+                    <div data-gallery-list="{{ $type }}" class="hc-od-gallery-list">
+                        @foreach ($dashboardWidgets as $widget)
+                            @continue($widget['type'] !== $type)
+                            <div class="hc-od-gallery-item" data-gallery-widget="{{ $widget['id'] }}" data-widget-id="{{ $widget['id'] }}" data-widget-type="{{ $type }}" :data-installed="isInstalled('{{ $widget['id'] }}').toString()" :data-selected="(choosingId === '{{ $widget['id'] }}').toString()">
+                                <span class="hc-od-gallery-icon" data-widget-drag aria-hidden="true"><x-dashboard-icon :name="$widget['icon']" /></span>
+                                <div><strong>{{ $widget['title'] }}</strong><span x-text="isInstalled('{{ $widget['id'] }}') ? 'Terpasang' : choosingId === '{{ $widget['id'] }}' ? 'Dipilih' : @js($widget['description'])">{{ $widget['description'] }}</span></div>
+                                <button type="button" data-widget-add="{{ $widget['id'] }}" @click="chooseWidget('{{ $widget['id'] }}')" :disabled="saving || isInstalled('{{ $widget['id'] }}')" aria-label="Tambahkan {{ $widget['title'] }}">+</button>
                             </div>
-                            <div class="hc-od-chart-wrap">
-                                <svg class="hc-od-chart" data-career-chart viewBox="0 0 620 188" role="img" aria-labelledby="career-chart-title career-chart-description">
-                                    <title id="career-chart-title">Pergerakan karier enam bulan terakhir</title>
-                                    <desc id="career-chart-description">Jumlah rekaman Final per bulan. Rincian angka tersedia pada tabel setelah grafik. Pengajuan menunggu persetujuan tidak termasuk.</desc>
-                                    @for ($tick = 0; $tick <= 4; $tick++)
-                                        @php
-                                            $tickY = 150 - ($tick * 33);
-                                        @endphp
-                                        <line x1="35" y1="{{ $tickY }}" x2="610" y2="{{ $tickY }}" class="hc-od-chart-grid" />
-                                        <text x="25" y="{{ $tickY + 4 }}" text-anchor="end" class="hc-od-chart-tick">{{ number_format($tick * $chartStep, 0, ',', '.') }}</text>
-                                    @endfor
-                                    @foreach ($movementMonths as $monthIndex => $month)
-                                        @php
-                                            $groupCenter = 84 + ($monthIndex * 95);
-                                        @endphp
-                                        @foreach ($movements as $seriesIndex => $movement)
-                                            @php
-                                                $movementValue = $movement['values'][$monthIndex];
-                                                $barHeight = ($movementValue / $chartMaximum) * 132;
-                                                $barX = $groupCenter - ($chartGroupWidth / 2) + ($seriesIndex * ($chartBarWidth + $chartBarGap));
-                                            @endphp
-                                            <rect x="{{ $barX }}" y="{{ 150 - $barHeight }}" width="{{ $chartBarWidth }}" height="{{ $barHeight }}" rx="3" class="hc-od-chart-bar hc-od-fill-{{ $movement['tone'] }}">
-                                                <title>{{ $movement['label'] }}, {{ $month['fullLabel'] }}: {{ $movementValue }}</title>
-                                            </rect>
-                                            @if ($movementValue > 0)
-                                                <text x="{{ $barX + ($chartBarWidth / 2) }}" y="{{ 144 - $barHeight }}" text-anchor="middle" class="hc-od-chart-value">{{ $movementValue }}</text>
-                                            @endif
-                                        @endforeach
-                                        <text x="{{ $groupCenter }}" y="173" text-anchor="middle" class="hc-od-chart-month">{{ $month['label'] }}</text>
-                                    @endforeach
-                                </svg>
-                                @unless ($hasFinalMovements)
-                                    <p class="hc-od-chart-empty">Belum ada pergerakan Final pada periode ini.</p>
-                                @endunless
-                            </div>
-                            <div class="hc-od-chart-legend" aria-hidden="true">
-                                @foreach ($movements as $movement)
-                                    <span><i class="hc-od-fill-{{ $movement['tone'] }}"></i>{{ $movement['label'] }}</span>
-                                @endforeach
-                            </div>
-                            <table class="sr-only">
-                                <caption>Jumlah pergerakan karier berstatus Final, {{ $movementPeriod }}</caption>
-                                <thead><tr><th scope="col">Bulan</th>@foreach ($movements as $movement)<th scope="col">{{ $movement['label'] }}</th>@endforeach</tr></thead>
-                                <tbody>
-                                    @foreach ($movementMonths as $monthIndex => $month)
-                                        <tr><th scope="row">{{ $month['fullLabel'] }}</th>@foreach ($movements as $movement)<td>{{ $movement['values'][$monthIndex] }}</td>@endforeach</tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </section>
-                    @endif
-
-                    @if ($fitProperSummary !== null)
-                        <section class="hc-od-panel hc-od-fit-proper" aria-labelledby="fit-proper-title">
-                            <div class="hc-od-panel-heading">
-                                <div>
-                                    <h2 id="fit-proper-title">Status Fit &amp; Proper</h2>
-                                    <p>{{ number_format($fitProperSummary['total'], 0, ',', '.') }} kegiatan sesuai akses Anda</p>
-                                </div>
-                            </div>
-                            <div class="hc-od-status-list">
-                                @foreach ($fitProperSummary['statuses'] as $status)
-                                    <div class="hc-od-status" data-fit-proper-status="{{ $status['status'] }}">
-                                        <div class="hc-od-status-label"><span>{{ $status['label'] }}</span><strong>{{ number_format($status['count'], 0, ',', '.') }}</strong></div>
-                                        <div class="hc-od-progress" role="progressbar" aria-label="Kegiatan {{ $status['label'] }}" aria-valuemin="0" aria-valuemax="{{ max(1, $fitProperSummary['total']) }}" aria-valuenow="{{ $status['count'] }}" aria-valuetext="{{ $status['count'] }} dari {{ $fitProperSummary['total'] }} kegiatan">
-                                            <span class="hc-od-fill-{{ $status['tone'] }}" style="width: {{ $fitProperSummary['total'] > 0 ? ($status['count'] / $fitProperSummary['total']) * 100 : 0 }}%"></span>
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
-                            @if ($fitProperSummary['total'] === 0)
-                                <p class="hc-od-empty-note">Belum ada kegiatan yang dapat ditampilkan.</p>
-                            @endif
-                        </section>
-                    @endif
+                        @endforeach
+                    </div>
+                    </section>
+                @endforeach
+                @if ($dashboardWidgets === [])<p>Belum ada modul ringkasan yang dapat ditampilkan.</p>@endif
+                <div x-cloak x-show="choosingId !== null" class="hc-od-slot-picker" data-dashboard-slot-picker>
+                    <div class="hc-od-picker-heading"><h3>Pilih slot tujuan</h3><button type="button" @click="clearChoice()" class="hc-od-link">Widget lain</button></div>
+                    <p x-text="choosingTitle"></p>
+                    <div role="radiogroup" aria-label="Slot tujuan widget" @keydown.arrow-down.prevent="moveSlotSelection(1)" @keydown.arrow-right.prevent="moveSlotSelection(1)" @keydown.arrow-up.prevent="moveSlotSelection(-1)" @keydown.arrow-left.prevent="moveSlotSelection(-1)">
+                        <template x-for="slot in compatibleSlots" :key="slot.id">
+                            <button type="button" role="radio" :aria-checked="(choosingSlot === slot.id).toString()" :tabindex="slot.tabIndex" :data-dashboard-place="slot.id" :disabled="saving || slot.current" @click="selectSlot(slot.id)">
+                                <span class="hc-od-slot-radio" aria-hidden="true"></span><span><strong x-text="slot.label"></strong><small x-text="slot.widgetTitle"></small></span>
+                            </button>
+                        </template>
+                    </div>
                 </div>
-            @endif
-
-            @if ($wlaSummary !== null || count($movements) > 0)
-                <div class="hc-od-bottom {{ $wlaSummary !== null && count($movements) > 0 ? '' : 'hc-od-single-panel' }}">
-                    @if ($wlaSummary !== null)
-                        <section class="hc-od-panel hc-od-wla" aria-labelledby="wla-title">
-                            <h2 id="wla-title">Ringkasan WLA</h2>
-                            <div class="hc-od-wla-statuses">
-                                @foreach ($wlaSummary['statuses'] as $status)
-                                    <div class="hc-od-wla-status hc-od-tone-{{ $status['tone'] }}" data-wla-status="{{ $status['status'] }}">
-                                        <x-dashboard-icon :name="$status['status'] === 'final' ? 'clipboard' : 'document'" aria-hidden="true" />
-                                        <span><span>{{ $status['label'] }}</span><strong>{{ number_format($status['count'], 0, ',', '.') }}</strong></span>
-                                    </div>
-                                @endforeach
-                            </div>
-                            <a href="{{ route('wla') }}" class="hc-od-link">Buka WLA <span aria-hidden="true">&rarr;</span></a>
-                        </section>
-                    @endif
-
-                    @if (count($movements) > 0)
-                        <section id="tindak-lanjut" class="hc-od-panel hc-od-follow-up" aria-labelledby="follow-up-title">
-                            <h2 id="follow-up-title">Perlu Ditindaklanjuti</h2>
-                            <div class="hc-od-follow-up-list">
-                                @foreach ($movements as $movement)
-                                    <a href="{{ route($movement['route']) }}" class="hc-od-follow-up-row" data-movement-pending="{{ $movement['key'] }}">
-                                        <x-dashboard-icon :name="$movement['icon']" class="hc-od-text-{{ $movement['tone'] }}" aria-hidden="true" />
-                                        <span>{{ $movement['label'] }} menunggu persetujuan</span>
-                                        <strong class="hc-od-tone-{{ $movement['tone'] }}">{{ number_format($movement['pending'], 0, ',', '.') }}</strong>
-                                        <span class="hc-od-row-arrow" aria-hidden="true">&rarr;</span>
-                                    </a>
-                                @endforeach
-                            </div>
-                        </section>
-                    @endif
                 </div>
-            @endif
-        @else
-            <div class="hc-od-panel hc-od-no-access">
-                <x-dashboard-icon name="document" aria-hidden="true" />
-                <h2>Belum ada modul ringkasan yang dapat ditampilkan.</h2>
-                <p>Ringkasan akan tersedia setelah Anda memperoleh akses modul terkait.</p>
-            </div>
-        @endif
+                <div class="hc-od-gallery-footer" x-cloak x-show="choosingId !== null">
+                    <p x-show="choosingSlot" x-text="replacementText" data-dashboard-replacement></p>
+                    <button type="button" class="ui-button ui-button-primary" data-dashboard-apply :disabled="saving || !choosingSlot" @click="applyWidget()" x-text="choosingSlot && draft[choosingSlot] ? 'Ganti Widget' : 'Tambah ke Slot'">Tambah ke Slot</button>
+                </div>
+            </aside>
+        </div>
+
+        @if ($dashboardWidgets === [])<p class="hc-od-calendar-note">Belum ada modul ringkasan yang dapat ditampilkan.</p>@endif
+
+        @foreach ($dashboardWidgets as $widget)
+            <template data-dashboard-widget-template="{{ $widget['id'] }}">@include('pages._hc-od-widget')</template>
+        @endforeach
+
     </div>
 @endsection

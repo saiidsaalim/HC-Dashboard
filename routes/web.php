@@ -78,6 +78,8 @@ Route::middleware('auth')->group(function () {
 
     Route::middleware('can:workspace.hc-od-career-management.view')->group(function (): void {
         Route::get('/dashboard', DashboardController::class)->middleware('can:dashboard.view')->name('dashboard');
+        Route::put('/dashboard/layout', [DashboardController::class, 'updateLayout'])->middleware('can:dashboard.view')->name('dashboard.layout');
+        Route::get('/dashboard/calendar', [DashboardController::class, 'calendar'])->middleware('can:dashboard.view')->name('dashboard.calendar');
 
         Route::get('/mutasi', [MutationController::class, 'index'])->middleware('can:mutations.view')->name('mutasi');
         Route::post('/mutasi', [MutationController::class, 'store'])->middleware('can:mutations.create')->name('mutasi.store');

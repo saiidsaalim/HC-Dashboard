@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Enums\PromotionStatus;
 use App\Enums\WlaAssessmentStatus;
+use App\Http\Requests\DashboardCalendarRequest;
+use App\Http\Requests\UpdateDashboardLayoutRequest;
 use App\Models\Employee;
 use App\Models\EmployeeDemotion;
 use App\Models\EmployeeMutation;
@@ -12,14 +14,16 @@ use App\Models\FitProperActivity;
 use App\Models\FitProperParticipant;
 use App\Models\User;
 use App\Models\WlaAssessment;
+use App\Services\DashboardLayoutService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
-    public function __invoke(): View
+    public function __invoke(DashboardLayoutService $layoutService): View
     {
         /** @var User $user */
         $user = Auth::user();
@@ -53,6 +57,9 @@ class DashboardController extends Controller
         }
 
         return view('dashboard', [
+            'dashboardLayout' => $layoutService->layoutFor($user),
+            'dashboardWidgets' => $layoutService->widgetsFor($user),
+            'canViewCalendar' => $user->can('viewAny', FitProperActivity::class),
             'totalEmployees' => $user->hasPermission('employees.view') ? Employee::query()->count() : null,
             'wlaSummary' => $user->hasPermission('wla.view') ? $this->wlaSummary() : null,
             'fitProperSummary' => $user->hasPermission('fit-proper.view') ? $this->fitProperSummary($user) : null,
@@ -61,6 +68,37 @@ class DashboardController extends Controller
             'movementMonths' => $movementMonths,
             'movementPeriod' => $firstMonth->locale('id')->translatedFormat('M Y').' – '.$today->locale('id')->translatedFormat('M Y'),
         ]);
+    }
+
+    public function updateLayout(UpdateDashboardLayoutRequest $request, DashboardLayoutService $layoutService): JsonResponse
+    {
+        $slots = $layoutService->saveFor($request->user(), $request->validated('slots'));
+
+        return response()->json([
+            'message' => 'Susunan widget dashboard berhasil disimpan.',
+            'workspace' => DashboardLayoutService::Workspace,
+            'slots' => $slots,
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
+    public function calendar(DashboardCalendarRequest $request): JsonResponse
+    {
+        $validated = $request->validated();
+        $events = FitProperActivity::query()->accessibleTo($request->user())
+            ->where('scheduled_at', '>=', $validated['start'])
+            ->where('scheduled_at', '<', $validated['end'])
+            ->orderBy('scheduled_at')->orderBy('id')
+            ->get(['id', 'name', 'scheduled_at'])
+            ->map(fn (FitProperActivity $activity): array => [
+                'id' => 'fit-proper-'.$activity->id,
+                'title' => $activity->name,
+                'start' => $activity->scheduled_at->toDateString(),
+                'date' => $activity->scheduled_at->toDateString(),
+                'url' => route('fit-proper.show', $activity),
+                'allDay' => true,
+            ])->all();
+
+        return response()->json($events)->header('Cache-Control', 'private, no-store');
     }
 
     /**

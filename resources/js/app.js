@@ -778,4 +778,13 @@ document.querySelectorAll('[data-role-permission-form]').forEach((form) => {
     }
 });
 
-Alpine.start();
+async function startApplication() {
+    if (document.querySelector('[data-hc-od-dashboard]')) {
+        const { registerHcOdDashboard } = await import('./hc-od-dashboard');
+        registerHcOdDashboard(Alpine);
+    }
+
+    Alpine.start();
+}
+
+void startApplication();
