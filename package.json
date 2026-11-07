@@ -21,8 +21,13 @@
         "@laravel/multiplex": "^0.4.1"
     },
     "dependencies": {
+        "@fullcalendar/core": "^6.1.22",
+        "@fullcalendar/daygrid": "^6.1.22",
+        "@fullcalendar/timegrid": "^6.1.22",
         "apexcharts": "^8.4.1",
+        "gridstack": "^14.1.0",
         "gsap": "^3.15.0",
+        "sortablejs": "^1.15.7",
         "sweetalert2": "^11.26.25"
     }
 }

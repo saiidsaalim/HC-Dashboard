@@ -11,6 +11,7 @@ use App\Models\Unit;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -33,12 +34,10 @@ class PositionController extends Controller
         $departments = Department::query()->orderBy('name')->get();
         $units = Unit::query()
             ->with('department')
-            ->when($departmentId !== '', fn ($query) => $query->where('department_id', $departmentId))
             ->orderBy('name')
             ->get();
         $sections = Section::query()
             ->with('unit')
-            ->when($unitId !== '', fn ($query) => $query->where('unit_id', $unitId))
             ->orderBy('name')->get();
         $positions = Position::query()
             ->with(['unit.department', 'section'])
@@ -216,6 +215,18 @@ class PositionController extends Controller
     {
         Gate::authorize('delete', $position);
 
+        if ($position->employees()->exists()) {
+            return back()->withErrors([
+                'position' => 'Position tidak dapat dihapus selama ada Employee yang terhubung.',
+            ]);
+        }
+
+        if ($position->wlaAssessments()->exists()) {
+            return back()->withErrors([
+                'position' => 'Position tidak dapat dihapus selama masih digunakan pada WLA.',
+            ]);
+        }
+
         if ($position->successors()->exists()) {
             return back()->withErrors([
                 'position' => 'Position tidak dapat dihapus selama masih digunakan sebagai target successor.',
@@ -234,15 +245,30 @@ class PositionController extends Controller
             ]);
         }
 
-        $position->delete();
+        try {
+            $position->delete();
+        } catch (QueryException $exception) {
+            if (! in_array((string) $exception->getCode(), ['23000', '23503'], true)) {
+                throw $exception;
+            }
+
+            return back()->withErrors(['position' => 'Position tidak dapat dihapus karena masih digunakan oleh data lain.']);
+        }
 
         return to_route('organization.positions.index')->with('status', 'Position berhasil dihapus.');
     }
 
-    /** @return array{unit_id: int, section_id: ?int, parent_position_id?: ?int, code: string, external_position_id: ?string, name: string, formation_count: int, sort_order: int, active: bool} */
+    /** @return array{unit_id: int, section_id: ?int, parent_position_id?: ?int, code: string, external_position_id: ?string, name: string, formation_count?: int, formation_is_confirmed?: bool, sort_order: int, active: bool} */
     private function validatedData(Request $request, ?Position $position = null): array
     {
         $position?->loadMissing('unit.department');
+
+        if ($position !== null) {
+            $request->mergeIfMissing([
+                'section_id' => $position->section_id,
+                'parent_position_id' => $position->parent_position_id,
+            ]);
+        }
         $currentDepartmentId = $position?->unit->department_id;
         $currentDirectorateId = $position?->unit->department->directorate_id;
         $directorateRule = Rule::exists('directorates', 'id')->where(
@@ -285,7 +311,8 @@ class PositionController extends Controller
             ],
             'external_position_id' => ['nullable', 'string', 'max:100'],
             'name' => ['required', 'string', 'max:255'],
-            'formation_count' => ['sometimes', 'required', 'integer', 'min:1', 'max:999'],
+            'confirm_formation' => ['sometimes', 'boolean'],
+            'formation_count' => [Rule::excludeIf(! $request->boolean('confirm_formation')), 'required', 'integer', 'min:1', 'max:999'],
             'sort_order' => ['sometimes', 'required', 'integer', 'min:0', 'max:999999'],
             'active' => ['required', 'boolean'],
         ], [
@@ -309,6 +336,7 @@ class PositionController extends Controller
             'formation_count.integer' => 'Jumlah formasi harus berupa angka.',
             'formation_count.min' => 'Jumlah formasi minimal 1.',
             'formation_count.max' => 'Jumlah formasi maksimal 999.',
+            'confirm_formation.boolean' => 'Penetapan kebutuhan formasi tidak valid.',
             'sort_order.required' => 'Urutan tampil wajib diisi.',
             'sort_order.integer' => 'Urutan tampil harus berupa angka.',
             'active.required' => 'Status Position wajib dipilih.',
@@ -317,8 +345,10 @@ class PositionController extends Controller
 
         $this->validateParentPosition($validated, $position);
 
-        unset($validated['directorate_id'], $validated['department_id']);
-        $validated['formation_count'] ??= $position?->formation_count ?? 1;
+        if ($request->boolean('confirm_formation')) {
+            $validated['formation_is_confirmed'] = true;
+        }
+        unset($validated['directorate_id'], $validated['department_id'], $validated['confirm_formation']);
         $validated['sort_order'] ??= $position?->sort_order ?? 0;
 
         return $validated;

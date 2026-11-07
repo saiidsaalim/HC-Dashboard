@@ -7,6 +7,7 @@ use App\Models\Department;
 use App\Models\Directorate;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -78,7 +79,12 @@ class DepartmentController extends Controller
 
         $data = $this->validatedData($request, $department);
         $directorateChanged = (int) ($data['directorate_id'] ?? 0) !== (int) $department->directorate_id;
-        if ($directorateChanged && ($department->employees()->exists() || $department->units()->whereHas('employees')->exists())) {
+        $hasEmployees = $department->employees()->exists()
+            || $department->units()->where(fn (EloquentBuilder $query): EloquentBuilder => $query
+                ->whereHas('employees')
+                ->orWhereHas('sections.employees')
+                ->orWhereHas('positions.employees'))->exists();
+        if ($directorateChanged && $hasEmployees) {
             return back()->withErrors(['directorate_id' => 'Department tidak dapat dipindahkan selama ada Employee yang terhubung.'])->withInput();
         }
         $department->update($data);
@@ -94,7 +100,19 @@ class DepartmentController extends Controller
             return back()->withErrors(['department' => 'Department tidak dapat dihapus selama masih memiliki Unit.']);
         }
 
-        $department->delete();
+        if ($department->employees()->exists()) {
+            return back()->withErrors(['department' => 'Department tidak dapat dihapus selama ada Employee yang terhubung.']);
+        }
+
+        try {
+            $department->delete();
+        } catch (QueryException $exception) {
+            if (! in_array($exception->getCode(), ['23000', '23503'], true)) {
+                throw $exception;
+            }
+
+            return back()->withErrors(['department' => 'Department tidak dapat dihapus karena masih digunakan oleh data lain.']);
+        }
 
         return to_route('organization.departments.index')->with('status', 'Department berhasil dihapus.');
     }

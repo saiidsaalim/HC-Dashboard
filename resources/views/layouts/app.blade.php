@@ -34,21 +34,26 @@
 </head>
 
 @php
+    $isHcOdDashboard = request()->routeIs('dashboard');
+    $isFitProperIndex = request()->routeIs('fit-proper');
     $activeWorkspace = collect(config('portal.units'))
         ->flatMap(fn (array $unit) => $unit['workspaces'])
-        ->firstWhere('slug', session('active_workspace'));
+        ->firstWhere('slug', $isHcOdDashboard ? 'hc-od-career-management' : session('active_workspace'));
 
     if ($activeWorkspace !== null && ! auth()->user()->hasPermission($activeWorkspace['permission'])) {
         $activeWorkspace = null;
     }
 
     $workspaceHomeRoute = $activeWorkspace['home_route'] ?? 'dashboard';
+    $isHcOdWorkspace = ($activeWorkspace['slug'] ?? 'hc-od-career-management') === 'hc-od-career-management';
+    $isFormationMasterContext = $isHcOdWorkspace && request()->routeIs('formasi.master', 'organization.*')
+        && auth()->user()->hasPermission('formation.view');
 @endphp
 
 <body data-app-shell x-data="{ sidebarOpen: false, sidebarExpanded: false, isScrolled: false }"
     @scroll.window="isScrolled = (window.pageYOffset > 200)" @keydown.escape.window="sidebarOpen = false"
     :class="{ 'overflow-hidden': sidebarOpen }"
-    class="app-shell overflow-x-clip font-sans text-slate-900 antialiased">
+    class="app-shell overflow-x-clip font-sans text-slate-900 antialiased {{ $isHcOdDashboard ? 'hc-od-shell' : '' }} {{ $isFitProperIndex ? 'fp-index-shell' : '' }}">
     <a href="#main-content"
         class="fixed left-4 top-4 z-[100] -translate-y-24 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-semibold text-white shadow-xl transition focus:translate-y-0">
         Lewati ke konten utama
@@ -101,13 +106,13 @@
                         @if (auth()->user()->hasPermission($item['permission']) || $canViewStaffWla)
                             @php($navigationRoute = $item['route'] === 'wla' && !auth()->user()->hasPermission('wla.view') ? 'wla.staff.index' : $item['route'])
                             @php($navigationLabel = $navigationRoute === 'wla.staff.index' ? 'WLA Saya' : $item['label'])
-                            @php($isNavigationActive = request()->routeIs($item['active'] ?? ($item['route'] === 'wla' ? 'wla*' : $item['route'])))
+                            @php($isNavigationActive = request()->routeIs($item['active'] ?? ($item['route'] === 'wla' ? 'wla*' : $item['route'])) || ($isHcOdWorkspace && $item['route'] === 'formasi' && request()->routeIs('formasi.*', 'organization.*')))
                             <x-sidebar-nav-link :href="route($navigationRoute)" :label="$navigationLabel"
                                 :icon="$item['icon']" :active="$isNavigationActive" />
                         @endif
                     @endforeach
                     @if (($activeWorkspace['slug'] ?? null) !== 'performance-talent-management')
-                        @if (auth()->user()->hasPermission('organization.view'))
+                        @if (! $isHcOdWorkspace && auth()->user()->hasPermission('organization.view'))
                             <x-sidebar-nav-link :href="route('organization.index')" label="Master Organization" icon="users"
                                 :active="request()->routeIs('organization.*')" />
                         @endif
@@ -237,7 +242,12 @@
                 </div>
             </header>
             <section id="main-content" data-app-content tabindex="-1"
-                class="app-content px-4 py-6 outline-none sm:px-6 sm:py-8 lg:px-10">@yield('content')</section>
+                class="app-content px-4 py-6 outline-none sm:px-6 sm:py-8 lg:px-10 {{ $isHcOdDashboard ? 'hc-od-content' : '' }}">
+                @if ($isFormationMasterContext)
+                    @include('pages._formasi-tabs')
+                @endif
+                @yield('content')
+            </section>
         </main>
     </div>
     <button type="button" x-cloak x-show="isScrolled" @click="window.scrollTo({ top: 0, behavior: 'smooth' })"

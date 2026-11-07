@@ -129,11 +129,32 @@ function updateFragments(root, html, data) {
     updatePicker(root);
 }
 
+function resolveRequestRoot(form) {
+    const localRoot = form.closest('[data-fp-root]');
+    if (!(localRoot instanceof HTMLElement) || !localRoot.dataset.fpOwner) return localRoot;
+
+    const owner = document.getElementById(localRoot.dataset.fpOwner);
+    return owner instanceof HTMLElement
+        && owner.matches('.fp-detail[data-fp-root]')
+        && !owner.hasAttribute('data-fp-owner')
+        ? owner
+        : localRoot;
+}
+
+function findReplacementForm(root, form) {
+    const methodOverride = form.querySelector('input[name="_method"]')?.value;
+    const matches = [...root.querySelectorAll('form')].filter(candidate => candidate.action === form.action
+        && candidate.method === form.method
+        && candidate.querySelector('input[name="_method"]')?.value === methodOverride);
+
+    return matches.length === 1 ? matches[0] : null;
+}
+
 document.addEventListener('submit', async event => {
     const form = event.target;
     if (!(form instanceof HTMLFormElement) || !form.matches('[data-fp-async]')) return;
     event.preventDefault();
-    const root = form.closest('[data-fp-root]');
+    const root = resolveRequestRoot(form);
     if (!root || root.dataset.fpBusy === 'true') return;
     root.dataset.fpBusy = 'true';
     const buttons = Array.from(form.querySelectorAll('button'));
@@ -195,8 +216,10 @@ document.addEventListener('submit', async event => {
         }
         if (resetsPicPicker) window.dispatchEvent(new CustomEvent('fp-pic-reset'));
         notify(data.message);
-        if (anchor?.isConnected && Number.isFinite(previousTop)) {
-            window.scrollBy({ top: anchor.getBoundingClientRect().top - previousTop, behavior: 'instant' });
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        const updatedAnchor = anchor?.isConnected ? anchor : findReplacementForm(root, form);
+        if (updatedAnchor && Number.isFinite(previousTop)) {
+            window.scrollBy({ top: updatedAnchor.getBoundingClientRect().top - previousTop, behavior: 'instant' });
         }
         requestAnimationFrame(() => { root.style.overflowAnchor = overflowAnchor; });
     } catch {

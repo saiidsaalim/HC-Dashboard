@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'name',
     'job_level',
     'formation_count',
+    'formation_is_confirmed',
     'sort_order',
     'active',
 ])]
@@ -127,6 +128,7 @@ class Position extends Model
     {
         return [
             'active' => 'boolean',
+            'formation_is_confirmed' => 'boolean',
         ];
     }
 

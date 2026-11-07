@@ -744,7 +744,11 @@ class PerformanceTalentWorkspaceTest extends TestCase
             ->assertOk()
             ->assertSee('href="'.route('organization.index').'"', escape: false);
 
-        $this->get(route('organization.index'))->assertOk();
+        $this->get(route('organization.index'))->assertOk()
+            ->assertSee('formation-master-grid', escape: false)
+            ->assertSee('<title>HCM | Master Organization</title>', escape: false)
+            ->assertDontSee('aria-label="Navigasi Formasi"', escape: false)
+            ->assertSessionHas('active_workspace', 'performance-talent-management');
     }
 
     public function test_workspace_menu_is_hidden_from_a_user_without_access(): void
@@ -988,7 +992,8 @@ class PerformanceTalentWorkspaceTest extends TestCase
 
         $this->get(route('dashboard'))
             ->assertOk()
-            ->assertSee('title="Master Organization"', escape: false)
+            ->assertSee('title="Formasi"', escape: false)
+            ->assertDontSee('title="Master Organization"', escape: false)
             ->assertSee('title="Work Schedules"', escape: false)
             ->assertSee('title="Work Calendars"', escape: false);
     }

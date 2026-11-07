@@ -5,9 +5,11 @@
 @section('content')
     <x-ui.page-header title="Department" eyebrow="Master organisasi"
         description="Kelola Department yang berada di bawah Directorate."
-        :back-href="route('organization.index')" back-label="Master Organization">
+        :back-href="route(session('active_workspace', 'hc-od-career-management') === 'hc-od-career-management' && auth()->user()->hasPermission('formation.view') ? 'formasi.master' : 'organization.index')" :back-label="session('active_workspace', 'hc-od-career-management') === 'hc-od-career-management' && auth()->user()->hasPermission('formation.view') ? 'Master Organisasi' : 'Master Organization'">
         <x-slot:actions>
-            <a href="{{ route('organization.departments.create') }}" class="ui-button ui-button-primary">Tambah Department</a>
+            @can('create', \App\Models\Department::class)
+                <a href="{{ route('organization.departments.create') }}" class="ui-button ui-button-primary">Tambah Department</a>
+            @endcan
         </x-slot:actions>
     </x-ui.page-header>
 
@@ -55,7 +57,14 @@
                             <td class="px-4 py-3 text-slate-600">{{ $department->directorate?->name ?? 'Data lama' }}</td>
                             <td class="px-4 py-3 text-slate-600">{{ $department->units_count }}</td>
                             <td class="px-4 py-3"><x-ui.status-badge :tone="$department->active ? 'success' : 'neutral'">{{ $department->active ? 'Aktif' : 'Nonaktif' }}</x-ui.status-badge></td>
-                            <td class="px-4 py-3"><div class="flex justify-end gap-3"><a class="font-semibold text-sky-700 hover:text-sky-900" href="{{ route('organization.departments.edit', $department) }}">Ubah</a><form method="POST" action="{{ route('organization.departments.destroy', $department) }}" data-confirm-delete data-confirm-submit data-confirm-title="Hapus Department ini?" data-confirm-text="Department hanya dapat dihapus jika tidak memiliki Unit. Data yang dihapus tidak dapat dikembalikan.">@csrf @method('DELETE')<button class="font-semibold text-red-600 hover:text-red-800">Hapus</button></form></div></td>
+                            <td class="px-4 py-3"><div class="flex justify-end gap-3">
+                                @can('update', $department)
+                                    <a class="font-semibold text-sky-700 hover:text-sky-900" href="{{ route('organization.departments.edit', $department) }}">Ubah</a>
+                                @endcan
+@can('delete', $department)
+<form method="POST" action="{{ route('organization.departments.destroy', $department) }}" data-confirm-delete data-confirm-submit data-confirm-title="Hapus Department ini?" data-confirm-text="Department hanya dapat dihapus jika tidak memiliki Unit. Data yang dihapus tidak dapat dikembalikan.">@csrf @method('DELETE')<button class="font-semibold text-red-600 hover:text-red-800">Hapus</button></form>
+@endcan
+</div></td>
                         </tr>
                     @empty
                         <tr><x-ui.empty-state colspan="5" title="Belum ada Department" description="Tambahkan Department untuk mulai menyusun struktur organisasi." /></tr>

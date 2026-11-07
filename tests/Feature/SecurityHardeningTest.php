@@ -54,7 +54,7 @@ class SecurityHardeningTest extends TestCase
         $this->actingAs($staff)->get(route('promosi'))->assertForbidden();
         $this->actingAs($staff)->get(route('dashboard'))
             ->assertOk()
-            ->assertViewHas('stats', fn (array $stats): bool => collect($stats)->doesntContain('label', 'Promosi'));
+            ->assertViewHas('movements', fn (array $movements): bool => collect($movements)->doesntContain('label', 'Promosi'));
 
         $admin = User::factory()->create(['role' => UserRole::ADMIN->value]);
         $this->actingAs($admin)->get(route('promosi'))->assertOk();

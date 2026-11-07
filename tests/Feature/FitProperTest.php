@@ -771,13 +771,14 @@ class FitProperTest extends TestCase
     public function test_fit_proper_dashboard_uses_operational_database_counts(): void
     {
         $admin = $this->admin();
-        $this->actingAs($admin)->get(route('dashboard'))->assertOk()->assertViewHas('stats', fn ($stats) => $stats[0]['value'] === 0);
+        $this->actingAs($admin)->get(route('dashboard'))->assertOk()->assertViewHas('fitProperSummary', fn (array $summary): bool => $summary['activeParticipants'] === 0);
         $activity = $this->activity($admin);
         $this->participant($activity);
         $this->service()->examiner($activity, ['name' => 'A']);
         $this->service()->transition($activity, 'Berjalan');
-        $dashboard = $this->get(route('dashboard'))->assertViewHas('stats', fn ($stats) => $stats[0]['value'] === 1);
-        $this->assertMatchesRegularExpression('/data-dashboard-counter="1"[^>]*>1<\/p>/', $dashboard->getContent());
+        $this->get(route('dashboard'))->assertOk()
+            ->assertViewHas('fitProperSummary', fn (array $summary): bool => $summary['activeParticipants'] === 1)
+            ->assertSee('data-dashboard-metric="fit-proper"', false);
         $this->get(route('fit-proper'))->assertOk()->assertDontSee('Data Simulasi');
     }
 

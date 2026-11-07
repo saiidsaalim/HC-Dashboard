@@ -8,14 +8,19 @@ use App\Models\Directorate;
 use App\Models\Position;
 use App\Models\Section;
 use App\Models\Unit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
 class OrganizationController extends Controller
 {
-    public function __invoke(): View
+    public function __invoke(Request $request): View
     {
         Gate::authorize('viewAny', Department::class);
+
+        if ($request->routeIs('formasi.master')) {
+            $request->session()->put('active_workspace', 'hc-od-career-management');
+        }
 
         $statistics = [];
 

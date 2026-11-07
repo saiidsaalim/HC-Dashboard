@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Organization;
 
 use App\Http\Controllers\Controller;
 use App\Models\Directorate;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -65,7 +66,19 @@ class DirectorateController extends Controller
         if ($directorate->departments()->exists()) {
             return back()->withErrors(['directorate' => 'Directorate tidak dapat dihapus selama masih memiliki Department.']);
         }
-        $directorate->delete();
+        if ($directorate->employees()->exists()) {
+            return back()->withErrors(['directorate' => 'Directorate tidak dapat dihapus selama ada Employee yang terhubung.']);
+        }
+
+        try {
+            $directorate->delete();
+        } catch (QueryException $exception) {
+            if (! in_array($exception->getCode(), ['23000', '23503'], true)) {
+                throw $exception;
+            }
+
+            return back()->withErrors(['directorate' => 'Directorate tidak dapat dihapus karena masih digunakan oleh data lain.']);
+        }
 
         return to_route('organization.directorates.index')->with('status', 'Directorate berhasil dihapus.');
     }

@@ -7,6 +7,7 @@ use App\Models\Section;
 use App\Models\Unit;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -74,8 +75,14 @@ class SectionController extends Controller
     {
         Gate::authorize('update', $section);
         $data = $this->validatedData($request, $section);
+        $unitChanged = (int) $data['unit_id'] !== $section->unit_id;
+        if ($unitChanged && $section->positions()->exists()) {
+            return back()->withErrors([
+                'unit_id' => 'Section tidak dapat dipindahkan selama masih memiliki Position. Pindahkan Position melalui pengelolaan posisi terlebih dahulu.',
+            ])->withInput();
+        }
         $hasEmployees = $section->employees()->exists() || $section->positions()->whereHas('employees')->exists();
-        if ((int) $data['unit_id'] !== $section->unit_id && $hasEmployees) {
+        if ($unitChanged && $hasEmployees) {
             return back()->withErrors(['unit_id' => 'Section tidak dapat dipindahkan selama ada Employee yang terhubung.'])->withInput();
         }
         $section->update($data);
@@ -89,7 +96,19 @@ class SectionController extends Controller
         if ($section->positions()->exists()) {
             return back()->withErrors(['section' => 'Section tidak dapat dihapus selama masih memiliki Position.']);
         }
-        $section->delete();
+        if ($section->employees()->exists()) {
+            return back()->withErrors(['section' => 'Section tidak dapat dihapus selama ada Employee yang terhubung.']);
+        }
+
+        try {
+            $section->delete();
+        } catch (QueryException $exception) {
+            if (! in_array($exception->getCode(), ['23000', '23503'], true)) {
+                throw $exception;
+            }
+
+            return back()->withErrors(['section' => 'Section tidak dapat dihapus karena masih digunakan oleh data lain.']);
+        }
 
         return to_route('organization.sections.index')->with('status', 'Section berhasil dihapus.');
     }

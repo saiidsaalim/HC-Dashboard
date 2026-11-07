@@ -1,3 +1,10 @@
+@php
+    $formationPositionId = (string) ($position?->id ?? 'new');
+    $hasOldFormationInput = is_scalar(old('formation_position_id')) && (string) old('formation_position_id') === $formationPositionId;
+    $confirmFormation = $hasOldFormationInput && in_array(old('confirm_formation'), [1, '1', true], true);
+    $formationCountInput = $hasOldFormationInput ? old('formation_count', $position?->formation_count ?? 1) : ($position?->formation_count ?? 1);
+    $formationCountInput = is_scalar($formationCountInput) ? $formationCountInput : '';
+@endphp
 <form method="POST" action="{{ $action }}"
     x-data="{
         directorateId: @js((string) old('directorate_id', $selectedDirectorateId)),
@@ -5,6 +12,7 @@
         unitId: @js((string) old('unit_id', $selectedUnitId)),
         sectionId: @js((string) old('section_id', $selectedSectionId)),
         parentPositionId: @js((string) old('parent_position_id', $selectedParentPositionId)),
+        confirmFormation: @js($confirmFormation),
         allowedParentLevels: @js(\App\Models\Position::allowedParentLevels(
             $position?->structuralJobLevel() ?? \App\Models\Position::JOB_LEVEL_STAFF
         )),
@@ -32,6 +40,7 @@
     }"
     class="ui-surface space-y-5 p-5 sm:p-6">
     @csrf
+    <input type="hidden" name="formation_position_id" value="{{ $formationPositionId }}">
     @if ($method !== 'POST')
         @method($method)
     @endif
@@ -96,7 +105,7 @@
         <label for="parent_position_id" class="text-sm font-semibold text-slate-700">Atasan / Parent Position</label>
         <select id="parent_position_id" name="parent_position_id" x-model="parentPositionId" :disabled="!departmentId"
             class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400 disabled:bg-slate-100">
-            <option value="">Tanpa Atasan / gunakan fallback struktur</option>
+            <option value="">Tanpa Atasan / belum ditetapkan</option>
             <template x-for="parentPosition in parentPositions.filter(item => String(item.department_id) === String(departmentId) && allowedParentLevels.includes(item.level))" :key="parentPosition.id">
                 <option :value="String(parentPosition.id)" x-text="parentPosition.label"></option>
             </template>
@@ -135,11 +144,21 @@
 
     <div class="grid gap-4 sm:grid-cols-2">
         <div>
-            <label for="formation_count" class="text-sm font-semibold text-slate-700">Jumlah Formasi <span class="text-red-500" aria-hidden="true">*</span></label>
-            <input id="formation_count" name="formation_count" value="{{ old('formation_count', $position?->formation_count ?? 1) }}"
-                type="number" required min="1" max="999"
-                class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400">
+            <label for="formation_count" class="text-sm font-semibold text-slate-700">Jumlah Kebutuhan Formasi</label>
+            <input id="formation_count" name="formation_count" value="{{ $formationCountInput }}"
+                type="number" :disabled="!confirmFormation" :required="confirmFormation" min="1" max="999"
+                aria-describedby="formation-help"
+                class="mt-1 block w-full rounded-lg border-slate-300 text-sm focus:border-amber-400 focus:ring-amber-400 disabled:bg-slate-100 disabled:text-slate-500">
+            <p id="formation-help" class="mt-1 text-xs text-slate-500">Nilai awal belum dianggap sebagai kebutuhan sampai ditetapkan.</p>
+            <p class="mt-1 text-xs text-slate-500">{{ $position?->formation_is_confirmed ? 'Kebutuhan saat ini sudah ditetapkan: '.$position->formation_count.'.' : 'Kebutuhan saat ini belum ditetapkan.' }}</p>
+            <label class="mt-3 inline-flex items-start gap-2 text-sm font-medium text-slate-700">
+                <input type="checkbox" name="confirm_formation" value="1" x-model="confirmFormation" @checked($confirmFormation)
+                    class="mt-0.5 rounded border-slate-300 text-amber-500 focus:ring-amber-400">
+                Tetapkan kebutuhan formasi sesuai jumlah di atas
+            </label>
+            <p class="mt-1 text-xs text-slate-500">Centang hanya saat menetapkan atau mengubah kebutuhan. Menyimpan atribut lain mempertahankan kebutuhan sebelumnya.</p>
             @error('formation_count')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
+            @error('confirm_formation')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
         </div>
         <div>
             <label for="sort_order" class="text-sm font-semibold text-slate-700">Urutan Tampil <span class="text-red-500" aria-hidden="true">*</span></label>

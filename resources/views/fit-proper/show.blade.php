@@ -58,6 +58,7 @@
 
 @section('content')
 <div
+    id="fit-proper-detail-{{ $activity->id }}"
     class="fp-detail space-y-4"
     data-fp-root
     x-data="{
@@ -352,6 +353,7 @@
                             class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
                             role="presentation"
                             data-fp-root
+                            data-fp-owner="fit-proper-detail-{{ $activity->id }}"
                             data-app-content
                         >
                             <div class="absolute inset-0 bg-slate-950/60 backdrop-blur-[1px]" @click="editOpen = false" aria-hidden="true"></div>

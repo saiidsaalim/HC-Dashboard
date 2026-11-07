@@ -77,8 +77,9 @@
 
 @section('content')
 <div
-    class="space-y-5"
+    class="fp-index"
     data-fp-root
+    data-fp-index
     x-data="{
         selectedId: @js($selectedActivityId),
         createOpen: @js($errors->hasAny(['name', 'target_position', 'department', 'scheduled_at', 'description'])),
@@ -97,10 +98,10 @@
     @keydown.escape.window="createOpen = false; settingsOpen = false"
 >
     <div @class([
-        'grid gap-4 md:grid-cols-3 xl:items-center',
+        'fp-index-stats grid gap-3 md:grid-cols-3 xl:items-center',
         'xl:grid-cols-[auto_repeat(3,minmax(0,1fr))]' => $canCreateActivities,
         'xl:grid-cols-3' => ! $canCreateActivities,
-    ])>
+    ]) data-fp-index-stats>
         @can('create', \App\Models\FitProperActivity::class)
             <button type="button" class="ui-button ui-button-primary w-full md:col-span-3 xl:col-span-1 xl:w-fit" @click="openCreateForm()">
                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -110,7 +111,7 @@
             </button>
         @endcan
 
-        <article class="flex h-24 items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 shadow-sm">
+        <article class="fp-index-stat flex h-20 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 shadow-sm">
             <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-600" aria-hidden="true">
                 <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                     <rect x="4" y="5.5" width="16" height="14" rx="2.5" />
@@ -123,7 +124,7 @@
             </div>
         </article>
 
-        <article class="flex h-24 items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 shadow-sm">
+        <article class="fp-index-stat flex h-20 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 shadow-sm">
             <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sky-50 text-sky-600" aria-hidden="true">
                 <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                     <path d="M16 20v-1.5a4.5 4.5 0 0 0-4.5-4.5h-3A4.5 4.5 0 0 0 4 18.5V20" stroke-linecap="round" />
@@ -137,7 +138,7 @@
             </div>
         </article>
 
-        <article class="flex h-24 items-center gap-4 rounded-2xl border border-slate-200 bg-white px-5 shadow-sm">
+        <article class="fp-index-stat flex h-20 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 shadow-sm">
             <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-500" aria-hidden="true">
                 <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                     <path d="M12 3 5 6v5c0 4.6 2.9 8.1 7 10 4.1-1.9 7-5.4 7-10V6l-7-3Z" stroke-linejoin="round" />
@@ -153,14 +154,18 @@
         </article>
     </div>
 
-    @include('fit-proper._messages')
+    @if (session('success') || $errors->any() || session('examiner_link'))
+        <div class="fp-index-messages">
+            @include('fit-proper._messages')
+        </div>
+    @endif
 
-    <div class="grid items-start gap-5 xl:grid-cols-[minmax(0,1.7fr)_minmax(20rem,1fr)] xl:items-stretch">
-        <section class="flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:h-[36rem]" aria-labelledby="activities-heading">
-            <div class="grid gap-3 border-b border-slate-200 pb-3 lg:grid-cols-[minmax(13rem,1fr)_minmax(14rem,1.15fr)_auto] lg:items-center">
+    <div class="fp-index-panels grid items-start gap-3 xl:grid-cols-[minmax(0,1.7fr)_minmax(22rem,1fr)] xl:items-stretch">
+        <section class="fp-index-activities flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm {{ ! $firstSummary ? 'xl:col-span-2' : '' }}" aria-labelledby="activities-heading">
+            <div class="fp-index-toolbar grid gap-3 border-b border-slate-200 pb-3">
                 <h2 id="activities-heading" class="font-display text-xl font-bold text-slate-950">Kegiatan Berlangsung</h2>
 
-                    <form method="GET" action="{{ route('fit-proper') }}" class="flex min-w-0">
+                    <form method="GET" action="{{ route('fit-proper') }}" class="fp-index-search flex min-w-0">
                         <input type="hidden" name="per_page" value="{{ $perPage }}">
                         @if (request()->filled('status'))
                             <input type="hidden" name="status" value="{{ request('status') }}">
@@ -176,7 +181,7 @@
                         <button type="submit" class="sr-only">Cari</button>
                     </form>
 
-                <nav class="scrollbar-hidden flex gap-1.5 overflow-x-auto" aria-label="Filter status kegiatan">
+                <nav class="fp-index-status flex flex-wrap gap-1.5" aria-label="Filter status kegiatan">
                     @foreach (['' => 'Semua', 'Berjalan' => 'Berjalan', 'Draft' => 'Terjadwal', 'Selesai' => 'Selesai'] as $statusValue => $statusLabel)
                         @php
                             $isActiveStatus = request('status', '') === $statusValue;
@@ -195,7 +200,7 @@
             </div>
 
             <div
-                class="scrollbar-hidden mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pr-1"
+                class="fp-index-list mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pr-1"
                 tabindex="0"
                 aria-label="Daftar kegiatan Fit & Proper"
             >
@@ -208,6 +213,7 @@
                         $additionalParticipantCount = max(0, $activity->participants_count - $visibleParticipants->count());
                     @endphp
                     <article
+                        data-fp-activity-id="{{ $activity->id }}"
                         tabindex="0"
                         role="button"
                         aria-label="Pilih kegiatan {{ $activity->name }}"
@@ -217,7 +223,7 @@
                         @keydown.enter.self.prevent="selectActivity({{ $activity->id }})"
                         @keydown.space.self.prevent="selectActivity({{ $activity->id }})"
                         @class([
-                            'group relative overflow-hidden rounded-2xl border p-4 transition duration-200 focus-visible:outline-none sm:p-5',
+                            'fp-index-activity group relative overflow-hidden rounded-2xl border p-4 transition duration-200 focus-visible:outline-none',
                             'border-sky-400 bg-sky-50/70 shadow-md' => $isInitiallySelected,
                             'border-slate-200 bg-white hover:border-sky-200 hover:shadow-sm' => ! $isInitiallySelected,
                         ])
@@ -316,18 +322,20 @@
                 @endforelse
             </div>
 
-            <div class="mt-5 flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div class="fp-index-footer mt-3 flex flex-wrap items-center gap-3 border-t border-slate-200 pt-3" data-fp-index-footer>
                 <x-ui.per-page-selector :per-page="$perPage" id="fit-proper-per-page" />
-                @if ($activities->hasPages())<div>{{ $activities->links() }}</div>@endif
+                <p class="text-xs text-slate-500">{{ $activities->firstItem() ?? 0 }}–{{ $activities->lastItem() ?? 0 }} dari {{ $activities->total() }} kegiatan</p>
+                @if ($activities->hasPages())<div class="fp-index-pagination">{{ $activities->links('pagination::simple-tailwind') }}</div>@endif
             </div>
         </section>
 
         @if ($firstSummary)
-            <aside class="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:sticky xl:top-6 xl:h-[36rem]" aria-labelledby="activity-summary-heading">
-                <div class="border-b border-slate-200 pb-3">
+            <aside class="fp-index-summary min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" aria-labelledby="activity-summary-heading" data-fp-index-summary>
+                <div class="fp-index-summary-heading border-b border-slate-200 pb-3">
                     <h2 id="activity-summary-heading" class="font-display text-xl font-bold text-slate-950">Ringkasan Kegiatan</h2>
                 </div>
 
+                <div class="fp-index-summary-body" tabindex="0" aria-label="Detail ringkasan kegiatan">
                 <div class="mt-3">
                     <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
@@ -337,8 +345,8 @@
                         <span class="inline-flex shrink-0 items-center rounded-full border px-2.5 py-1 text-xs font-bold {{ $firstSummary['statusClasses'] }}" :class="selected.statusClasses" x-text="selected.status">{{ $firstSummary['status'] }}</span>
                     </div>
 
-                    <div class="mt-4 grid items-center gap-4 sm:grid-cols-[8rem_minmax(0,1fr)] xl:grid-cols-1 2xl:grid-cols-[8rem_minmax(0,1fr)]">
-                        <div class="relative mx-auto h-28 w-28" role="img" :aria-label="`Progres ${selected.progressLabel}`">
+                    <div class="fp-index-overview mt-4 grid items-center gap-4 sm:grid-cols-[7rem_minmax(0,1fr)]">
+                        <div class="fp-index-progress-ring relative mx-auto h-24 w-24" role="img" :aria-label="`Progres ${selected.progressLabel}`">
                             <svg class="h-full w-full -rotate-90" viewBox="0 0 42 42" aria-hidden="true">
                                 <circle cx="21" cy="21" r="16" fill="none" stroke="currentColor" stroke-width="4" class="text-slate-100" />
                                 <circle cx="21" cy="21" r="16" pathLength="100" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-dasharray="100" stroke-dashoffset="{{ 100 - $firstSummary['progress'] }}" :stroke-dashoffset="100 - selected.progress" class="text-sky-500 transition-all duration-300" />
@@ -349,7 +357,7 @@
                             </div>
                         </div>
 
-                        <dl class="space-y-2.5 text-sm">
+                        <dl class="fp-index-metadata space-y-2.5 text-sm">
                             <div class="flex gap-3">
                                 <svg class="mt-0.5 h-5 w-5 shrink-0 text-slate-500" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="4.5" width="14" height="12.5" rx="2" /><path d="M6 2.5v4M14 2.5v4M3 8.5h14" stroke-linecap="round" /></svg>
                                 <div><dt class="text-xs text-slate-500">Periode</dt><dd class="font-bold text-slate-800" x-text="selected.period">{{ $firstSummary['period'] }}</dd></div>
@@ -366,7 +374,7 @@
                     </div>
                 </div>
 
-                <div class="mt-4 border-t border-slate-200 pt-4">
+                <div class="fp-index-stages mt-4 border-t border-slate-200 pt-4">
                     <h3 class="text-sm font-bold text-slate-950">Progres Tahapan</h3>
                     <div class="mt-2 space-y-1.5" x-show="false">
                         @foreach ($firstSummary['detailStages'] as $stage)
@@ -403,7 +411,9 @@
                     </div>
                 </div>
 
-                <div class="mt-4 grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+                </div>
+
+                <div class="fp-index-actions mt-4 grid gap-2 border-t border-slate-200 pt-3 sm:grid-cols-2">
                     @can('settings', \App\Models\FitProperActivity::class)
                     <button type="button" class="ui-button ui-button-secondary w-full" @click="settingsOpen = true">
                         <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.5 10s2.7-5 7.5-5 7.5 5 7.5 5-2.7 5-7.5 5-7.5-5-7.5-5Z" /><circle cx="10" cy="10" r="2" /></svg>
@@ -442,7 +452,7 @@
                     x-transition:leave="transition ease-in duration-150"
                     x-transition:leave-start="translate-y-0 opacity-100"
                     x-transition:leave-end="translate-y-3 opacity-0"
-                    class="relative z-10 w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+                    class="fp-index-dialog relative z-10 w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
                     role="dialog"
                     aria-modal="true"
                     aria-labelledby="fit-proper-create-title"
@@ -477,7 +487,7 @@
                     x-transition:leave="transition ease-in duration-150"
                     x-transition:leave-start="translate-y-0 opacity-100"
                     x-transition:leave-end="translate-y-3 opacity-0"
-                    class="relative z-10 w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+                    class="fp-index-dialog relative z-10 w-full max-w-3xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
                     role="dialog"
                     aria-modal="true"
                     aria-labelledby="fit-proper-settings-title"

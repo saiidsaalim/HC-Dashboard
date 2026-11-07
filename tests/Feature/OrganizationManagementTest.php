@@ -60,7 +60,8 @@ class OrganizationManagementTest extends TestCase
             ->assertSee(route('organization.departments.index'))
             ->assertSee(route('organization.units.index'))
             ->assertSee(route('organization.positions.index'))
-            ->assertSee('<a href="'.route('organization.index').'" title="Master Organization"', false)
+            ->assertSee('<a href="'.route('formasi').'" title="Formasi"', false)
+            ->assertDontSee('title="Master Organization"', false)
             ->assertSee('Total')
             ->assertSee('Aktif');
 

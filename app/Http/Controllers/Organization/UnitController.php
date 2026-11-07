@@ -7,6 +7,7 @@ use App\Models\Department;
 use App\Models\Unit;
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -86,10 +87,26 @@ class UnitController extends Controller
         $data = $this->validatedData($request, $unit);
         $departmentChanged = (int) $data['department_id'] !== $unit->department_id;
         $hasEmployees = $unit->employees()->exists()
+            || $unit->sections()->whereHas('employees')->exists()
             || $unit->positions()->whereHas('employees')->exists();
 
         if ($departmentChanged && $hasEmployees) {
             return back()->withErrors(['department_id' => 'Department Unit tidak dapat dipindahkan selama ada Employee yang terhubung.'])->withInput();
+        }
+
+        if ($departmentChanged) {
+            $hasExternalReportingLines = $unit->positions()
+                ->whereHas('parent', fn (EloquentBuilder $query): EloquentBuilder => $query->where('unit_id', '!=', $unit->id))
+                ->exists()
+                || $unit->positions()
+                    ->whereHas('children', fn (EloquentBuilder $query): EloquentBuilder => $query->where('unit_id', '!=', $unit->id))
+                    ->exists();
+
+            if ($hasExternalReportingLines) {
+                return back()->withErrors([
+                    'department_id' => 'Department Unit tidak dapat dipindahkan selama Position memiliki relasi atasan atau bawahan di Unit lain. Sesuaikan relasi posisi terlebih dahulu.',
+                ])->withInput();
+            }
         }
 
         $unit->update($data);
@@ -105,7 +122,19 @@ class UnitController extends Controller
             return back()->withErrors(['unit' => 'Unit tidak dapat dihapus selama masih memiliki Section atau Position.']);
         }
 
-        $unit->delete();
+        if ($unit->employees()->exists()) {
+            return back()->withErrors(['unit' => 'Unit tidak dapat dihapus selama ada Employee yang terhubung.']);
+        }
+
+        try {
+            $unit->delete();
+        } catch (QueryException $exception) {
+            if (! in_array($exception->getCode(), ['23000', '23503'], true)) {
+                throw $exception;
+            }
+
+            return back()->withErrors(['unit' => 'Unit tidak dapat dihapus karena masih digunakan oleh data lain.']);
+        }
 
         return to_route('organization.units.index')->with('status', 'Unit berhasil dihapus.');
     }
