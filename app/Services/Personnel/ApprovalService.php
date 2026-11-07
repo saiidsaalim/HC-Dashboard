@@ -13,6 +13,7 @@ class ApprovalService
     public function __construct(
         private readonly EmployeeMovementFinalizationService $finalizationService,
         private readonly MovementApprovalWorkflowService $workflow,
+        private readonly MovementApprovalNotificationService $notificationService,
     ) {}
 
     public function approve(EmployeeMutation|EmployeeDemotion $personnelAction, User $manager): bool
@@ -58,6 +59,7 @@ class ApprovalService
                 $this->finalizationService->applyIfDue($action);
             } else {
                 $action->update(['current_approval_step' => $step + 1]);
+                $this->notificationService->recordActiveStep($action);
             }
 
             return false;

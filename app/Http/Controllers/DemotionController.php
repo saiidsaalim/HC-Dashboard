@@ -35,12 +35,28 @@ class DemotionController extends Controller
     ): View {
         Gate::authorize('viewAny', EmployeeDemotion::class);
         $perPage = $this->perPage($request);
-        $search = trim((string) $request->input('search', ''));
-        $batchId = $request->integer('batch') ?: null;
-        $filter = in_array($request->input('status'), ['draft', 'waiting', 'returned', 'approved', 'final'], true)
+        $reviewId = null;
+        if ($request->query->has('review')) {
+            $requestedReviewId = $request->query('review');
+            abort_unless(is_string($requestedReviewId) && ctype_digit($requestedReviewId), 404);
+            $requestedReviewId = ltrim($requestedReviewId, '0');
+            $maximumId = (string) PHP_INT_MAX;
+            abort_unless($requestedReviewId !== '' && (strlen($requestedReviewId) < strlen($maximumId)
+                || (strlen($requestedReviewId) === strlen($maximumId) && strcmp($requestedReviewId, $maximumId) <= 0)), 404);
+            $reviewedDemotion = EmployeeDemotion::query()->findOrFail($requestedReviewId);
+            Gate::authorize('view', $reviewedDemotion);
+            $reviewId = $reviewedDemotion->getKey();
+        }
+
+        $search = $reviewId === null ? trim((string) $request->input('search', '')) : '';
+        $batchId = $reviewId === null ? ($request->integer('batch') ?: null) : null;
+        $filter = $reviewId === null && in_array($request->input('status'), ['draft', 'waiting', 'returned', 'approved', 'final'], true)
             ? (string) $request->input('status')
             : 'all';
         $demotionQuery = EmployeeDemotion::query()->with(['batch:id,batch_number,name', 'employee', 'approvals.manager']);
+        if ($reviewId !== null) {
+            $demotionQuery->whereKey($reviewId);
+        }
 
         if ($search !== '') {
             $demotionQuery->where(function (Builder $query) use ($search): void {
@@ -74,7 +90,8 @@ class DemotionController extends Controller
         }
 
         return view('pages.demosi', [
-            'demotions' => $demotionQuery->latest('tmt')->latest()->paginate($perPage)->withQueryString(),
+            'demotions' => $demotionQuery->latest('tmt')->latest()->paginate($perPage, ['*'], 'page', $reviewId === null ? null : 1)->withQueryString(),
+            'reviewId' => $reviewId,
             'perPage' => $perPage,
             'totalDemotions' => EmployeeDemotion::query()->count(),
             'pendingDemotions' => EmployeeDemotion::query()->where('verification_status', 'Pending')->count(),

@@ -35,12 +35,28 @@ class MutationController extends Controller
     ): View {
         Gate::authorize('viewAny', EmployeeMutation::class);
         $perPage = $this->perPage($request);
-        $search = trim((string) $request->input('search', ''));
-        $filter = in_array($request->input('status'), ['draft', 'waiting', 'returned', 'approved', 'final'], true)
+        $reviewId = null;
+        if ($request->query->has('review')) {
+            $requestedReviewId = $request->query('review');
+            abort_unless(is_string($requestedReviewId) && ctype_digit($requestedReviewId), 404);
+            $requestedReviewId = ltrim($requestedReviewId, '0');
+            $maximumId = (string) PHP_INT_MAX;
+            abort_unless($requestedReviewId !== '' && (strlen($requestedReviewId) < strlen($maximumId)
+                || (strlen($requestedReviewId) === strlen($maximumId) && strcmp($requestedReviewId, $maximumId) <= 0)), 404);
+            $reviewedMutation = EmployeeMutation::query()->findOrFail($requestedReviewId);
+            Gate::authorize('view', $reviewedMutation);
+            $reviewId = $reviewedMutation->getKey();
+        }
+
+        $search = $reviewId === null ? trim((string) $request->input('search', '')) : '';
+        $filter = $reviewId === null && in_array($request->input('status'), ['draft', 'waiting', 'returned', 'approved', 'final'], true)
             ? (string) $request->input('status')
             : 'all';
-        $batchId = $request->integer('batch') ?: null;
+        $batchId = $reviewId === null ? ($request->integer('batch') ?: null) : null;
         $mutationQuery = EmployeeMutation::query()->with(['batch:id,batch_number,name', 'employee', 'approvals.manager']);
+        if ($reviewId !== null) {
+            $mutationQuery->whereKey($reviewId);
+        }
 
         if ($search !== '') {
             $mutationQuery->where(function (Builder $query) use ($search): void {
@@ -75,7 +91,8 @@ class MutationController extends Controller
         }
 
         return view('pages.mutasi', [
-            'mutations' => $mutationQuery->latest('tmt')->latest()->paginate($perPage)->withQueryString(),
+            'mutations' => $mutationQuery->latest('tmt')->latest()->paginate($perPage, ['*'], 'page', $reviewId === null ? null : 1)->withQueryString(),
+            'reviewId' => $reviewId,
             'perPage' => $perPage,
             'totalMutations' => EmployeeMutation::query()->count(),
             'pendingMutations' => EmployeeMutation::query()->where('verification_status', 'Pending')->count(),

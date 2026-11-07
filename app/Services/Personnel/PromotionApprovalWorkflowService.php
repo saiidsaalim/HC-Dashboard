@@ -21,6 +21,7 @@ class PromotionApprovalWorkflowService
     public function __construct(
         private readonly EmployeeMovementFinalizationService $finalizationService,
         private readonly PersonnelMovementSnapshotService $snapshotService,
+        private readonly MovementApprovalNotificationService $notificationService,
     ) {}
 
     /** @return Collection<int, PromotionApprovalConfig> */
@@ -105,6 +106,7 @@ class PromotionApprovalWorkflowService
                 'verification_status' => PromotionStatus::WaitingApproval->value,
                 'finalized_at' => null,
             ]);
+            $this->notificationService->recordActiveStep($lockedPromotion);
 
             return $lockedPromotion->fresh();
         }, attempts: 3);
@@ -132,6 +134,7 @@ class PromotionApprovalWorkflowService
                 $this->finalizationService->applyIfDue($lockedPromotion);
             } else {
                 $lockedPromotion->update(['current_approval_step' => $step + 1]);
+                $this->notificationService->recordActiveStep($lockedPromotion);
             }
 
             return false;

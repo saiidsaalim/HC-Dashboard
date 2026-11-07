@@ -17,7 +17,10 @@ class MovementApprovalWorkflowService
 {
     public const REQUIRED_STEPS = 3;
 
-    public function __construct(private readonly PersonnelMovementSnapshotService $snapshotService) {}
+    public function __construct(
+        private readonly PersonnelMovementSnapshotService $snapshotService,
+        private readonly MovementApprovalNotificationService $notificationService,
+    ) {}
 
     /**
      * @param  class-string<EmployeeMutation|EmployeeDemotion>  $movementClass
@@ -122,6 +125,7 @@ class MovementApprovalWorkflowService
                 'finalized_at' => null,
                 'employee_applied_at' => null,
             ]);
+            $this->notificationService->recordActiveStep($lockedMovement);
         }, attempts: 3);
     }
 

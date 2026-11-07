@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Enums\UserRole;
+use App\Jobs\SendMovementApprovalNotification;
 use App\Models\Employee;
 use App\Models\EmployeeMutation;
+use App\Models\MovementApprovalDelivery;
 use App\Models\MutationApprovalConfig;
 use App\Models\User;
 use App\Services\Personnel\MovementApprovalWorkflowService;
@@ -21,6 +23,13 @@ class ConcurrentMovementApprovalTest extends TestCase
         }
 
         $suffix = str()->uuid()->toString();
+        $notificationQueue = "concurrent-approval-{$suffix}";
+        $queueTable = (string) config('queue.connections.database.table', 'jobs');
+        config([
+            'movement-notifications.connection' => 'database',
+            'movement-notifications.queue' => $notificationQueue,
+            'queue.connections.database.connection' => DB::getDefaultConnection(),
+        ]);
         $employee = Employee::query()->create(['sap' => "CONCURRENT-{$suffix}"]);
         $submitter = User::factory()->create(['role' => UserRole::SUPER_ADMIN->value]);
         $approvers = User::factory()->count(3)->create(['role' => UserRole::MANAGER->value]);
@@ -49,13 +58,18 @@ class ConcurrentMovementApprovalTest extends TestCase
 require 'vendor/autoload.php';
 $app = require 'bootstrap/app.php';
 $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+config(['queue.connections.database.connection' => \Illuminate\Support\Facades\DB::getDefaultConnection()]);
 app(\App\Services\Personnel\ApprovalService::class)->approve(\App\Models\EmployeeMutation::findOrFail(%d), \App\Models\User::findOrFail(%d));
 PHP,
             $movement->id,
             $approvers[0]->id,
         );
-        $firstProcess = new Process([PHP_BINARY, '-r', $approvalCode], base_path());
-        $secondProcess = new Process([PHP_BINARY, '-r', $approvalCode], base_path());
+        $processEnvironment = [
+            'MOVEMENT_APPROVAL_QUEUE_CONNECTION' => 'database',
+            'MOVEMENT_APPROVAL_QUEUE' => $notificationQueue,
+        ];
+        $firstProcess = new Process([PHP_BINARY, '-r', $approvalCode], base_path(), $processEnvironment);
+        $secondProcess = new Process([PHP_BINARY, '-r', $approvalCode], base_path(), $processEnvironment);
 
         try {
             $firstProcess->start();
@@ -70,7 +84,33 @@ PHP,
             $this->assertSame(1, $movement->approvals()->where('status', 'Approved')->count());
             $this->assertSame(2, $movement->approvals()->where('status', 'Pending')->count());
             $this->assertDatabaseCount('mutation_approvals', 3);
+
+            $deliveries = MovementApprovalDelivery::query()
+                ->where('movement_type', 'mutation')
+                ->where('movement_id', $movement->id)
+                ->orderBy('step_order')
+                ->get();
+            $this->assertCount(2, $deliveries);
+            $this->assertSame([1, 1], $deliveries->pluck('approval_round')->all());
+            $this->assertSame([1, 2], $deliveries->pluck('step_order')->all());
+            $this->assertSame([$approvers[0]->id, $approvers[1]->id], $deliveries->pluck('recipient_id')->all());
+            $this->assertSame(['queued', 'queued'], $deliveries->pluck('status')->all());
+
+            $queuedDeliveryIds = DB::table($queueTable)->where('queue', $notificationQueue)
+                ->pluck('payload')
+                ->map(function (string $payload): int {
+                    $jobPayload = json_decode($payload, true, flags: JSON_THROW_ON_ERROR);
+                    $this->assertSame(SendMovementApprovalNotification::class, $jobPayload['data']['commandName']);
+                    $job = unserialize($jobPayload['data']['command'], ['allowed_classes' => [SendMovementApprovalNotification::class]]);
+                    $this->assertInstanceOf(SendMovementApprovalNotification::class, $job);
+
+                    return $job->deliveryId;
+                })->all();
+            $this->assertCount(2, $queuedDeliveryIds);
+            $this->assertEqualsCanonicalizing($deliveries->modelKeys(), $queuedDeliveryIds);
         } finally {
+            DB::table($queueTable)->where('queue', $notificationQueue)->delete();
+            MovementApprovalDelivery::query()->where('movement_type', 'mutation')->where('movement_id', $movement->id)->delete();
             $movement->delete();
             MutationApprovalConfig::query()->whereIn('user_id', $approvers->modelKeys())->delete();
             User::query()->whereIn('id', [...$approvers->modelKeys(), $submitter->id])->delete();

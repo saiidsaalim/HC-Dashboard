@@ -40,16 +40,31 @@ class PromotionController extends Controller
     ): View {
         Gate::authorize('viewAny', EmployeePromotion::class);
         $perPage = $this->perPage($request);
+        $reviewId = null;
+        if ($request->query->has('review')) {
+            $requestedReviewId = $request->query('review');
+            abort_unless(is_string($requestedReviewId) && ctype_digit($requestedReviewId), 404);
+            $requestedReviewId = ltrim($requestedReviewId, '0');
+            $maximumId = (string) PHP_INT_MAX;
+            abort_unless($requestedReviewId !== '' && (strlen($requestedReviewId) < strlen($maximumId)
+                || (strlen($requestedReviewId) === strlen($maximumId) && strcmp($requestedReviewId, $maximumId) <= 0)), 404);
+            $reviewedPromotion = EmployeePromotion::query()->findOrFail($requestedReviewId);
+            Gate::authorize('view', $reviewedPromotion);
+            $reviewId = $reviewedPromotion->getKey();
+        }
 
-        $search = trim((string) $request->input('search', ''));
-        $batchId = $request->integer('batch') ?: null;
-        $filter = (string) $request->input('status', 'all');
+        $search = $reviewId === null ? trim((string) $request->input('search', '')) : '';
+        $batchId = $reviewId === null ? ($request->integer('batch') ?: null) : null;
+        $filter = $reviewId === null ? (string) $request->input('status', 'all') : 'all';
         if (! in_array($filter, ['all', 'draft', 'waiting', 'returned', 'approved', 'final', 'mine'], true)) {
             $filter = 'all';
         }
 
         $promotionQuery = EmployeePromotion::query()
             ->with(['batch:id,batch_number,name', 'approvals.manager', 'employee', 'submitter']);
+        if ($reviewId !== null) {
+            $promotionQuery->whereKey($reviewId);
+        }
 
         if ($search !== '') {
             $promotionQuery->where(function (Builder $query) use ($search): void {
@@ -92,7 +107,8 @@ class PromotionController extends Controller
         $canManage = $request->user()->can('create', EmployeePromotion::class);
 
         return view('pages.promosi', [
-            'promotions' => $promotionQuery->latest('tmt')->latest()->paginate($perPage)->withQueryString(),
+            'promotions' => $promotionQuery->latest('tmt')->latest()->paginate($perPage, ['*'], 'page', $reviewId === null ? null : 1)->withQueryString(),
+            'reviewId' => $reviewId,
             'perPage' => $perPage,
             'totalPromotions' => EmployeePromotion::query()->count(),
             'pendingPromotions' => EmployeePromotion::query()->whereIn('verification_status', [

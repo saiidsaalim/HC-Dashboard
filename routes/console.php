@@ -11,3 +11,7 @@ Artisan::command('inspire', function () {
 Schedule::command('personnel:apply-due-movements')
     ->hourly()
     ->withoutOverlapping();
+
+Schedule::command('personnel:dispatch-approval-notifications')
+    ->everyMinute()
+    ->withoutOverlapping();

@@ -604,6 +604,26 @@ document.querySelectorAll('dialog').forEach((dialog, index) => {
     }
 });
 
+function initializeApprovalReviewDialog() {
+    const dialog = document.querySelector('dialog[data-auto-open-review]');
+
+    if (!(dialog instanceof HTMLDialogElement) || dialog.matches(':modal')) {
+        return;
+    }
+
+    if (dialog.open) {
+        dialog.close();
+    }
+
+    dialog.showModal();
+}
+
+if (document.readyState === 'complete') {
+    initializeApprovalReviewDialog();
+} else {
+    document.addEventListener('DOMContentLoaded', initializeApprovalReviewDialog, { once: true });
+}
+
 document.querySelectorAll('[data-employee-account-form]').forEach((form) => {
     const employeeSelect = form.querySelector('[data-employee-account-select]');
     const nameInput = form.elements.namedItem('name');

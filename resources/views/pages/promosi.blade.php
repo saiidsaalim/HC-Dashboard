@@ -418,7 +418,8 @@
         @endcan
 
         <dialog id="promotion-detail-{{ $promotion->id }}"
-            @if (in_array(old('_form'), ["edit-{$promotion->id}", "return-{$promotion->id}"], true)) x-init="$el.showModal()" @endif
+            @if ((string) ($reviewId ?? '') === (string) $promotion->id) data-auto-open-review open
+            @elseif (in_array(old('_form'), ["edit-{$promotion->id}", "return-{$promotion->id}"], true)) x-init="$el.showModal()" @endif
             aria-labelledby="promotion-detail-title-{{ $promotion->id }}"
             class="w-[calc(100%-1rem)] max-w-7xl overflow-hidden rounded-2xl p-0 shadow-2xl backdrop:bg-slate-950/60 sm:w-[calc(100%-2rem)] sm:rounded-3xl">
             <section class="flex max-h-[calc(100dvh-1rem)] min-h-0 flex-col bg-white sm:max-h-[calc(100dvh-2rem)]">
